@@ -18,9 +18,12 @@ export const fetchAsignaciones = createAsyncThunk(
 
       const sf = sanitize(filters.searchFuncionario);
       if (sf) {
-        query = query.or(
-          `paterno.ilike.%${sf}%,materno.ilike.%${sf}%,nombre1.ilike.%${sf}%,nombre2.ilike.%${sf}%,cirun.ilike.%${sf}%`
-        );
+        const words = sf.split(/\s+/).filter(Boolean);
+        for (const word of words) {
+          query = query.or(
+            `nombre1.ilike.%${word}%,paterno.ilike.%${word}%,materno.ilike.%${word}%,cirun.ilike.%${word}%`
+          );
+        }
       }
 
       const sa = sanitize(filters.searchActivo);
