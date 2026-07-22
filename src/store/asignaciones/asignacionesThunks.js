@@ -16,12 +16,17 @@ export const fetchAsignaciones = createAsyncThunk(
         .from(TABLE)
         .select("*", { count: "exact" });
 
-      const sf = sanitize(filters.searchFuncionario);
-      if (sf) {
-        query = query.or(
-          `paterno.ilike.%${sf}%,materno.ilike.%${sf}%,nombre1.ilike.%${sf}%,nombre2.ilike.%${sf}%,cirun.ilike.%${sf}%`
-        );
-      }
+      const sn1 = sanitize(filters.searchNombre1);
+      if (sn1) query = query.ilike("nombre1", `%${sn1}%`);
+
+      const sn2 = sanitize(filters.searchNombre2);
+      if (sn2) query = query.ilike("nombre2", `%${sn2}%`);
+
+      const sp = sanitize(filters.searchPaterno);
+      if (sp) query = query.ilike("paterno", `%${sp}%`);
+
+      const sm = sanitize(filters.searchMaterno);
+      if (sm) query = query.ilike("materno", `%${sm}%`);
 
       const sa = sanitize(filters.searchActivo);
       if (sa) {
