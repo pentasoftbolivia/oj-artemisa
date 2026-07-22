@@ -1,50 +1,57 @@
 import { createAsyncThunk } from "@reduxjs/toolkit";
-import { fetchAllRows, createRow, updateRow, deleteRow } from "@/services/baseService";
-import { toSnakeCase, toCamelCaseArray, toCamelCase } from "@/lib/mapFields";
+import { supabase } from "@/lib/supabase";
 
-const TABLE = "asignaciones";
+const TABLE = "v_asignaciones";
+
+const sanitize = (s) => (s || "").replace(/[%,]/g, "").trim();
+
 export const fetchAsignaciones = createAsyncThunk(
   "asignaciones/fetchAsignaciones",
-  async (_, { rejectWithValue }) => {
+  async ({ page = 1, pageSize = 50, filters = {} } = {}, { rejectWithValue }) => {
     try {
-      const data = await fetchAllRows(TABLE);
-      return toCamelCaseArray(data);
-    } catch (error) {
-      return rejectWithValue(error.message);
-    }
-  }
-);
+      const start = (page - 1) * pageSize;
+      const end = start + pageSize - 1;
 
-export const addAsignacion = createAsyncThunk(
-  "asignaciones/addAsignacion",
-  async (newAsignacion, { rejectWithValue }) => {
-    try {
-      const data = await createRow(TABLE, toSnakeCase(newAsignacion));
-      return toCamelCase(data);
-    } catch (error) {
-      return rejectWithValue(error.message);
-    }
-  }
-);
+      let query = supabase
+        .from(TABLE)
+        .select("*", { count: "exact" });
 
-export const updateAsignacion = createAsyncThunk(
-  "asignaciones/updateAsignacion",
-  async ({ id, updatedAsignacion }, { rejectWithValue }) => {
-    try {
-      const data = await updateRow(TABLE, id, toSnakeCase(updatedAsignacion));
-      return toCamelCase(data);
-    } catch (error) {
-      return rejectWithValue(error.message);
-    }
-  }
-);
+      const sf = sanitize(filters.searchFuncionario);
+      if (sf) {
+        query = query.or(
+          `paterno.ilike.%${sf}%,materno.ilike.%${sf}%,nombre1.ilike.%${sf}%,nombre2.ilike.%${sf}%,cirun.ilike.%${sf}%`
+        );
+      }
 
-export const deleteAsignacion = createAsyncThunk(
-  "asignaciones/deleteAsignacion",
-  async (id, { rejectWithValue }) => {
-    try {
-      await deleteRow(TABLE, id);
-      return id;
+      const sa = sanitize(filters.searchActivo);
+      if (sa) {
+        query = query.or(
+          `codigoactivo.ilike.%${sa}%,descripcionactivo.ilike.%${sa}%,serie.ilike.%${sa}%,marcamaterial.ilike.%${sa}%`
+        );
+      }
+
+      const sg = sanitize(filters.searchGrupo);
+      if (sg) {
+        query = query.or(`grupo.ilike.%${sg}%`);
+      }
+
+      if (filters.estado && filters.estado !== "all") {
+        const est = filters.estado.replace(/'/g, "").trim();
+        query = query.eq("estado", est);
+      }
+
+      const { data, error, count } = await query
+        .order("codigoactivo", { ascending: true })
+        .range(start, end);
+
+      if (error) throw error;
+
+      return {
+        data: data || [],
+        totalCount: count || 0,
+        page,
+        pageSize,
+      };
     } catch (error) {
       return rejectWithValue(error.message);
     }

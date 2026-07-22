@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSelector, useDispatch } from "react-redux";
 
 import { Badge } from "@/components/ui/badge";
@@ -15,18 +15,9 @@ import {
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -36,161 +27,83 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import LoadingSpinner from "@/components/ui/loading-spinner";
-import {
-  Plus,
-  Edit,
-  Trash2,
-  ClipboardList,
-  Filter,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-  X,
-} from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { useCatalogos } from "@/hooks/useCatalogos";
+import DataPagination from "@/components/ui/data-pagination";
+import ComboboxField from "@/components/ui/combobox-field";
+import { ClipboardList, Filter, X, Search } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
+import { fetchAsignaciones } from "@/store/asignaciones/asignacionesThunks";
 import {
-  fetchAsignaciones,
-  addAsignacion,
-  updateAsignacion,
-  deleteAsignacion,
-} from "@/store/asignaciones/asignacionesThunks";
-import {
-  selectSortedAsignaciones,
+  resetAsignaciones,
+  selectAsignacionesData,
+  selectAsignacionesTotalCount,
   selectAsignacionesLoading,
   selectAsignacionesError,
 } from "@/store/asignaciones/asignacionesSlice";
 
-import ComboboxField from "@/components/ui/combobox-field";
-import AsignacionesForm from "./AsignacionesForm";
+const ESTADOS = ["Activo", "Baja"];
 
 const INITIAL_FILTERS = {
-  search: "",
-  activoId: "",
-  funcionarioId: "",
-};
-
-const MESSAGES = {
-  success: {
-    created: "La asignación ha sido guardada exitosamente.",
-    updated: "La asignación se ha actualizado correctamente.",
-    deleted: "La asignación se ha eliminado correctamente.",
-  },
-  error: {
-    loading: "Error al cargar asignaciones",
-    save: "Fallo al guardar la asignación",
-    delete: "Error al eliminar la asignación",
-    unknown: "Error desconocido",
-  },
-  empty: {
-    noData: "Selecciona un filtro para buscar asignaciones",
-    noResults: "No se encontraron asignaciones que coincidan con los filtros",
-    adjustFilters: "Intenta ajustar los filtros de búsqueda",
-  },
-  placeholders: {
-    search:
-      "Buscar por CI, nombres y apellidos de funcionario o código patrimonial...",
-    activo: "Seleccionar activo",
-    funcionario: "Seleccionar funcionario",
-  },
+  searchFuncionario: "",
+  searchActivo: "",
+  searchGrupo: "",
+  estado: "",
 };
 
 const EMPTY_ARRAY = [];
 
 const AsignacionesList = () => {
   const dispatch = useDispatch();
-  const { toast } = useToast();
 
-  const asignaciones = useSelector(selectSortedAsignaciones);
+  const asignaciones = useSelector(selectAsignacionesData);
+  const totalCount = useSelector(selectAsignacionesTotalCount);
   const isLoading = useSelector(selectAsignacionesLoading);
   const error = useSelector(selectAsignacionesError);
 
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingAsignacion, setEditingAsignacion] = useState(null);
-  const [asignacionToDelete, setAsignacionToDelete] = useState(null);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [rubros, setRubros] = useState(EMPTY_ARRAY);
+  useEffect(() => {
+    supabase
+      .from("act_rubro")
+      .select("descripcionrubroact")
+      .order("descripcionrubroact", { ascending: true })
+      .then(({ data, error }) => {
+        if (!error && data) setRubros(data);
+      });
+  }, []);
+
   const [filters, setFilters] = useState({ ...INITIAL_FILTERS });
-
-  const { data: catalogos, loading: fkLoading } = useCatalogos([
-    {
-      table: "activos_fijos",
-      columns: "id, codigo_patrimonial, denominacion, tipo_activo_id, estado",
-    },
-    { table: "tipos_activo", columns: "id, nombre, tipo_padre_id" },
-    {
-      table: "funcionarios",
-      columns:
-        "id, nombres, apellido_paterno, apellido_materno, cargo_id, numero_documento",
-    },
-    { table: "entidades", columns: "id, nombre" },
-    { table: "unidades", columns: "id, nombre" },
-    { table: "ubicaciones", columns: "id, nombre, municipio_id" },
-    { table: "municipios", columns: "id, nombre" },
-    { table: "cargos" },
-  ]);
-
-  const activos = catalogos.activos_fijos || EMPTY_ARRAY;
-  const funcionarios = catalogos.funcionarios || EMPTY_ARRAY;
-  const entidades = catalogos.entidades || EMPTY_ARRAY;
-  const unidades = catalogos.unidades || EMPTY_ARRAY;
-  const ubicaciones = catalogos.ubicaciones || EMPTY_ARRAY;
-  const municipios = catalogos.municipios || EMPTY_ARRAY;
-  const tiposActivo = catalogos.tipos_activo || EMPTY_ARRAY;
-  const cargos = catalogos.cargos || EMPTY_ARRAY;
-
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
-  const [isFetchingData, setIsFetchingData] = useState(false);
+
+  const hasActiveFilters =
+    filters.searchFuncionario || filters.searchActivo || filters.searchGrupo || filters.estado;
+
+  const debounceRef = useRef(null);
 
   useEffect(() => {
-    const hasFilters =
-      filters.search || filters.activoId || filters.funcionarioId;
-    if (!hasFilters) return;
-    if (isFetchingData) return;
-    setIsFetchingData(true);
-    dispatch(fetchAsignaciones());
-  }, [filters, isFetchingData, dispatch]);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
 
-  const handleAdd = useCallback(() => {
-    setEditingAsignacion(null);
-    setIsFormOpen(true);
-  }, []);
+    debounceRef.current = setTimeout(() => {
+      if (!hasActiveFilters) {
+        dispatch(resetAsignaciones());
+        return;
+      }
+      dispatch(
+        fetchAsignaciones({ page: currentPage, pageSize, filters })
+      );
+    }, 400);
 
-  const handleEdit = useCallback((asignacion) => {
-    setEditingAsignacion(asignacion);
-    setIsFormOpen(true);
-  }, []);
-
-  const handleDelete = useCallback((asignacion) => {
-    setAsignacionToDelete(asignacion);
-    setIsDeleteDialogOpen(true);
-  }, []);
-
-  const confirmDelete = useCallback(() => {
-    if (asignacionToDelete) {
-      dispatch(deleteAsignacion(asignacionToDelete.id));
-      setIsDeleteDialogOpen(false);
-      setAsignacionToDelete(null);
-      toast({
-        title: "¡Éxito!",
-        description: MESSAGES.success.deleted,
-        variant: "default",
-      });
-    }
-  }, [asignacionToDelete, dispatch, toast]);
-
-  const handleCancel = useCallback(() => {
-    setIsFormOpen(false);
-    setEditingAsignacion(null);
-  }, []);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [dispatch, hasActiveFilters, currentPage, pageSize, filters]);
 
   const handleFilterChange = useCallback((filterType, value) => {
     setFilters((prev) => ({
       ...prev,
-      [filterType]: value,
+      [filterType]: value === "__todos__" ? "" : value,
     }));
+    setCurrentPage(1);
   }, []);
 
   const clearFilters = useCallback(() => {
@@ -198,345 +111,21 @@ const AsignacionesList = () => {
     setCurrentPage(1);
   }, []);
 
-  const activosMap = useMemo(
-    () =>
-      activos.reduce((acc, a) => {
-        acc[a.id] = `${a.denominacion}`;
-        return acc;
-      }, {}),
-    [activos],
-  );
-
-  const codigoPatrimonialMap = useMemo(
-    () =>
-      activos.reduce((acc, a) => {
-        acc[a.id] = a.codigo_patrimonial;
-        return acc;
-      }, {}),
-    [activos],
-  );
-
-  const getActivoName = useCallback(
-    (id) => (id ? activosMap[id] || `ID: ${id}` : "—"),
-    [activosMap],
-  );
-
-  const getCodigoPatrimonialByActivoId = useCallback(
-    (id) => (id ? codigoPatrimonialMap[id] || `ID: ${id}` : "—"),
-    [codigoPatrimonialMap],
-  );
-
-  const funcionariosMap = useMemo(
-    () =>
-      funcionarios.reduce((acc, f) => {
-        acc[f.id] =
-          `${f.nombres} ${f.apellido_paterno} ${f.apellido_materno || ""}`.trim();
-        return acc;
-      }, {}),
-    [funcionarios],
-  );
-
-  const getFuncionarioName = useCallback(
-    (id) => (id ? funcionariosMap[id] || `ID: ${id}` : "—"),
-    [funcionariosMap],
-  );
-
-  const funcionarioDocMap = useMemo(
-    () =>
-      funcionarios.reduce((acc, f) => {
-        acc[f.id] = f.numero_documento || "";
-        return acc;
-      }, {}),
-    [funcionarios],
-  );
-
-  const getFuncionarioDoc = useCallback(
-    (id) => (id ? funcionarioDocMap[id] || "" : ""),
-    [funcionarioDocMap],
-  );
-
-  const entidadesMap = useMemo(
-    () =>
-      entidades.reduce((acc, e) => {
-        acc[e.id] = e.nombre;
-        return acc;
-      }, {}),
-    [entidades],
-  );
-
-  const getEntidadName = useCallback(
-    (id) => (id ? entidadesMap[id] || `ID: ${id}` : "—"),
-    [entidadesMap],
-  );
-
-  const unidadesMap = useMemo(
-    () =>
-      unidades.reduce((acc, u) => {
-        acc[u.id] = u.nombre;
-        return acc;
-      }, {}),
-    [unidades],
-  );
-
-  const getUnidadName = useCallback(
-    (id) => (id ? unidadesMap[id] || `ID: ${id}` : "—"),
-    [unidadesMap],
-  );
-
-  const ubicacionesMap = useMemo(
-    () =>
-      ubicaciones.reduce((acc, u) => {
-        acc[u.id] = u.nombre;
-        return acc;
-      }, {}),
-    [ubicaciones],
-  );
-
-  const getUbicacionName = useCallback(
-    (id) => (id ? ubicacionesMap[id] || `ID: ${id}` : "—"),
-    [ubicacionesMap],
-  );
-
-  const municipiosMap = useMemo(
-    () =>
-      municipios.reduce((acc, m) => {
-        acc[m.id] = m.nombre;
-        return acc;
-      }, {}),
-    [municipios],
-  );
-
-  const ubicacionToMunicipioMap = useMemo(
-    () =>
-      ubicaciones.reduce((acc, u) => {
-        if (u.municipio_id) {
-          acc[u.id] = municipiosMap[u.municipio_id] || "";
-        }
-        return acc;
-      }, {}),
-    [ubicaciones, municipiosMap],
-  );
-
-  const getMunicipioByUbicacionId = useCallback(
-    (ubicacionId) =>
-      ubicacionId ? ubicacionToMunicipioMap[ubicacionId] || "—" : "—",
-    [ubicacionToMunicipioMap],
-  );
-
-  const tipoActivoMap = useMemo(
-    () =>
-      tiposActivo.reduce((acc, t) => {
-        acc[t.id] = t.nombre;
-        return acc;
-      }, {}),
-    [tiposActivo],
-  );
-
-  const activoToTipoMap = useMemo(
-    () =>
-      activos.reduce((acc, a) => {
-        if (a.tipo_activo_id) {
-          acc[a.id] = tipoActivoMap[a.tipo_activo_id] || "";
-        }
-        return acc;
-      }, {}),
-    [activos, tipoActivoMap],
-  );
-
-  const getTipoActivoByActivoId = useCallback(
-    (activoId) => (activoId ? activoToTipoMap[activoId] || "—" : "—"),
-    [activoToTipoMap],
-  );
-
-  const tipoPadreMap = useMemo(
-    () =>
-      tiposActivo.reduce((acc, t) => {
-        if (t.tipo_padre_id) {
-          acc[t.id] = tipoActivoMap[t.tipo_padre_id] || "";
-        }
-        return acc;
-      }, {}),
-    [tiposActivo, tipoActivoMap],
-  );
-
-  const activoToTipoPadreMap = useMemo(
-    () =>
-      activos.reduce((acc, a) => {
-        if (a.tipo_activo_id && tipoPadreMap[a.tipo_activo_id]) {
-          acc[a.id] = tipoPadreMap[a.tipo_activo_id];
-        }
-        return acc;
-      }, {}),
-    [activos, tipoPadreMap],
-  );
-
-  const getTipoByActivoId = useCallback(
-    (activoId) => (activoId ? activoToTipoPadreMap[activoId] || "—" : "—"),
-    [activoToTipoPadreMap],
-  );
-
-  const cargosMap = useMemo(
-    () =>
-      cargos.reduce((acc, c) => {
-        acc[c.id] = c.nombre;
-        return acc;
-      }, {}),
-    [cargos],
-  );
-
-  const funcionarioToCargoMap = useMemo(
-    () =>
-      funcionarios.reduce((acc, f) => {
-        if (f.cargo_id) {
-          acc[f.id] = cargosMap[f.cargo_id] || "";
-        }
-        return acc;
-      }, {}),
-    [funcionarios, cargosMap],
-  );
-
-  const getCargoByFuncionarioId = useCallback(
-    (funcionarioId) =>
-      funcionarioId ? funcionarioToCargoMap[funcionarioId] || "—" : "—",
-    [funcionarioToCargoMap],
-  );
-
-  const activoEstadoMap = useMemo(
-    () =>
-      activos.reduce((acc, a) => {
-        if (a.estado) {
-          acc[a.id] = a.estado;
-        }
-        return acc;
-      }, {}),
-    [activos],
-  );
-
-  const getEstadoByActivoId = useCallback(
-    (activoId) => (activoId ? activoEstadoMap[activoId] || "ACTIVO" : "ACTIVO"),
-    [activoEstadoMap],
-  );
-
-  const hasActiveFilters =
-    filters.search || filters.activoId || filters.funcionarioId;
-
-  const filteredAsignaciones = useMemo(() => {
-    if (!hasActiveFilters) return [];
-    return asignaciones.filter((a) => {
-      const activoNombre = activosMap[a.activoId] || "";
-      const funcNombre = getFuncionarioName(a.funcionarioId);
-      const funcDoc = getFuncionarioDoc(a.funcionarioId);
-      const searchStr =
-        `${activoNombre} ${funcNombre} ${funcDoc}`.toLowerCase();
-      const searchMatch =
-        !filters.search || searchStr.includes(filters.search.toLowerCase());
-
-      const activoMatch =
-        !filters.activoId || a.activoId?.toString() === filters.activoId;
-
-      const funcionarioMatch =
-        !filters.funcionarioId ||
-        a.funcionarioId?.toString() === filters.funcionarioId;
-
-      return searchMatch && activoMatch && funcionarioMatch;
-    });
-  }, [
-    asignaciones,
-    filters,
-    hasActiveFilters,
-    activosMap,
-    getFuncionarioName,
-    getFuncionarioDoc,
-  ]);
-
-  const totalPages = useMemo(
-    () => Math.max(1, Math.ceil(filteredAsignaciones.length / pageSize)),
-    [filteredAsignaciones.length, pageSize],
-  );
-
-  const safeCurrentPage = useMemo(
-    () => Math.min(currentPage, totalPages),
-    [currentPage, totalPages],
-  );
-
-  const paginatedAsignaciones = useMemo(() => {
-    const start = (safeCurrentPage - 1) * pageSize;
-    return filteredAsignaciones.slice(start, start + pageSize);
-  }, [filteredAsignaciones, safeCurrentPage, pageSize]);
-
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(1);
-    }
-  }, [currentPage, totalPages]);
-
-  const getPageNumbers = useCallback(() => {
-    const pages = [];
-    const total = totalPages;
-    const current = safeCurrentPage;
-
-    if (total <= 5) {
-      for (let i = 1; i <= total; i++) pages.push(i);
-    } else {
-      pages.push(1);
-      if (current > 3) pages.push("...");
-      const start = Math.max(2, current - 1);
-      const end = Math.min(total - 1, current + 1);
-      for (let i = start; i <= end; i++) pages.push(i);
-      if (current < total - 2) pages.push("...");
-      pages.push(total);
-    }
-    return pages;
-  }, [totalPages, safeCurrentPage]);
-
-  const handlePageSizeChange = useCallback((newSize) => {
-    setPageSize(newSize);
-    setCurrentPage(1);
+  const getNombreCompleto = useCallback((a) => {
+    const partes = [a.nombre1, a.nombre2, a.paterno, a.materno].filter(Boolean);
+    return partes.join(" ") || "—";
   }, []);
 
-  const handleSubmit = useCallback(
-    async (asignacionData) => {
-      const action = editingAsignacion
-        ? updateAsignacion({
-            id: editingAsignacion.id,
-            updatedAsignacion: asignacionData,
-          })
-        : addAsignacion(asignacionData);
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const showPagination = totalCount > 0;
 
-      try {
-        await dispatch(action).unwrap();
-        toast({
-          title: "¡Éxito!",
-          description: editingAsignacion
-            ? MESSAGES.success.updated
-            : MESSAGES.success.created,
-          variant: "default",
-        });
-        handleCancel();
-        return true;
-      } catch (error) {
-        console.error("Error saving asignacion:", error);
-        toast({
-          title: "Error",
-          description: `${MESSAGES.error.save}: ${
-            error.message || MESSAGES.error.unknown
-          }`,
-          variant: "destructive",
-        });
-        return false;
-      }
-    },
-    [dispatch, editingAsignacion, toast, handleCancel],
-  );
-
-  if (isFetchingData && isLoading && asignaciones.length === 0) {
-    return <LoadingSpinner />;
-  }
+  if (isLoading && asignaciones.length === 0) return <LoadingSpinner />;
 
   if (error) {
     return (
       <div className="bg-red-600 text-white text-center p-6 rounded-lg">
-        <p className="text-lg font-medium">{MESSAGES.error.loading}</p>
+        <p className="text-lg font-medium">Error al cargar asignaciones</p>
         <p className="text-sm mt-2">{error}</p>
       </div>
     );
@@ -544,55 +133,12 @@ const AsignacionesList = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Asignaciones</h1>
-          <p className="text-muted-foreground">
-            Administra las asignaciones de activos a funcionarios (Usa los
-            filtros para buscar información)
-          </p>
-        </div>
-
-        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-          <DialogTrigger asChild>
-            {/*             <Button onClick={handleAdd}>
-              <Plus className="mr-2 h-4 w-4" />
-              Nueva
-            </Button>
- */}{" "}
-          </DialogTrigger>
-          <DialogContent
-            className="sm:max-w-[700px]"
-            onInteractOutside={(e) => {
-              e.preventDefault();
-              handleCancel();
-            }}
-          >
-            <DialogHeader>
-              <DialogTitle>
-                {editingAsignacion ? "Editar Asignación" : "Nueva Asignación"}
-              </DialogTitle>
-              <DialogDescription>
-                {editingAsignacion
-                  ? "Modifica los datos de la asignación"
-                  : "Ingresa la información de la nueva asignación"}
-              </DialogDescription>
-            </DialogHeader>
-            {isFormOpen && (
-              <AsignacionesForm
-                asignacionToEdit={editingAsignacion}
-                onSubmit={handleSubmit}
-                onCancel={handleCancel}
-                activos={activos}
-                funcionarios={funcionarios}
-                entidades={entidades}
-                unidades={unidades}
-                ubicaciones={ubicaciones}
-                loadingFK={fkLoading}
-              />
-            )}
-          </DialogContent>
-        </Dialog>
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Asignaciones</h1>
+        <p className="text-muted-foreground">
+          Visualiza las asignaciones de activos a funcionarios (Usa los filtros
+          para buscar información)
+        </p>
       </div>
 
       <Card>
@@ -615,42 +161,77 @@ const AsignacionesList = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="search">Buscar</Label>
-              <Input
-                id="search"
-                placeholder={MESSAGES.placeholders.search}
-                value={filters.search}
-                onChange={(e) => handleFilterChange("search", e.target.value)}
-              />
+              <Label htmlFor="searchFuncionario">
+                Buscar por funcionario
+              </Label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="searchFuncionario"
+                  placeholder="CI, nombres o apellidos..."
+                  className="pl-8"
+                  value={filters.searchFuncionario}
+                  onChange={(e) =>
+                    handleFilterChange("searchFuncionario", e.target.value)
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="searchActivo">Buscar por activo</Label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="searchActivo"
+                  placeholder="Código, descripción o serie..."
+                  className="pl-8"
+                  value={filters.searchActivo}
+                  onChange={(e) =>
+                    handleFilterChange("searchActivo", e.target.value)
+                  }
+                />
+              </div>
             </div>
 
             <ComboboxField
-              label="Activo"
-              value={filters.activoId}
-              onValueChange={(value) => handleFilterChange("activoId", value)}
-              options={activos.map((a) => ({
-                value: a.id.toString(),
-                label: a.codigo_patrimonial,
-              }))}
-              placeholder={MESSAGES.placeholders.activo}
-              searchPlaceholder="Buscar activo..."
+              label="Buscar por grupo"
+              value={filters.searchGrupo}
+              onValueChange={(value) =>
+                handleFilterChange("searchGrupo", value)
+              }
+              options={[
+                { value: "__todos__", label: "Todos los grupos" },
+                ...rubros.map((r) => ({
+                  value: r.descripcionrubroact,
+                  label: r.descripcionrubroact,
+                })),
+              ]}
+              placeholder="Seleccionar grupo"
+              searchPlaceholder="Buscar grupo..."
             />
 
-            <ComboboxField
-              label="Funcionario"
-              value={filters.funcionarioId}
-              onValueChange={(value) =>
-                handleFilterChange("funcionarioId", value)
-              }
-              options={funcionarios.map((f) => ({
-                value: f.id.toString(),
-                label: `${f.nombres} ${f.apellido_paterno}`,
-              }))}
-              placeholder={MESSAGES.placeholders.funcionario}
-              searchPlaceholder="Buscar funcionario..."
-            />
+            <div className="space-y-2">
+              <Label htmlFor="estado">Buscar por estado</Label>
+              <Select
+                value={filters.estado}
+                onValueChange={(value) => handleFilterChange("estado", value)}
+              >
+                <SelectTrigger id="estado">
+                  <SelectValue placeholder="Todos los estados" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los estados</SelectItem>
+                  {ESTADOS.map((est) => (
+                    <SelectItem key={est} value={est}>
+                      {est}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -660,117 +241,101 @@ const AsignacionesList = () => {
           <CardTitle className="flex items-center gap-2">
             <ClipboardList className="h-5 w-5" />
             Lista de Asignaciones
+            {totalCount > 0 && (
+              <span className="text-sm font-normal text-muted-foreground ml-auto">
+                {totalCount} registro(s)
+              </span>
+            )}
           </CardTitle>
-          <CardDescription>
-            Todas las asignaciones registradas en el sistema
-          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>ID Activo</TableHead>
-                  <TableHead>Código Patrimonial</TableHead>
-                  <TableHead>Descripción Activo</TableHead>
+                  <TableHead>Código Activo</TableHead>
+                  <TableHead>Descripción</TableHead>
+                  <TableHead>Serie</TableHead>
+                  <TableHead>Marca</TableHead>
                   <TableHead>Grupo</TableHead>
                   <TableHead>Tipo Grupo</TableHead>
                   <TableHead>Responsable</TableHead>
+                  <TableHead>CI</TableHead>
                   <TableHead>Cargo</TableHead>
-                  <TableHead>Entidad</TableHead>
-                  <TableHead>Ubicación Actual</TableHead>
+                  <TableHead>Ubicación</TableHead>
                   <TableHead>Estado</TableHead>
-                  {/* <TableHead className="text-center">Acciones</TableHead> */}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedAsignaciones.length > 0 ? (
-                  paginatedAsignaciones.map((a) => (
-                    <TableRow key={a.id}>
-                      <TableCell className="font-medium whitespace-normal break-words max-w-[200px]">
-                        {a.activoId}
+                {asignaciones.length > 0 ? (
+                  asignaciones.map((a) => (
+                    <TableRow key={a.idbien}>
+                      <TableCell className="font-medium whitespace-normal break-words max-w-[180px]">
+                        {a.codigoactivo || "—"}
                       </TableCell>
-                      <TableCell className="font-medium whitespace-normal break-words max-w-[200px]">
-                        {getCodigoPatrimonialByActivoId(a.activoId)}
+                      <TableCell className="whitespace-normal break-words max-w-[250px]">
+                        {a.descripcionactivo || "—"}
                       </TableCell>
-                      <TableCell className="font-medium whitespace-normal break-words max-w-[200px]">
-                        {getActivoName(a.activoId)}
-                      </TableCell>
-                      <TableCell className="whitespace-normal break-words max-w-[150px]">
-                        {getTipoByActivoId(a.activoId)}
+                      <TableCell className="whitespace-normal break-words max-w-[120px]">
+                        {a.serie || "—"}
                       </TableCell>
                       <TableCell className="whitespace-normal break-words max-w-[150px]">
-                        {getTipoActivoByActivoId(a.activoId)}
+                        {a.marcamaterial || "—"}
                       </TableCell>
-                      <TableCell className="font-medium whitespace-normal break-words max-w-[100px]">
-                        {getFuncionarioName(a.funcionarioId)}
+                      <TableCell className="whitespace-normal break-words max-w-[150px]">
+                        {a.grupo || "—"}
                       </TableCell>
-                      <TableCell className="whitespace-normal break-words max-w-[180px]">
-                        {getCargoByFuncionarioId(a.funcionarioId)}
+                      <TableCell className="whitespace-normal break-words max-w-[150px]">
+                        {a.tipogrupo || "—"}
                       </TableCell>
-                      <TableCell className="whitespace-normal break-words max-w-[100px]">
-                        {getEntidadName(a.entidadId)}
+                      <TableCell className="font-medium whitespace-normal break-words max-w-[180px]">
+                        {getNombreCompleto(a)}
                       </TableCell>
-                      <TableCell className="whitespace-normal break-words max-w-[180px]">
-                        {getMunicipioByUbicacionId(a.ubicacionId)} -{" "}
-                        {getUbicacionName(a.ubicacionId)} - {a.nivel} -{" "}
-                        {getUnidadName(a.unidadId)}
+                      <TableCell className="font-mono text-xs">
+                        {a.cirun || "—"}
+                      </TableCell>
+                      <TableCell className="whitespace-normal break-words max-w-[150px]">
+                        {a.cargoresponsable || "—"}
+                      </TableCell>
+                      <TableCell className="whitespace-normal break-words max-w-[200px]">
+                        {[a.descripcion, a.inmueble, a.nivel, a.ambiente]
+                          .filter(Boolean)
+                          .join(" - ") || "—"}
                       </TableCell>
                       <TableCell>
                         <Badge
                           variant={
-                            (getEstadoByActivoId(a.activoId) || "ACTIVO") ===
-                            "ACTIVO"
+                            (a.estado || "") === "Activo"
                               ? "default"
                               : "secondary"
                           }
                           className={
-                            getEstadoByActivoId(a.activoId) === "BAJA"
+                            a.estado === "Baja"
                               ? "bg-gray-100 text-gray-600 hover:bg-gray-100"
                               : ""
                           }
                         >
-                          {getEstadoByActivoId(a.activoId) || "ACTIVO"}
+                          {a.estado || "Desconocido"}
                         </Badge>
                       </TableCell>
-                      {/*                       <TableCell className="text-right">
-                        <div className="flex space-x-1 justify-end">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEdit(a)}
-                            title="Editar asignación"
-                            className="text-yellow-500 hover:text-yellow-700"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(a)}
-                            title="Eliminar asignación"
-                            className="text-red-500 hover:text-red-700"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell> */}
                     </TableRow>
                   ))
                 ) : (
                   <TableRow>
                     <TableCell
-                      colSpan={10}
+                      colSpan={11}
                       className="text-center py-12 text-muted-foreground"
                     >
                       <ClipboardList className="mx-auto h-12 w-12 opacity-20 mb-2" />
                       <p className="text-lg font-medium">
                         {hasActiveFilters
-                          ? MESSAGES.empty.noResults
-                          : MESSAGES.empty.noData}
+                          ? "No se encontraron asignaciones que coincidan con los filtros"
+                          : "Usa los filtros para buscar asignaciones"}
                       </p>
                       <p className="text-sm mt-1">
-                        {hasActiveFilters ? MESSAGES.empty.adjustFilters : ""}
+                        {hasActiveFilters
+                          ? "Intenta ajustar los filtros de búsqueda"
+                          : ""}
                       </p>
                     </TableCell>
                   </TableRow>
@@ -779,133 +344,21 @@ const AsignacionesList = () => {
             </Table>
           </div>
 
-          {filteredAsignaciones.length > 0 && (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span>Mostrar</span>
-                <Select
-                  value={pageSize.toString()}
-                  onValueChange={(v) => handlePageSizeChange(Number(v))}
-                >
-                  <SelectTrigger className="h-8 w-[80px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="50">50</SelectItem>
-                    <SelectItem value="100">100</SelectItem>
-                    <SelectItem value="200">200</SelectItem>
-                    <SelectItem value="500">500</SelectItem>
-                  </SelectContent>
-                </Select>
-                <span>por página</span>
-              </div>
-
-              <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                <span>
-                  {(safeCurrentPage - 1) * pageSize + 1}
-                  {" \u2014 "}
-                  {Math.min(
-                    safeCurrentPage * pageSize,
-                    filteredAsignaciones.length,
-                  )}
-                  {" de "}
-                  {filteredAsignaciones.length} registros
-                </span>
-              </div>
-
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  disabled={safeCurrentPage === 1}
-                  onClick={() => setCurrentPage(1)}
-                  title="Primera p\u00E1gina"
-                >
-                  <ChevronsLeft className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  disabled={safeCurrentPage === 1}
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  title="P\u00E1gina anterior"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-
-                {getPageNumbers().map((page, idx) =>
-                  page === "..." ? (
-                    <span
-                      key={`ellipsis-${idx}`}
-                      className="px-1 text-muted-foreground"
-                    >
-                      ...
-                    </span>
-                  ) : (
-                    <Button
-                      key={page}
-                      variant={safeCurrentPage === page ? "default" : "outline"}
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => setCurrentPage(page)}
-                    >
-                      {page}
-                    </Button>
-                  ),
-                )}
-
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  disabled={safeCurrentPage === totalPages}
-                  onClick={() =>
-                    setCurrentPage((p) => Math.min(totalPages, p + 1))
-                  }
-                  title="P\u00E1gina siguiente"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  disabled={safeCurrentPage === totalPages}
-                  onClick={() => setCurrentPage(totalPages)}
-                  title="\u00DAltima p\u00E1gina"
-                >
-                  <ChevronsRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
+          {showPagination && (
+            <DataPagination
+              currentPage={safeCurrentPage}
+              totalPages={totalPages}
+              totalCount={totalCount}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={(newSize) => {
+                setPageSize(newSize);
+                setCurrentPage(1);
+              }}
+            />
           )}
         </CardContent>
       </Card>
-
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>¿Está seguro de eliminar esta asignación?</DialogTitle>
-            <DialogDescription>
-              Esta acción no se puede deshacer. La asignación ID "
-              {asignacionToDelete?.id}" será eliminada permanentemente.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end space-x-2 pt-4">
-            <Button
-              variant="outline"
-              onClick={() => setIsDeleteDialogOpen(false)}
-            >
-              Cancelar
-            </Button>
-            <Button variant="destructive" onClick={confirmDelete}>
-              Eliminar
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
