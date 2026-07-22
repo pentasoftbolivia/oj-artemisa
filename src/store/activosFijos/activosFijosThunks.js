@@ -4,26 +4,37 @@ import { toSnakeCase, toCamelCaseArray } from "@/lib/mapFields";
 
 const TABLE = "act_activos";
 
-export const fetchActivosFijos = createAsyncThunk(
-  "activosFijos/fetchActivosFijos",
-  async (_, { rejectWithValue }) => {
+export const fetchActivosFijosPaginated = createAsyncThunk(
+  "activosFijos/fetchActivosFijosPaginated",
+  async ({ page = 1, pageSize = 100, filters = {} } = {}, { rejectWithValue }) => {
     try {
-      let allData = [];
-      let start = 0;
-      const CHUNK_SIZE = 1000;
-      let chunk;
-      do {
-        const { data, error } = await supabase
-          .from(TABLE)
-          .select("*")
-          .order("codigoactivointerno", { ascending: true })
-          .range(start, start + CHUNK_SIZE - 1);
-        if (error) throw error;
-        chunk = data || [];
-        allData = allData.concat(chunk);
-        start += CHUNK_SIZE;
-      } while (chunk.length === CHUNK_SIZE);
-      return toCamelCaseArray(allData);
+      const start = (page - 1) * pageSize;
+      const end = start + pageSize - 1;
+
+      let query = supabase
+        .from(TABLE)
+        .select("*", { count: "exact" })
+        .order("codigoactivointerno", { ascending: true })
+        .range(start, end);
+
+      if (filters.search) {
+        const s = filters.search.replace(/%/g, "").trim();
+        if (s) {
+          query = query.or(
+            `descripcionactivo.ilike.%${s}%,codigoambiente.ilike.%${s}%,cirun.ilike.%${s}%,codigoactivointerno.ilike.%${s}%`
+          );
+        }
+      }
+
+      const { data, error, count } = await query;
+      if (error) throw error;
+
+      return {
+        data: toCamelCaseArray(data || []),
+        totalCount: count || 0,
+        page,
+        pageSize,
+      };
     } catch (error) {
       return rejectWithValue(error.message);
     }
