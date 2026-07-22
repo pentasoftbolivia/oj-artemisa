@@ -1,0 +1,17 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "supabase": {
+      "type": "local",
+      "command": ["npx", "-y", "mcp-postgres-server"],
+      "enabled": true,
+      "env": {
+        "PG_HOST": "aws-0-sa-east-1.pooler.supabase.com",
+        "PG_PORT": "6543",
+        "PG_USER": "postgres.ydmrafgtxkhfyhjkbnsf",
+        "PG_PASSWORD": "UVnjwspNvpAtFGtx",
+        "PG_DATABASE": "postgres"
+      }
+    }
+  }
+} 

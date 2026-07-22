@@ -1,0 +1,8 @@
+{
+  "projects": {
+    "default": "oj-activosfijos",
+    "oj-activosfijos": "oj-activosfijos"
+  },
+  "targets": {},
+  "etags": {}
+}
