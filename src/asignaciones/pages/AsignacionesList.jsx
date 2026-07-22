@@ -44,10 +44,7 @@ import {
 const ESTADOS = ["Activo", "Baja"];
 
 const INITIAL_FILTERS = {
-  searchNombre1: "",
-  searchNombre2: "",
-  searchPaterno: "",
-  searchMaterno: "",
+  searchFuncionario: "",
   searchActivo: "",
   searchGrupo: "",
   estado: "",
@@ -79,8 +76,7 @@ const AsignacionesList = () => {
   const [pageSize, setPageSize] = useState(50);
 
   const hasActiveFilters =
-    filters.searchNombre1 || filters.searchNombre2 || filters.searchPaterno || filters.searchMaterno ||
-    filters.searchActivo || filters.searchGrupo || filters.estado;
+    filters.searchFuncionario || filters.searchActivo || filters.searchGrupo || filters.estado;
 
   const debounceRef = useRef(null);
 
@@ -95,7 +91,7 @@ const AsignacionesList = () => {
       dispatch(
         fetchAsignaciones({ page: currentPage, pageSize, filters })
       );
-    }, 800);
+    }, 400);
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -165,106 +161,76 @@ const AsignacionesList = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="searchNombre1">Primer nombre</Label>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="searchFuncionario">
+                Buscar por funcionario
+              </Label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
-                  id="searchNombre1"
-                  placeholder="Primer nombre..."
-                  value={filters.searchNombre1}
+                  id="searchFuncionario"
+                  placeholder="CI, nombres o apellidos..."
+                  className="pl-8"
+                  value={filters.searchFuncionario}
                   onChange={(e) =>
-                    handleFilterChange("searchNombre1", e.target.value)
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="searchNombre2">Segundo nombre</Label>
-                <Input
-                  id="searchNombre2"
-                  placeholder="Segundo nombre..."
-                  value={filters.searchNombre2}
-                  onChange={(e) =>
-                    handleFilterChange("searchNombre2", e.target.value)
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="searchPaterno">Apellido paterno</Label>
-                <Input
-                  id="searchPaterno"
-                  placeholder="Apellido paterno..."
-                  value={filters.searchPaterno}
-                  onChange={(e) =>
-                    handleFilterChange("searchPaterno", e.target.value)
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="searchMaterno">Apellido materno</Label>
-                <Input
-                  id="searchMaterno"
-                  placeholder="Apellido materno..."
-                  value={filters.searchMaterno}
-                  onChange={(e) =>
-                    handleFilterChange("searchMaterno", e.target.value)
+                    handleFilterChange("searchFuncionario", e.target.value)
                   }
                 />
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="searchActivo">Buscar por activo</Label>
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="searchActivo"
-                    placeholder="Código, descripción o serie..."
-                    className="pl-8"
-                    value={filters.searchActivo}
-                    onChange={(e) =>
-                      handleFilterChange("searchActivo", e.target.value)
-                    }
-                  />
-                </div>
-              </div>
 
-              <ComboboxField
-                label="Buscar por grupo"
-                value={filters.searchGrupo}
-                onValueChange={(value) =>
-                  handleFilterChange("searchGrupo", value)
-                }
-                options={[
-                  { value: "__todos__", label: "Todos los grupos" },
-                  ...rubros.map((r) => ({
-                    value: r.descripcionrubroact,
-                    label: r.descripcionrubroact,
-                  })),
-                ]}
-                placeholder="Seleccionar grupo"
-                searchPlaceholder="Buscar grupo..."
-              />
-
-              <div className="space-y-2">
-                <Label htmlFor="estado">Buscar por estado</Label>
-                <Select
-                  value={filters.estado}
-                  onValueChange={(value) => handleFilterChange("estado", value)}
-                >
-                  <SelectTrigger id="estado">
-                    <SelectValue placeholder="Todos los estados" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos los estados</SelectItem>
-                    {ESTADOS.map((est) => (
-                      <SelectItem key={est} value={est}>
-                        {est}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <div className="space-y-2">
+              <Label htmlFor="searchActivo">Buscar por activo</Label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="searchActivo"
+                  placeholder="Código, descripción o serie..."
+                  className="pl-8"
+                  value={filters.searchActivo}
+                  onChange={(e) =>
+                    handleFilterChange("searchActivo", e.target.value)
+                  }
+                />
               </div>
+            </div>
+
+            <ComboboxField
+              label="Buscar por grupo"
+              value={filters.searchGrupo}
+              onValueChange={(value) =>
+                handleFilterChange("searchGrupo", value)
+              }
+              options={[
+                { value: "__todos__", label: "Todos los grupos" },
+                ...rubros.map((r) => ({
+                  value: r.descripcionrubroact,
+                  label: r.descripcionrubroact,
+                })),
+              ]}
+              placeholder="Seleccionar grupo"
+              searchPlaceholder="Buscar grupo..."
+            />
+
+            <div className="space-y-2">
+              <Label htmlFor="estado">Buscar por estado</Label>
+              <Select
+                value={filters.estado}
+                onValueChange={(value) => handleFilterChange("estado", value)}
+              >
+                <SelectTrigger id="estado">
+                  <SelectValue placeholder="Todos los estados" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los estados</SelectItem>
+                  {ESTADOS.map((est) => (
+                    <SelectItem key={est} value={est}>
+                      {est}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </CardContent>
