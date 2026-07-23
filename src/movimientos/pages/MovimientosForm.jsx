@@ -143,7 +143,6 @@ const MovimientosForm = ({
   onCancel,
   tiposMovimiento,
   funcionarios,
-  ubicaciones,
   activos,
   estadosActivo,
   loadingFK,
@@ -485,11 +484,6 @@ const MovimientosForm = ({
       ),
     [funcionarios],
   );
-  const ubicacionOptions = useMemo(
-    () => createOptionsList(ubicaciones, "id", (u) => u.nombre),
-    [ubicaciones],
-  );
-
   const activosMap = useMemo(
     () =>
       createLookupMap(

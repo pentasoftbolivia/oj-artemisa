@@ -51,8 +51,8 @@ const ActivosFijosForm = ({ activoToEdit, onSubmit, onCancel }) => {
         codigoActivoInterno: activoToEdit.codigoActivoInterno != null ? String(activoToEdit.codigoActivoInterno) : "",
         descripcionActivo: (activoToEdit.descripcionActivo || "").trim(),
         codigoActivo: activoToEdit.codigoActivo != null ? String(activoToEdit.codigoActivo) : "",
-        codigoAmbiente: (activoToEdit.codigoAmbiente || "").trim(),
-        cirun: (activoToEdit.cirun || "").trim(),
+        codigoAmbiente: String(activoToEdit.codigoAmbiente ?? activoToEdit.codigoambiente ?? "").trim(),
+        cirun: normalizeCi(activoToEdit.cirun),
         tipoRubroAct: activoToEdit.tipoRubroAct != null ? String(activoToEdit.tipoRubroAct) : "",
         serie: (activoToEdit.serie || "").trim(),
         marcaMaterial: (activoToEdit.marcaMaterial || "").trim(),
@@ -88,7 +88,7 @@ const ActivosFijosForm = ({ activoToEdit, onSubmit, onCancel }) => {
       ["codigoActivoInterno", "codigoActivo", "tipoRubroAct", "estado", "valorInicial"].forEach(f => {
         if (submitData[f] === "") submitData[f] = null;
       });
-      if (submitData.valorInicial != null) submitData.valorInicial = String(submitData.valorInicial);
+      if (submitData.valorInicial != null) submitData.valorInicial = Number(submitData.valorInicial);
       const success = await onSubmit(submitData);
       if (!success) setIsSubmitting(false);
     } catch {
@@ -99,6 +99,7 @@ const ActivosFijosForm = ({ activoToEdit, onSubmit, onCancel }) => {
 
   const isEditing = Boolean(activoToEdit);
 
+  const normalizeCi = (v) => String(v ?? "").replace(/[^\d]/g, "");
   const formatFuncionario = (f) => {
     const parts = [f.nombres, f.paterno, f.materno].filter(Boolean).map(s => (s || "").trim());
     return parts.join(" ") || f.cirun;
@@ -127,60 +128,64 @@ const ActivosFijosForm = ({ activoToEdit, onSubmit, onCancel }) => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="space-y-2">
           <Label htmlFor="codigoAmbiente">Ambiente</Label>
-          {loadingFK ? (
-            <div className="h-10 w-full animate-pulse bg-slate-100 rounded border flex items-center px-3 text-muted-foreground text-sm">Cargando...</div>
-          ) : (
-            <Select value={formData.codigoAmbiente} onValueChange={(value) => handleSelectChange("codigoAmbiente", value)} disabled={isSubmitting}>
-              <SelectTrigger className="w-full [&>span]:line-clamp-1 text-left">
-                <SelectValue placeholder="Seleccionar ambiente" />
-              </SelectTrigger>
-              <SelectContent>
-                {ambientes.map(a => (
-                  <SelectItem key={a.codigoambiente} value={String(a.codigoambiente).trim()}>
-                    {`${(a.codigoambiente || "").trim()} - ${(a.ambiente || "").trim()}`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
+          <Select
+            key={`amb-${formData.codigoAmbiente}-${ambientes.length}`}
+            value={formData.codigoAmbiente}
+            onValueChange={(value) => handleSelectChange("codigoAmbiente", value)}
+            disabled={isSubmitting || loadingFK}
+          >
+            <SelectTrigger className="w-full [&>span]:line-clamp-1 text-left">
+              <SelectValue placeholder="Seleccionar ambiente" />
+            </SelectTrigger>
+            <SelectContent>
+              {ambientes.map(a => (
+                <SelectItem key={a.codigoambiente} value={String(a.codigoambiente).trim()}>
+                  {`${(a.codigoambiente || "").trim()} - ${(a.ambiente || "").trim()}`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-2">
           <Label htmlFor="cirun">Funcionario (CI)</Label>
-          {loadingFK ? (
-            <div className="h-10 w-full animate-pulse bg-slate-100 rounded border flex items-center px-3 text-muted-foreground text-sm">Cargando...</div>
-          ) : (
-            <Select value={formData.cirun} onValueChange={(value) => handleSelectChange("cirun", value)} disabled={isSubmitting}>
-              <SelectTrigger className="w-full [&>span]:line-clamp-1 text-left">
-                <SelectValue placeholder="Seleccionar funcionario" />
-              </SelectTrigger>
-              <SelectContent>
-                {funcionarios.map(f => (
-                  <SelectItem key={f.cirun} value={String(f.cirun).trim()}>
-                    {`${(f.cirun || "").trim()} - ${formatFuncionario(f)}`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
+          <Select
+            key={`fun-${formData.cirun}-${funcionarios.length}`}
+            value={formData.cirun}
+            onValueChange={(value) => handleSelectChange("cirun", normalizeCi(value))}
+            disabled={isSubmitting || loadingFK}
+          >
+            <SelectTrigger className="w-full [&>span]:line-clamp-1 text-left">
+              <SelectValue placeholder="Seleccionar funcionario" />
+            </SelectTrigger>
+            <SelectContent>
+              {funcionarios.map(f => (
+                <SelectItem key={f.cirun} value={normalizeCi(f.cirun)}>
+                  {`${normalizeCi(f.cirun)} - ${formatFuncionario(f)}`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
         </div>
         <div className="space-y-2">
           <Label htmlFor="tipoRubroAct">Tipo Rubro</Label>
-          {loadingFK ? (
-            <div className="h-10 w-full animate-pulse bg-slate-100 rounded border flex items-center px-3 text-muted-foreground text-sm">Cargando...</div>
-          ) : (
-            <Select value={formData.tipoRubroAct} onValueChange={(value) => handleSelectChange("tipoRubroAct", value)} disabled={isSubmitting}>
-              <SelectTrigger className="w-full [&>span]:line-clamp-1 text-left">
-                <SelectValue placeholder="Seleccionar tipo rubro" />
-              </SelectTrigger>
-              <SelectContent>
-                {tipoRubros.map(t => (
-                  <SelectItem key={t.tiporubroact} value={String(t.tiporubroact)}>
-                    {`${t.tiporubroact} - ${(t.descripciontiporubroact || "").trim()}`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
+          <Select
+            key={`tr-${formData.tipoRubroAct}-${tipoRubros.length}`}
+            value={formData.tipoRubroAct}
+            onValueChange={(value) => handleSelectChange("tipoRubroAct", value)}
+            disabled={isSubmitting || loadingFK}
+          >
+            <SelectTrigger className="w-full [&>span]:line-clamp-1 text-left">
+              <SelectValue placeholder="Seleccionar tipo rubro" />
+            </SelectTrigger>
+            <SelectContent>
+              {tipoRubros.map(t => (
+                <SelectItem key={t.tiporubroact} value={String(t.tiporubroact)}>
+                  {`${t.tiporubroact} - ${(t.descripciontiporubroact || "").trim()}`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 

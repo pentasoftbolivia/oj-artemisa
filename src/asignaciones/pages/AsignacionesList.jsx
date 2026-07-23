@@ -12,12 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -76,7 +71,10 @@ const AsignacionesList = () => {
   const [pageSize, setPageSize] = useState(50);
 
   const hasActiveFilters =
-    filters.searchFuncionario || filters.searchActivo || filters.searchGrupo || filters.estado;
+    filters.searchFuncionario ||
+    filters.searchActivo ||
+    filters.searchGrupo ||
+    filters.estado;
 
   const debounceRef = useRef(null);
 
@@ -88,9 +86,7 @@ const AsignacionesList = () => {
         dispatch(resetAsignaciones());
         return;
       }
-      dispatch(
-        fetchAsignaciones({ page: currentPage, pageSize, filters })
-      );
+      dispatch(fetchAsignaciones({ page: currentPage, pageSize, filters }));
     }, 400);
 
     return () => {
@@ -163,9 +159,7 @@ const AsignacionesList = () => {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="searchFuncionario">
-                Buscar por funcionario
-              </Label>
+              <Label htmlFor="searchFuncionario">Buscar por funcionario</Label>
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -186,7 +180,7 @@ const AsignacionesList = () => {
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="searchActivo"
-                  placeholder="Código, descripción o serie..."
+                  placeholder="Código, denominación o serie..."
                   className="pl-8"
                   value={filters.searchActivo}
                   onChange={(e) =>
@@ -254,7 +248,7 @@ const AsignacionesList = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Código Activo</TableHead>
-                  <TableHead>Descripción</TableHead>
+                  <TableHead>Denominación</TableHead>
                   <TableHead>Serie</TableHead>
                   <TableHead>Marca</TableHead>
                   <TableHead>Grupo</TableHead>
@@ -268,8 +262,8 @@ const AsignacionesList = () => {
               </TableHeader>
               <TableBody>
                 {asignaciones.length > 0 ? (
-                  asignaciones.map((a) => (
-                    <TableRow key={a.idbien}>
+                  asignaciones.map((a, i) => (
+                    <TableRow key={a.codigoactivo ?? `row-${i}`}>
                       <TableCell className="font-medium whitespace-normal break-words max-w-[180px]">
                         {a.codigoactivo || "—"}
                       </TableCell>

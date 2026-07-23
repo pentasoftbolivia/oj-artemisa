@@ -43,14 +43,21 @@ export const fetchAsignaciones = createAsyncThunk(
         query = query.eq("estado", est);
       }
 
-      const { data, error, count } = await query
-        .order("codigoactivo", { ascending: true })
-        .range(start, end);
+      const { data, error, count } = await query.range(start, end);
 
       if (error) throw error;
 
+      const extractNum = (code) => {
+        const m = String(code || "").match(/(\d+)$/);
+        return m ? parseInt(m[1], 10) : 0;
+      };
+
+      const sorted = [...(data || [])].sort(
+        (a, b) => extractNum(a.codigoactivo) - extractNum(b.codigoactivo),
+      );
+
       return {
-        data: data || [],
+        data: sorted,
         totalCount: count || 0,
         page,
         pageSize,

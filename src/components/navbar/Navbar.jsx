@@ -60,8 +60,8 @@ export const Navbar = () => {
             aria-label="Ir a la página de inicio"
           >
             <img
-              src="/logo.png"
-              alt="Órgano Judicial - La Paz"
+              src="/logo.jpg"
+              alt="Auditore MJ"
               className="h-14 w-auto ml-[0.5cm]"
             />
           </Link>
@@ -74,8 +74,7 @@ export const Navbar = () => {
             {navItems.map((item) => (
               <div key={item.title} className="relative group">
                 {item.submenu ? (
-                  <DropdownMenu
-                  >
+                  <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
                         variant="ghost"
@@ -87,7 +86,7 @@ export const Navbar = () => {
                         <ChevronDown
                           className={cn(
                             "h-4 w-4 transition-transform",
-                            activeDropdown === item.title && "rotate-180"
+                            activeDropdown === item.title && "rotate-180",
                           )}
                           aria-hidden="true"
                         />
@@ -190,14 +189,18 @@ export const Navbar = () => {
                         <AccordionContent>
                           <div className="ml-4 flex flex-col gap-2 border-l-2 border-border pl-4">
                             {item.submenu.map((subItem) => (
-                              <Link key={subItem.title} to={subItem.href} className="py-2 text-muted-foreground hover:text-foreground">
+                              <Link
+                                key={subItem.title}
+                                to={subItem.href}
+                                className="py-2 text-muted-foreground hover:text-foreground"
+                              >
                                 {subItem.title}
                               </Link>
                             ))}
                           </div>
                         </AccordionContent>
                       </AccordionItem>
-                    )
+                    ),
                   )}
                 </Accordion>
                 {/* Mobile Logout */}

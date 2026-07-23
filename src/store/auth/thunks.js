@@ -1,4 +1,4 @@
-import { checkingCredentials, activosfijos, logout } from "./authSlice";
+import { checkingCredentials, login, logout } from "./authSlice";
 import {
   loginUserWithEmailPassword,
   loginWithGoogle,
@@ -7,9 +7,17 @@ import {
 export const startGoogleSignIn = () => {
   return async (dispatch) => {
     dispatch(checkingCredentials());
-    const result = await loginWithGoogle();
-    if (!result.ok) {
-      dispatch(logout({ errorMessage: result.errorMessage }));
+    try {
+      const result = await loginWithGoogle();
+      if (!result.ok) {
+        dispatch(logout({ errorMessage: result.errorMessage }));
+        return { ok: false, error: result.errorMessage };
+      }
+    } catch (error) {
+      console.error("Error in startGoogleSignIn:", error);
+      const errorMessage = error.message || "Error al iniciar sesión con Google";
+      dispatch(logout({ errorMessage }));
+      return { ok: false, error: errorMessage };
     }
   };
 };
@@ -38,7 +46,7 @@ export const startLoginWithEmailPassword = ({ email, password }) => {
       };
 
       localStorage.setItem("user", JSON.stringify(userData));
-      dispatch(activosfijos(userData));
+      dispatch(login(userData));
       return {
         ok: true,
         ...userData,

@@ -3,7 +3,7 @@ import { useDispatch } from "react-redux";
 
 import { supabase } from "@/lib/supabase";
 import {
-  activosfijos,
+  login,
   logout,
   checkingCredentials,
 } from "@/store/auth/authSlice";
@@ -32,7 +32,7 @@ export const useCheckAuth = () => {
         };
 
         localStorage.setItem("user", JSON.stringify(userInfo));
-        dispatch(activosfijos(userInfo));
+        dispatch(login(userInfo));
       } catch (error) {
         console.error("Error restoring auth session:", error);
         dispatch(logout({ errorMessage: error.message }));

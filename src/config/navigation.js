@@ -1,5 +1,4 @@
 export const DEFAULT_NAV_ITEMS = [
-  { title: "Inicio", href: "/" },
   {
     title: "Configuración",
     href: "#",
@@ -14,7 +13,7 @@ export const DEFAULT_NAV_ITEMS = [
   },
   { title: "Funcionarios", href: "/funcionario" },
   { title: "Activos fijos", href: "/activos" },
-  { title: "Movimientos", href: "/movimientos" },
+/*   { title: "Movimientos", href: "/movimientos" }, */
   { title: "Asignaciones", href: "/asignaciones" },
-  { title: "Revaluo", href: "/" },
+/*   { title: "Revaluo", href: "/" }, */
 ];

@@ -20,10 +20,17 @@ export const fetchActivosFijosPaginated = createAsyncThunk(
       if (filters.search) {
         const s = filters.search.replace(/%/g, "").trim();
         if (s) {
-          query = query.or(
-            `descripcionactivo.ilike.%${s}%,codigoambiente.ilike.%${s}%,cirun.ilike.%${s}%,codigoactivointerno.ilike.%${s}%`
-          );
+          const searchNum = Number(s);
+          if (!isNaN(searchNum)) {
+            query = query.or(`codigoactivo.eq.${searchNum}`);
+          } else {
+            query = query.or(`descripcionactivo.ilike.%${s}%,cirun.ilike.%${s}%`);
+          }
         }
+      }
+
+      if (filters.rubro && Array.isArray(filters.rubro) && filters.rubro.length > 0) {
+        query = query.in("tiporubroact", filters.rubro);
       }
 
       const { data, error, count } = await query;

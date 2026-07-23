@@ -67,7 +67,6 @@ import {
   selectMovimientosError,
   selectDetallesByMovimientoId,
 } from "@/store/movimientos/movimientosSlice";
-import { selectUser } from "@/store/auth/authSlice";
 
 const INITIAL_FILTERS = {
   search: "",
@@ -99,7 +98,6 @@ const MovimientosList = () => {
   const movimientos = useSelector(selectMovimientos);
   const isLoading = useSelector(selectMovimientosLoading);
   const error = useSelector(selectMovimientosError);
-  const user = useSelector(selectUser);
 
   const [filters, setFilters] = useState({ ...INITIAL_FILTERS });
 

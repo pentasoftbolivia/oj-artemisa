@@ -12,7 +12,7 @@ export const authSlice = createSlice({
     errorMessage: null,
   },
   reducers: {
-    activosfijos: (state, action) => {
+    login: (state, action) => {
       state.status = "authenticated";
       state.uid = action.payload.uid;
       state.email = action.payload.email;
@@ -36,7 +36,7 @@ export const authSlice = createSlice({
   },
 });
 
-export const { activosfijos, logout, checkingCredentials } = authSlice.actions;
+export const { login, logout, checkingCredentials } = authSlice.actions;
 
 export default authSlice.reducer;
 

@@ -84,17 +84,17 @@ export const useSupabaseRealtime = () => {
           debouncedFetch(payload.table);
         }
       )
-      .subscribe((status) => {
+      .subscribe(() => {
         // if (status === 'SUBSCRIBED') {
         //   console.log('[Realtime] Conectado exitosamente a Supabase WebSocket');
         // }
       });
 
     // Cleanup al desmontar el hook o cuando el usuario cierra sesión
+    const currentTimeouts = timeouts.current;
     return () => {
       supabase.removeChannel(channel);
-      // Limpiar timeouts pendientes
-      Object.values(timeouts.current).forEach(clearTimeout);
+      Object.values(currentTimeouts).forEach(clearTimeout);
     };
   }, [dispatch, isAuthenticated]);
 };

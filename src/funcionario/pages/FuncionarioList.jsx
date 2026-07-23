@@ -72,7 +72,8 @@ const MESSAGES = {
   empty: {
     noData: "No hay funcionarios registrados",
     filtered: "No se encontraron funcionarios que coincidan con los filtros",
-    createFirst: 'Crea tu primer funcionario usando el botón "Nuevo Funcionario"',
+    createFirst:
+      'Crea tu primer funcionario usando el botón "Nuevo Funcionario"',
     adjustFilters: "Intenta ajustar los filtros de búsqueda",
   },
   placeholders: {
@@ -94,8 +95,14 @@ const SEXO_OPTIONS = [
   { value: "F", label: "Femenino" },
 ];
 
-const EC_MAP = EC_OPTIONS.reduce((acc, o) => { acc[o.value] = o.label; return acc; }, {});
-const SEXO_MAP = SEXO_OPTIONS.reduce((acc, o) => { acc[o.value] = o.label; return acc; }, {});
+const EC_MAP = EC_OPTIONS.reduce((acc, o) => {
+  acc[o.value] = o.label;
+  return acc;
+}, {});
+const SEXO_MAP = SEXO_OPTIONS.reduce((acc, o) => {
+  acc[o.value] = o.label;
+  return acc;
+}, {});
 const EMPTY_ARRAY = [];
 
 const FuncionarioList = () => {
@@ -134,15 +141,23 @@ const FuncionarioList = () => {
     setIsDeleteDialogOpen(true);
   }, []);
 
-  const confirmDelete = useCallback(() => {
-    if (funcionarioToDelete) {
-      dispatch(deleteFuncionario(funcionarioToDelete.cirun));
+  const confirmDelete = useCallback(async () => {
+    if (!funcionarioToDelete) return;
+    try {
+      await dispatch(deleteFuncionario(funcionarioToDelete.cirun)).unwrap();
       setIsDeleteDialogOpen(false);
       setFuncionarioToDelete(null);
       toast({
         title: "¡Éxito!",
         description: MESSAGES.success.deleted,
         variant: "default",
+      });
+    } catch (error) {
+      console.error("Error deleting funcionario:", error);
+      toast({
+        title: "Error",
+        description: `${MESSAGES.error.delete}: ${error.message || MESSAGES.error.unknown}`,
+        variant: "destructive",
       });
     }
   }, [funcionarioToDelete, dispatch, toast]);
@@ -158,46 +173,39 @@ const FuncionarioList = () => {
 
   const filteredFuncionarios = useMemo(
     () =>
-      funcionarios
-        .filter((f) => {
-          const searchStr =
-            `${f.cirun || ""} ${f.codigo || ""} ${f.nombres || ""} ${f.paterno || ""} ${f.materno || ""}`.toLowerCase();
-          const searchMatch =
-            !filters.search ||
-            searchStr.includes(filters.search.toLowerCase());
+      funcionarios.filter((f) => {
+        const searchStr =
+          `${f.cirun || ""} ${f.codigo || ""} ${f.nombres || ""} ${f.paterno || ""} ${f.materno || ""}`.toLowerCase();
+        const searchMatch =
+          !filters.search || searchStr.includes(filters.search.toLowerCase());
 
-          const sexoMatch =
-            !filters.sexo ||
-            filters.sexo === "all" ||
-            (f.sexo || "") === filters.sexo;
+        const sexoMatch =
+          !filters.sexo ||
+          filters.sexo === "all" ||
+          (f.sexo || "") === filters.sexo;
 
-          const ecMatch =
-            !filters.ec ||
-            filters.ec === "all" ||
-            (f.ec || "") === filters.ec;
+        const ecMatch =
+          !filters.ec || filters.ec === "all" || (f.ec || "") === filters.ec;
 
-          return searchMatch && sexoMatch && ecMatch;
-        }),
-    [funcionarios, filters]
+        return searchMatch && sexoMatch && ecMatch;
+      }),
+    [funcionarios, filters],
   );
 
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil(filteredFuncionarios.length / pageSize)),
-    [filteredFuncionarios.length, pageSize]
+    [filteredFuncionarios.length, pageSize],
   );
 
   const safeCurrentPage = useMemo(
     () => Math.min(currentPage, totalPages),
-    [currentPage, totalPages]
+    [currentPage, totalPages],
   );
 
-  const paginatedFuncionarios = useMemo(
-    () => {
-      const start = (safeCurrentPage - 1) * pageSize;
-      return filteredFuncionarios.slice(start, start + pageSize);
-    },
-    [filteredFuncionarios, safeCurrentPage, pageSize]
-  );
+  const paginatedFuncionarios = useMemo(() => {
+    const start = (safeCurrentPage - 1) * pageSize;
+    return filteredFuncionarios.slice(start, start + pageSize);
+  }, [filteredFuncionarios, safeCurrentPage, pageSize]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -216,17 +224,17 @@ const FuncionarioList = () => {
   }, []);
 
   const hasActiveFilters = useMemo(
-    () =>
-      filters.search !== "" ||
-      filters.sexo !== "" ||
-      filters.ec !== "",
-    [filters]
+    () => filters.search !== "" || filters.sexo !== "" || filters.ec !== "",
+    [filters],
   );
 
   const handleSubmit = useCallback(
     async (funcionarioData) => {
       const action = editingFuncionario
-        ? updateFuncionario({ cirun: editingFuncionario.cirun, updatedFuncionario: funcionarioData })
+        ? updateFuncionario({
+            cirun: editingFuncionario.cirun,
+            updatedFuncionario: funcionarioData,
+          })
         : addFuncionario(funcionarioData);
       try {
         await dispatch(action).unwrap();
@@ -249,7 +257,7 @@ const FuncionarioList = () => {
         return false;
       }
     },
-    [dispatch, editingFuncionario, toast, handleCancel]
+    [dispatch, editingFuncionario, toast, handleCancel],
   );
 
   if (isLoading && funcionarios.length === 0) {
@@ -291,7 +299,9 @@ const FuncionarioList = () => {
           >
             <DialogHeader>
               <DialogTitle>
-                {editingFuncionario ? "Editar Funcionario" : "Nuevo Funcionario"}
+                {editingFuncionario
+                  ? "Editar Funcionario"
+                  : "Nuevo Funcionario"}
               </DialogTitle>
               <DialogDescription>
                 {editingFuncionario
@@ -349,9 +359,13 @@ const FuncionarioList = () => {
                   <SelectValue placeholder={MESSAGES.placeholders.sexo} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">{MESSAGES.placeholders.sexo}</SelectItem>
+                  <SelectItem value="all">
+                    {MESSAGES.placeholders.sexo}
+                  </SelectItem>
                   {SEXO_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -367,9 +381,13 @@ const FuncionarioList = () => {
                   <SelectValue placeholder={MESSAGES.placeholders.ec} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">{MESSAGES.placeholders.ec}</SelectItem>
+                  <SelectItem value="all">
+                    {MESSAGES.placeholders.ec}
+                  </SelectItem>
                   {EC_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -393,7 +411,7 @@ const FuncionarioList = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>CI / RUT</TableHead>
+                  <TableHead>CI</TableHead>
                   <TableHead>Código</TableHead>
                   <TableHead>Apellido Paterno</TableHead>
                   <TableHead>Apellido Materno</TableHead>
@@ -413,15 +431,21 @@ const FuncionarioList = () => {
                       <TableCell className="font-medium font-mono text-xs">
                         {f.cirun}
                       </TableCell>
-                      <TableCell className="font-mono text-xs">{f.codigo}</TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {f.codigo}
+                      </TableCell>
                       <TableCell>{f.paterno}</TableCell>
                       <TableCell>{f.materno || "—"}</TableCell>
                       <TableCell className="font-medium">{f.nombres}</TableCell>
                       <TableCell>{f.ciexp || "—"}</TableCell>
                       <TableCell>{SEXO_MAP[f.sexo] || f.sexo || "—"}</TableCell>
                       <TableCell>{EC_MAP[f.ec] || f.ec || "—"}</TableCell>
-                      <TableCell className="font-mono text-xs">{f.tel || "—"}</TableCell>
-                      <TableCell className="font-mono text-xs">{f.cel || "—"}</TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {f.tel || "—"}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {f.cel || "—"}
+                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex space-x-1 justify-end">
                           <Button
@@ -486,7 +510,9 @@ const FuncionarioList = () => {
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>¿Está seguro de eliminar este funcionario?</DialogTitle>
+            <DialogTitle>
+              ¿Está seguro de eliminar este funcionario?
+            </DialogTitle>
             <DialogDescription>
               Esta acción no se puede deshacer. El funcionario "
               {funcionarioToDelete?.nombres} {funcionarioToDelete?.paterno}"

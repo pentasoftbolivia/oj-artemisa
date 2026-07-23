@@ -1,5 +1,6 @@
 import { Suspense } from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, useLocation } from "react-router-dom";
+import InicioPage from "@/inicio/pages/InicioPage";
 
 import { PrivateRoute } from "./PrivateRoute";
 import { PublicRoute } from "./PublicRoute";
@@ -24,6 +25,7 @@ const MovimientosRoutes = lazyWithRetry(() => import("@/movimientos/routes/Movim
 export const AppRouter = () => {
   useCheckAuth();
   useSupabaseRealtime();
+  const location = useLocation();
 
   return (
     <Suspense fallback={<div className="h-screen w-full flex items-center justify-center"><LoadingSpinner /></div>}>
@@ -42,6 +44,7 @@ export const AppRouter = () => {
           element={
             <PrivateRoute>
               <Navbar />
+              {location.pathname === "/" && <InicioPage />}
             </PrivateRoute>
           }
         />
