@@ -11,6 +11,7 @@ import tiporubroReducer from './tiporubro/tiporubroSlice';
 import activosFijosReducer from './activosFijos/activosFijosSlice';
 import asignacionesReducer from './asignaciones/asignacionesSlice';
 import movimientosReducer from './movimientos/movimientosSlice';
+import responsableReducer from './responsable/responsableSlice';
 export const store = configureStore({
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
@@ -28,5 +29,6 @@ export const store = configureStore({
     activosFijos: activosFijosReducer,
     asignaciones: asignacionesReducer,
     movimientos: movimientosReducer,
+    responsable: responsableReducer,
   },
 });

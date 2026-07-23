@@ -12,6 +12,7 @@ export const DEFAULT_NAV_ITEMS = [
     ],
   },
   { title: "Funcionarios", href: "/funcionario" },
+  { title: "Responsables", href: "/responsables" },
   { title: "Activos fijos", href: "/activos" },
 /*   { title: "Movimientos", href: "/movimientos" }, */
   { title: "Asignaciones", href: "/asignaciones" },
