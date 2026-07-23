@@ -159,7 +159,7 @@ const AsignacionesList = () => {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="searchFuncionario">Buscar por funcionario</Label>
+              <Label htmlFor="searchFuncionario">Buscar por Funcionario</Label>
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -175,7 +175,7 @@ const AsignacionesList = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="searchActivo">Buscar por activo</Label>
+              <Label htmlFor="searchActivo">Buscar por Activo</Label>
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -191,7 +191,7 @@ const AsignacionesList = () => {
             </div>
 
             <ComboboxField
-              label="Buscar por grupo"
+              label="Buscar por Rubro"
               value={filters.searchGrupo}
               onValueChange={(value) =>
                 handleFilterChange("searchGrupo", value)
@@ -208,7 +208,7 @@ const AsignacionesList = () => {
             />
 
             <div className="space-y-2">
-              <Label htmlFor="estado">Buscar por estado</Label>
+              <Label htmlFor="estado">Buscar por Estado</Label>
               <Select
                 value={filters.estado}
                 onValueChange={(value) => handleFilterChange("estado", value)}

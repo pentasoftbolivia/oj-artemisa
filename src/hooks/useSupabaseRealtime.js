@@ -10,7 +10,6 @@ import { fetchInmuebles } from '@/store/inmueble/inmuebleThunks';
 import { fetchNiveles } from '@/store/nivel/nivelThunks';
 import { fetchRubros } from '@/store/rubro/rubroThunks';
 import { fetchTipoRubros } from '@/store/tiporubro/tiporubroThunks';
-import { fetchFuncionario } from '@/store/funcionario/funcionarioThunks';
 import { fetchMovimientos } from '@/store/movimientos/movimientosThunks';
 import { fetchAsignaciones } from '@/store/asignaciones/asignacionesThunks';
 
@@ -54,9 +53,6 @@ export const useSupabaseRealtime = () => {
             break;
           case 'act_tiporubro':
             dispatch(fetchTipoRubros());
-            break;
-          case 'funcionario':
-            dispatch(fetchFuncionario());
             break;
           case 'act_activos':
             // No se recarga automáticamente para evitar descargas masivas.

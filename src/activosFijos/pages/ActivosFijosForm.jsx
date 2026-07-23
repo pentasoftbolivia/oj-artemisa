@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase, fetchAllFromTable } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import ComboboxField from "@/components/ui/combobox-field";
 import { Textarea } from "@/components/ui/textarea";
 
 const INITIAL_STATE = {
@@ -27,7 +28,7 @@ const ActivosFijosForm = ({ activoToEdit, onSubmit, onCancel }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
   const [ambientes, setAmbientes] = useState([]);
-  const [funcionarios, setFuncionarios] = useState([]);
+  const [responsables, setResponsables] = useState([]);
   const [tipoRubros, setTipoRubros] = useState([]);
   const [loadingFK, setLoadingFK] = useState(false);
 
@@ -35,15 +36,32 @@ const ActivosFijosForm = ({ activoToEdit, onSubmit, onCancel }) => {
     setLoadingFK(true);
     Promise.all([
       supabase.from("act_ambiente").select("codigoambiente, ambiente").order("ambiente", { ascending: true }),
-      supabase.from("funcionario").select("cirun, nombres, paterno, materno").order("nombres", { ascending: true }),
+      fetchAllFromTable("act_responsable", "cirun, nombre1, nombre2, paterno, materno", { orderColumn: "cirun", ascending: true }),
       supabase.from("act_tiporubro").select("tiporubroact, descripciontiporubroact").order("descripciontiporubroact", { ascending: true }),
-    ]).then(([amb, fun, tr]) => {
+    ]).then(([amb, res, tr]) => {
       if (!amb.error) setAmbientes(amb.data || []);
-      if (!fun.error) setFuncionarios(fun.data || []);
+      if (!res.error) setResponsables(res || []);
       if (!tr.error) setTipoRubros(tr.data || []);
       setLoadingFK(false);
     });
   }, []);
+
+  useEffect(() => {
+    if (!activoToEdit?.cirun) return;
+    supabase
+      .from("act_responsable")
+      .select("cirun, nombre1, nombre2, paterno, materno")
+      .eq("cirun", activoToEdit.cirun)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error) { console.error("Error loading responsable by cirun:", error); return; }
+        if (!data) return;
+        setResponsables(prev => {
+          if (prev.some(r => normalizeCi(r.cirun) === normalizeCi(data.cirun))) return prev;
+          return [...prev, data];
+        });
+      });
+  }, [activoToEdit?.cirun]);
 
   useEffect(() => {
     if (activoToEdit) {
@@ -100,10 +118,11 @@ const ActivosFijosForm = ({ activoToEdit, onSubmit, onCancel }) => {
   const isEditing = Boolean(activoToEdit);
 
   const normalizeCi = (v) => String(v ?? "").replace(/[^\d]/g, "");
-  const formatFuncionario = (f) => {
-    const parts = [f.nombres, f.paterno, f.materno].filter(Boolean).map(s => (s || "").trim());
-    return parts.join(" ") || f.cirun;
+  const formatResponsable = (r) => {
+    const parts = [r.nombre1, r.nombre2, r.paterno, r.materno].map(s => (s || "").trim()).filter(Boolean);
+    return parts.join(" ") || r.cirun;
   };
+
 
   return (
     <form onSubmit={handleSubmit} className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
@@ -147,25 +166,20 @@ const ActivosFijosForm = ({ activoToEdit, onSubmit, onCancel }) => {
           </Select>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="cirun">Funcionario (CI)</Label>
-          <Select
-            key={`fun-${formData.cirun}-${funcionarios.length}`}
+          <ComboboxField
+            label="Responsable (CI)"
             value={formData.cirun}
-            onValueChange={(value) => handleSelectChange("cirun", normalizeCi(value))}
+            onValueChange={(value) => handleSelectChange("cirun", value)}
+            options={responsables.map(r => ({
+              value: normalizeCi(r.cirun),
+              label: `${normalizeCi(r.cirun)} - ${formatResponsable(r)}`
+            }))}
+            placeholder="Seleccionar responsable"
+            searchPlaceholder="Buscar por carnet o nombre..."
             disabled={isSubmitting || loadingFK}
-          >
-            <SelectTrigger className="w-full [&>span]:line-clamp-1 text-left">
-              <SelectValue placeholder="Seleccionar funcionario" />
-            </SelectTrigger>
-            <SelectContent>
-              {funcionarios.map(f => (
-                <SelectItem key={f.cirun} value={normalizeCi(f.cirun)}>
-                  {`${normalizeCi(f.cirun)} - ${formatFuncionario(f)}`}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
+            loading={loadingFK}
+            emptyMessage="Sin resultados"
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="tipoRubroAct">Tipo Rubro</Label>

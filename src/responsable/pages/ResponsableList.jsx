@@ -207,9 +207,9 @@ const ResponsableList = () => {
     async (responsableData) => {
       const action = editingResponsable
         ? updateResponsable({
-            cirun: editingResponsable.cirun,
-            updatedResponsable: responsableData,
-          })
+          cirun: editingResponsable.cirun,
+          updatedResponsable: responsableData,
+        })
         : addResponsable(responsableData);
       try {
         await dispatch(action).unwrap();
@@ -368,7 +368,7 @@ const ResponsableList = () => {
                   <TableHead>Apellido Paterno</TableHead>
                   <TableHead>Apellido Materno</TableHead>
                   <TableHead>Cargo</TableHead>
-                  <TableHead>Reg. Activo</TableHead>
+                  <TableHead>Estado Activo</TableHead>
                   <TableHead className="text-center">Acciones</TableHead>
                 </TableRow>
               </TableHeader>

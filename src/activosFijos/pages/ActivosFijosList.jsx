@@ -58,7 +58,7 @@ import {
 
 import ActivosFijosForm from "./ActivosFijosForm";
 
-const INITIAL_FILTERS = { search: "", rubro: "" };
+const INITIAL_FILTERS = { search: "", rubro: "", carnet: "" };
 const ESTADO_MAP = { 1: "Activo", 0: "Inactivo" };
 const DEBOUNCE_MS = 300;
 const formatCodigoActivo = (a) =>
@@ -80,6 +80,7 @@ const ActivosFijosList = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [debouncedCarnet, setDebouncedCarnet] = useState("");
   const isFirstRender = useRef(true);
   const debounceTimer = useRef(null);
 
@@ -151,10 +152,13 @@ const ActivosFijosList = () => {
     const map = {};
     (rubros || []).forEach((r) => {
       map[r.codigorubroact] = [];
+      map[String(r.codigorubroact)] = [];
     });
     (tipoRubros || []).forEach((t) => {
       const k = t.codigorubroact;
+      const ks = String(k);
       if (map[k]) map[k].push(t.tiporubroact);
+      if (map[ks]) map[ks].push(t.tiporubroact);
     });
     return map;
   }, [tipoRubros, rubros]);
@@ -164,16 +168,18 @@ const ActivosFijosList = () => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
       setDebouncedSearch(filters.search);
+      setDebouncedCarnet(filters.carnet);
       return;
     }
     debounceTimer.current = setTimeout(() => {
       setDebouncedSearch(filters.search);
+      setDebouncedCarnet(filters.carnet);
       setCurrentPage(1);
     }, DEBOUNCE_MS);
     return () => {
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
     };
-  }, [filters.search]);
+  }, [filters.search, filters.carnet]);
 
   useEffect(() => {
     dispatch(
@@ -182,6 +188,7 @@ const ActivosFijosList = () => {
         pageSize,
         filters: {
           search: debouncedSearch,
+          carnet: debouncedCarnet,
           rubro: filters.rubro
             ? rubroToTipoIds[filters.rubro] || []
             : undefined,
@@ -192,6 +199,7 @@ const ActivosFijosList = () => {
     currentPage,
     pageSize,
     debouncedSearch,
+    debouncedCarnet,
     filters.rubro,
     dispatch,
     rubroToTipoIds,
@@ -300,6 +308,7 @@ const ActivosFijosList = () => {
   const clearFilters = useCallback(() => {
     setFilters({ ...INITIAL_FILTERS });
     setDebouncedSearch("");
+    setDebouncedCarnet("");
     setCurrentPage(1);
     isFirstRender.current = true;
   }, [setFilters]);
@@ -404,6 +413,15 @@ const ActivosFijosList = () => {
               />
             </div>
             <div className="space-y-2">
+              <Label htmlFor="carnet">Carnet</Label>
+              <Input
+                id="carnet"
+                placeholder="Buscar por CI..."
+                value={filters.carnet}
+                onChange={(e) => handleFilterChange("carnet", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
               <ComboboxField
                 label="Rubro"
                 value={filters.rubro}
@@ -420,7 +438,7 @@ const ActivosFijosList = () => {
                 size="sm"
                 onClick={clearFilters}
                 className="w-full"
-                disabled={!filters.search && !filters.rubro}
+                disabled={!filters.search && !filters.rubro && !filters.carnet}
               >
                 <X className="mr-2 h-4 w-4" />
                 Limpiar
@@ -448,7 +466,7 @@ const ActivosFijosList = () => {
                   <TableHead>Denominación</TableHead>
                   <TableHead>Valor Actual</TableHead>
                   <TableHead>Ambiente</TableHead>
-                  <TableHead>CI Funcionario</TableHead>
+                  <TableHead>CI Responsable</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead className="text-center">Acciones</TableHead>
                 </TableRow>

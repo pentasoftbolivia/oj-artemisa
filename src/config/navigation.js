@@ -11,7 +11,6 @@ export const DEFAULT_NAV_ITEMS = [
       { title: "Tipos de Rubro", href: "/tiporubro" },
     ],
   },
-  { title: "Funcionarios", href: "/funcionario" },
   { title: "Responsables", href: "/responsables" },
   { title: "Activos fijos", href: "/activos" },
 /*   { title: "Movimientos", href: "/movimientos" }, */

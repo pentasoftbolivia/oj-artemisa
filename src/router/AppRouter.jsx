@@ -11,7 +11,6 @@ import lazyWithRetry from "@/lib/lazyWithRetry";
 
 // Lazy loaded routes
 const AuthRoutes = lazyWithRetry(() => import("@/auth/routes/AuthRoutes").then(m => ({ default: m.AuthRoutes })));
-const FuncionarioRoutes = lazyWithRetry(() => import("@/funcionario/routes/FuncionarioRoutes").then(m => ({ default: m.FuncionarioRoutes })));
 const AmbienteRoutes = lazyWithRetry(() => import("@/ambiente/routes/AmbienteRoutes").then(m => ({ default: m.AmbienteRoutes })));
 const CiudadRoutes = lazyWithRetry(() => import("@/ciudad/routes/CiudadRoutes").then(m => ({ default: m.CiudadRoutes })));
 const InmuebleRoutes = lazyWithRetry(() => import("@/inmueble/routes/InmuebleRoutes").then(m => ({ default: m.InmuebleRoutes })));
@@ -46,16 +45,6 @@ export const AppRouter = () => {
             <PrivateRoute>
               <Navbar />
               {location.pathname === "/" && <InicioPage />}
-            </PrivateRoute>
-          }
-        />
-
-        <Route
-          path="/funcionario/*"
-          element={
-            <PrivateRoute>
-              <Navbar />
-              <FuncionarioRoutes />
             </PrivateRoute>
           }
         />

@@ -1,7 +1,6 @@
 import { configureStore } from '@reduxjs/toolkit';
 
 import { authSlice } from "./auth";
-import funcionarioReducer from './funcionario/funcionarioSlice';
 import ambienteReducer from './ambiente/ambienteSlice';
 import ciudadReducer from './ciudad/ciudadSlice';
 import inmuebleReducer from './inmueble/inmuebleSlice';
@@ -19,7 +18,6 @@ export const store = configureStore({
     }),
   reducer: {
     auth: authSlice.reducer,
-    funcionario: funcionarioReducer,
     ambiente: ambienteReducer,
     ciudad: ciudadReducer,
     inmueble: inmuebleReducer,

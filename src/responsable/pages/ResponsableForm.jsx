@@ -228,7 +228,7 @@ const ResponsableForm = ({ responsableToEdit, onSubmit, onCancel }) => {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="estado">Estado</Label>
+          <Label htmlFor="estado">Estado Responsable</Label>
           <Select
             value={formData.estado}
             onValueChange={(value) => handleSelectChange("estado", value)}
@@ -264,7 +264,7 @@ const ResponsableForm = ({ responsableToEdit, onSubmit, onCancel }) => {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="registroActivo">Registro Activo</Label>
+          <Label htmlFor="registroActivo">Estado Activo</Label>
           <Select
             value={formData.registroActivo}
             onValueChange={(value) => handleSelectChange("registroActivo", value)}
@@ -341,8 +341,8 @@ const ResponsableForm = ({ responsableToEdit, onSubmit, onCancel }) => {
           {isSubmitting
             ? "Procesando..."
             : responsableToEdit
-            ? "Actualizar"
-            : "Guardar"}
+              ? "Actualizar"
+              : "Guardar"}
         </Button>
       </div>
     </form>

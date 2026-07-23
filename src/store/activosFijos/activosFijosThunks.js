@@ -29,8 +29,13 @@ export const fetchActivosFijosPaginated = createAsyncThunk(
         }
       }
 
-      if (filters.rubro && Array.isArray(filters.rubro) && filters.rubro.length > 0) {
-        query = query.in("tiporubroact", filters.rubro);
+      if (filters.carnet) {
+        const c = filters.carnet.replace(/%/g, "").trim();
+        if (c) query = query.ilike("cirun", `%${c}%`);
+      }
+
+      if (filters.rubro && Array.isArray(filters.rubro)) {
+        query = query.in("tiporubroact", filters.rubro.length > 0 ? filters.rubro : [-1]);
       }
 
       const { data, error, count } = await query;
