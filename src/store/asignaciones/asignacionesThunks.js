@@ -28,9 +28,16 @@ export const fetchAsignaciones = createAsyncThunk(
 
       const sa = sanitize(filters.searchActivo);
       if (sa) {
-        query = query.or(
-          `codigoactivo.ilike.%${sa}%,descripcionactivo.ilike.%${sa}%,serie.ilike.%${sa}%,marcamaterial.ilike.%${sa}%`
-        );
+        const numVal = Number(sa);
+        if (!isNaN(numVal)) {
+          query = query.or(
+            `codigoactivo.eq.${numVal},descripcionactivo.ilike.%${sa}%,serie.ilike.%${sa}%,marcamaterial.ilike.%${sa}%`
+          );
+        } else {
+          query = query.or(
+            `descripcionactivo.ilike.%${sa}%,serie.ilike.%${sa}%,marcamaterial.ilike.%${sa}%`
+          );
+        }
       }
 
       const sg = sanitize(filters.searchGrupo);

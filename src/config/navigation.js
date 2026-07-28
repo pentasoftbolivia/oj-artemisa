@@ -15,5 +15,6 @@ export const DEFAULT_NAV_ITEMS = [
   { title: "Activos fijos", href: "/activos" },
 /*   { title: "Movimientos", href: "/movimientos" }, */
   { title: "Asignaciones", href: "/asignaciones" },
+  { title: "Inventario", href: "/inventario" },
 /*   { title: "Revaluo", href: "/" }, */
 ];

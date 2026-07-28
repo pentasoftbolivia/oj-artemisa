@@ -21,6 +21,7 @@ const ActivosFijosRoutes = lazyWithRetry(() => import("@/activosFijos/routes/Act
 const AsignacionesRoutes = lazyWithRetry(() => import("@/asignaciones/routes/AsignacionesRoutes").then(m => ({ default: m.AsignacionesRoutes })));
 const MovimientosRoutes = lazyWithRetry(() => import("@/movimientos/routes/MovimientosRoutes").then(m => ({ default: m.MovimientosRoutes })));
 const ResponsableRoutes = lazyWithRetry(() => import("@/responsable/routes/ResponsableRoutes").then(m => ({ default: m.ResponsableRoutes })));
+const InventarioRoutes = lazyWithRetry(() => import("@/inventario/routes/InventarioRoutes").then(m => ({ default: m.InventarioRoutes })));
 
 export const AppRouter = () => {
   useCheckAuth();
@@ -145,6 +146,16 @@ export const AppRouter = () => {
             <PrivateRoute>
               <Navbar />
               <ResponsableRoutes />
+            </PrivateRoute>
+          }
+        />
+
+        <Route
+          path="/inventario/*"
+          element={
+            <PrivateRoute>
+              <Navbar />
+              <InventarioRoutes />
             </PrivateRoute>
           }
         />
