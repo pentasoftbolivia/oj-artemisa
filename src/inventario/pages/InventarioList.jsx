@@ -21,7 +21,7 @@ import {
 import LoadingSpinner from "@/components/ui/loading-spinner";
 import DataPagination from "@/components/ui/data-pagination";
 import {
-  ArrowLeft, Plus, Edit, Search, Package, Filter, X,
+  ArrowLeft, Plus, Edit, Search, Package, Filter, X, Image,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -134,6 +134,7 @@ const InventarioList = () => {
 
   const [filtroCodigoActivo, setFiltroCodigoActivo] = useState("");
   const [filtroInventariador, setFiltroInventariador] = useState("");
+  const [filtroEstado, setFiltroEstado] = useState("all");
 
   const [searchCarnet, setSearchCarnet] = useState("");
   const [searchNombre, setSearchNombre] = useState("");
@@ -152,6 +153,11 @@ const InventarioList = () => {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [isSaving, setIsSaving] = useState(false);
+
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+  const [selectedActivoImages, setSelectedActivoImages] = useState(null);
+  const [imageFiles, setImageFiles] = useState([]);
+  const [isLoadingImages, setIsLoadingImages] = useState(false);
 
   const rubroDescMap = useMemo(() => {
     const map = {};
@@ -182,33 +188,25 @@ const InventarioList = () => {
 
   const inventariadorStats = useMemo(() => {
     const stats = {};
-    if (currentUser?.email) {
-      stats[currentUser.email] = { aprobado: 0, pendiente: 0 };
-    }
     (activos || []).forEach(a => {
-      const val = a.usuarioinventario;
-      if (!val) return;
-
-      const isPending = val === "PENDIENTE" || val.startsWith("PENDIENTE:");
-      const email = val.replace("PENDIENTE:", "");
-
-      if (email === "APROBADO") return;
+      const email = a.usuarioinventario;
+      if (!email) return;
 
       if (!stats[email]) {
         stats[email] = { aprobado: 0, pendiente: 0 };
       }
 
-      if (isPending) {
-        stats[email].pendiente++;
-      } else {
+      if (a.estadoinventario === "APROBADO") {
         stats[email].aprobado++;
+      } else {
+        stats[email].pendiente++;
       }
     });
     return Object.entries(stats).map(([email, count]) => ({
       email,
       ...count
     }));
-  }, [activos, currentUser]);
+  }, [activos]);
 
   const ambienteMap = useMemo(() => {
     const map = {};
@@ -259,7 +257,7 @@ const InventarioList = () => {
   }, []);
 
   const loadActivos = useCallback(async (filters = {}) => {
-    const { codigoActivo = "", inventariador = "", carnet = "", nombre = "" } = filters;
+    const { codigoActivo = "", inventariador = "", carnet = "", nombre = "", all = false } = filters;
     setIsLoading(true);
     try {
       let ciFilter = [];
@@ -295,6 +293,10 @@ const InventarioList = () => {
           .eq("ultimoregistro", 1)
           .order("codigoactivointerno", { ascending: true })
           .limit(BATCH_SIZE);
+
+        if (!all && !carnet && !nombre) {
+          batchQuery = batchQuery.gte("codigoactivointerno", 335774);
+        }
 
         if (lastCodigoActivo != null) {
           batchQuery = batchQuery.gt("codigoactivointerno", lastCodigoActivo);
@@ -406,12 +408,13 @@ const InventarioList = () => {
     setCurrentPage(1);
     setFiltroCodigoActivo("");
     setFiltroInventariador("");
+    setFiltroEstado("all");
     loadActivos({});
   };
 
   const handleSearch = () => {
     setCurrentPage(1);
-    loadActivos({ carnet: searchCarnet, nombre: searchNombre });
+    loadActivos({ carnet: searchCarnet, nombre: searchNombre, all: true });
   };
 
   const clearSearch = () => {
@@ -431,6 +434,7 @@ const InventarioList = () => {
       tipoRubro: tipoDesc,
       descripcionActivo: (activo.descripcionActivo || "").trim(),
       codigoAmbiente: String(activo.codigoAmbiente ?? "").trim(),
+      estadoConservacion: activo.estadoconservacion || "",
       ...getRubroFieldValues(activo, rubroDesc),
     });
     setIsEditOpen(true);
@@ -468,13 +472,21 @@ const InventarioList = () => {
       const ambValue = editForm.codigoAmbiente;
       if (ambValue) fieldsToUpdate.codigoambiente = ambValue;
       const rubroFields = getEditFieldsForRubro(rubroDesc);
+      if (editForm.estadoConservacion) {
+        fieldsToUpdate.estadoconservacion = editForm.estadoConservacion;
+      }
       rubroFields.forEach(f => {
         const val = editForm[f.key];
         fieldsToUpdate[f.key] = val || null;
       });
 
-      const userEmail = currentUser?.email || "unknown";
-      fieldsToUpdate.usuarioinventario = userEmail;
+      if (!showSearch) {
+        const userEmail = currentUser?.email || "unknown";
+        fieldsToUpdate.aprobadorinventario = userEmail;
+        fieldsToUpdate.estadoinventario = "APROBADO";
+      } else {
+        fieldsToUpdate.estado = 1;
+      }
 
       const { error } = await supabase
         .from("act_activos")
@@ -488,7 +500,66 @@ const InventarioList = () => {
       setEditActivo(null);
       loadActivos({ codigoActivo: filtroCodigoActivo, inventariador: filtroInventariador });
     } catch (err) {
-      toast({ title: "Error", description: `Error al actualizar: ${err.message}`, variant: "destructive" });
+      toast({ title: "Error", description: `Error al actualizar: ${err.message} ${err.details || ''} ${err.hint || ''}`, variant: "destructive" });
+      console.error("Supabase error:", err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleRegistrar = async () => {
+    if (!editActivo) return;
+    const confirmed = window.confirm("¿Está seguro de registrar y transferir la información?");
+    if (!confirmed) return;
+    setIsSaving(true);
+    try {
+      const rubroDesc = rubroFromTipo[editActivo.tipoRubroAct] || "";
+      const rubroFields = getEditFieldsForRubro(rubroDesc);
+      const userEmail = currentUser?.email || "unknown";
+
+      const { error: updateError } = await supabase
+        .from("act_activos")
+        .update({ ultimoregistro: 0, estadoinventario: "INVENTARIADO" })
+        .eq("codigoactivointerno", editActivo.codigoActivoInterno);
+
+      if (updateError) throw updateError;
+
+      const newRecord = {
+        codigoactivo: editActivo.codigoActivo,
+        codigotransaccion: editActivo.codigoTransaccion,
+        codigoambiente: editForm.codigoAmbiente || editActivo.codigoAmbiente,
+        cirun: editActivo.cirun,
+        descripcionactivo: editForm.descripcionActivo,
+        tiporubroact: editActivo.tipoRubroAct,
+        serie: editActivo.serie,
+        marcamaterial: editActivo.marcaMaterial,
+        estado: editActivo.estado,
+        observaciones: editActivo.observaciones,
+        valoractual: editActivo.valorActual,
+        ultimoregistro: 1,
+        estadoconservacion: editForm.estadoConservacion || editActivo.estadoconservacion,
+        usuarioinventario: userEmail,
+        estadoinventario: "PENDIENTE",
+      };
+
+      rubroFields.forEach(f => {
+        const val = editForm[f.key];
+        if (val) newRecord[f.key] = val;
+      });
+
+      const { error: insertError } = await supabase
+        .from("act_activos")
+        .insert(newRecord);
+
+      if (insertError) throw insertError;
+
+      toast({ title: "Éxito", description: "Activo registrado y transferido correctamente." });
+      setIsEditOpen(false);
+      setEditActivo(null);
+      loadActivos({ carnet: searchCarnet, nombre: searchNombre, all: true });
+    } catch (err) {
+      toast({ title: "Error", description: `Error al registrar: ${err.message} ${err.details || ''} ${err.hint || ''}`, variant: "destructive" });
+      console.error("Supabase error:", err);
     } finally {
       setIsSaving(false);
     }
@@ -496,36 +567,27 @@ const InventarioList = () => {
 
   const handleToggleAprobado = async (activo) => {
     try {
-      const val = activo.usuarioinventario || "";
-      const isCurrentlyApproved = !!val && val !== "APROBADO" && !val.startsWith("PENDIENTE:");
-
-      let newUserEmail;
-      if (isCurrentlyApproved) {
-        newUserEmail = `PENDIENTE:${val}`;
-      } else if (val === "APROBADO") {
-        newUserEmail = null;
-      } else if (val.startsWith("PENDIENTE:")) {
-        newUserEmail = val.replace("PENDIENTE:", "");
-      } else {
-        newUserEmail = "APROBADO";
-      }
+      const isApproved = activo.estadoinventario === "APROBADO";
+      const updateData = isApproved
+        ? { estadoinventario: "PENDIENTE", aprobadorinventario: null }
+        : { estadoinventario: "APROBADO", aprobadorinventario: currentUser?.email || "unknown" };
 
       const { error } = await supabase
         .from("act_activos")
-        .update({ usuarioinventario: newUserEmail })
+        .update(updateData)
         .eq("codigoactivointerno", activo.codigoActivoInterno);
 
       if (error) throw error;
 
       toast({
         title: "Éxito",
-        description: (isCurrentlyApproved || val === "APROBADO")
+        description: isApproved
           ? "Estado de inventario cambiado a PENDIENTE."
           : "Estado de inventario cambiado a APROBADO."
       });
       setActivos(prev => prev.map(a =>
         a.codigoActivoInterno === activo.codigoActivoInterno
-          ? { ...a, usuarioinventario: newUserEmail }
+          ? { ...a, ...updateData }
           : a
       ));
     } catch (err) {
@@ -533,10 +595,52 @@ const InventarioList = () => {
     }
   };
 
+  const handleEnviar = async (activo) => {
+    try {
+      const { error } = await supabase
+        .from("act_activos")
+        .update({ estadoinventario: "ENVIADO" })
+        .eq("codigoactivointerno", activo.codigoActivoInterno);
+
+      if (error) throw error;
+
+      toast({ title: "Éxito", description: "Estado cambiado a ENVIADO." });
+      setActivos(prev => prev.map(a =>
+        a.codigoActivoInterno === activo.codigoActivoInterno
+          ? { ...a, estadoinventario: "ENVIADO" }
+          : a
+      ));
+    } catch (err) {
+      toast({ title: "Error", description: `Error al actualizar: ${err.message}`, variant: "destructive" });
+    }
+  };
+
+  const handleOpenImages = async (activo) => {
+    setSelectedActivoImages(activo);
+    setIsLoadingImages(true);
+    setIsImageModalOpen(true);
+    const prefix = `${activo.codigoActivo}_`;
+    const { data, error } = await supabase.storage
+      .from("imagenes")
+      .list("", { search: prefix, sortBy: { column: "name", order: "asc" } });
+    if (!error && data) {
+      const files = data
+        .filter(f => f.name.startsWith(prefix))
+        .map(f => ({
+          name: f.name,
+          url: supabase.storage.from("imagenes").getPublicUrl(f.name).data.publicUrl,
+        }));
+      setImageFiles(files);
+    } else {
+      setImageFiles([]);
+    }
+    setIsLoadingImages(false);
+  };
+
   const handleToggleEnviado = async (activo) => {
     try {
-      const isEnviado = activo.estado === "ENVIADO";
-      const nuevoEstado = isEnviado ? "PENDIENTE" : "ENVIADO";
+      const isEnviado = activo.estado === 1;
+      const nuevoEstado = isEnviado ? 0 : 1;
 
       const { error } = await supabase
         .from("act_activos")
@@ -637,12 +741,23 @@ const InventarioList = () => {
     });
   }, [activos, rubroDescMap, tipoRubroDescMap, ambienteMap, responsableMap, tipoRubros, directAmbMap, directRespMap]);
 
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(resolvedActivos.length / pageSize)), [resolvedActivos.length, pageSize]);
+  const filteredActivos = useMemo(() => {
+    if (filtroEstado === "all") return resolvedActivos;
+    return resolvedActivos.filter(a => {
+      const isApproved = a.estadoinventario === "APROBADO";
+      if (filtroEstado === "enviado") return a.estado === 1;
+      if (filtroEstado === "aprobado") return isApproved && a.estado !== 1;
+      if (filtroEstado === "pendiente") return a.estadoinventario === "PENDIENTE";
+      return true;
+    });
+  }, [resolvedActivos, filtroEstado]);
+
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(filteredActivos.length / pageSize)), [filteredActivos.length, pageSize]);
   const safeCurrentPage = useMemo(() => Math.min(currentPage, totalPages), [currentPage, totalPages]);
   const paginatedData = useMemo(() => {
     const start = (safeCurrentPage - 1) * pageSize;
-    return resolvedActivos.slice(start, start + pageSize);
-  }, [resolvedActivos, safeCurrentPage, pageSize]);
+    return filteredActivos.slice(start, start + pageSize);
+  }, [filteredActivos, safeCurrentPage, pageSize]);
 
   if (isLoading && activos.length === 0 && rubros.length === 0) {
     return <LoadingSpinner />;
@@ -755,7 +870,7 @@ const InventarioList = () => {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex space-x-1 justify-end">
-                            {a.estado !== "ENVIADO" && (
+                            {a.ultimoregistro !== 0 && (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -767,16 +882,16 @@ const InventarioList = () => {
                               </Button>
                             )}
                             <Button
-                              variant="ghost"
+                              variant="default"
                               size="sm"
-                              onClick={() => handleToggleEnviado(a)}
+                              onClick={() => handleEnviar(a)}
                               className={
-                                a.estado === "ENVIADO"
-                                  ? "text-orange-500 hover:text-orange-700 font-bold"
-                                  : "text-red-500 hover:text-red-700 font-bold"
+                                a.ultimoregistro === 0 || a.estadoinventario === "ENVIADO"
+                                  ? "bg-orange-500 hover:bg-orange-600 text-white font-bold"
+                                  : "bg-red-600 hover:bg-red-700 text-white font-bold"
                               }
                             >
-                              {a.estado === "ENVIADO" ? "ENVIADO" : "PENDIENTE"}
+                              {a.ultimoregistro === 0 || a.estadoinventario === "ENVIADO" ? "ENVIADO" : "PENDIENTE"}
                             </Button>
                           </div>
                         </TableCell>
@@ -856,6 +971,26 @@ const InventarioList = () => {
                 );
               })}
 
+              <div className="border-t pt-4 mt-2">
+                <h3 className="text-sm font-semibold text-muted-foreground mb-3">
+                  Estado de Conservación
+                </h3>
+                <Select
+                  value={editForm.estadoConservacion}
+                  onValueChange={(v) => handleEditSelectChange("estadoConservacion", v)}
+                  disabled={isSaving}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Seleccionar estado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Bueno">Bueno</SelectItem>
+                    <SelectItem value="Regular">Regular</SelectItem>
+                    <SelectItem value="Malo">Malo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
               {editActivo && rubroFromTipo[editActivo.tipoRubroAct] && (
                 <div className="border-t pt-4 mt-2">
                   <h3 className="text-sm font-semibold text-muted-foreground mb-3">
@@ -871,8 +1006,8 @@ const InventarioList = () => {
               <Button variant="outline" onClick={() => { setIsEditOpen(false); setEditActivo(null); }} disabled={isSaving}>
                 Cancelar
               </Button>
-              <Button onClick={handleEditSave} disabled={isSaving}>
-                {isSaving ? "Guardando..." : "Guardar"}
+              <Button onClick={handleRegistrar} disabled={isSaving}>
+                {isSaving ? "Guardando..." : "REGISTRAR"}
               </Button>
             </div>
           </DialogContent>
@@ -914,7 +1049,7 @@ const InventarioList = () => {
                       <div className="text-lg font-bold text-green-700 dark:text-green-300">{stat.aprobado}</div>
                     </div>
                     <div className="flex-1 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-900 rounded p-2 text-center">
-                      <div className="text-xs text-orange-600 dark:text-orange-400 font-medium">Pendientes</div>
+                      <div className="text-xs text-orange-600 dark:text-orange-400 font-medium">Pendiente</div>
                       <div className="text-lg font-bold text-orange-700 dark:text-orange-300">{stat.pendiente}</div>
                     </div>
                   </div>
@@ -952,6 +1087,20 @@ const InventarioList = () => {
                 onChange={(e) => setFiltroInventariador(e.target.value)}
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="filtroEstado">Estado</Label>
+              <Select value={filtroEstado} onValueChange={(v) => { setFiltroEstado(v); setCurrentPage(1); }}>
+                <SelectTrigger id="filtroEstado" className="w-full">
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="pendiente">Pendiente</SelectItem>
+                  <SelectItem value="enviado">Enviado</SelectItem>
+                  <SelectItem value="aprobado">Aprobado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-2 flex items-end gap-2">
               <Button onClick={handleFilter}>
                 <Search className="h-4 w-4 mr-2" />
@@ -960,7 +1109,7 @@ const InventarioList = () => {
               <Button
                 variant="outline"
                 onClick={clearFilters}
-                disabled={!filtroCodigoActivo && !filtroInventariador}
+                disabled={!filtroCodigoActivo && !filtroInventariador && filtroEstado === "all"}
               >
                 <X className="h-4 w-4 mr-2" />
                 Limpiar
@@ -974,7 +1123,7 @@ const InventarioList = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Package className="h-4 w-4" />
-            Lista de Activos
+            Control de Activos
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -996,8 +1145,8 @@ const InventarioList = () => {
               <TableBody>
                 {paginatedData.length > 0 ? (
                   paginatedData.map((a) => {
-                    const isApproved = !!a.usuarioinventario && a.usuarioinventario !== "PENDIENTE" && !a.usuarioinventario.startsWith("PENDIENTE:");
-                    const displayInventariador = a.usuarioinventario && a.usuarioinventario !== "APROBADO" && a.usuarioinventario !== "PENDIENTE" ? a.usuarioinventario.replace("PENDIENTE:", "") : "—";
+                    const isApproved = a.estadoinventario === "APROBADO";
+                    const displayInventariador = a.usuarioinventario || "—";
                     return (
                       <TableRow
                         key={a.codigoActivoInterno}
@@ -1042,12 +1191,25 @@ const InventarioList = () => {
                               EDITAR
                             </Button>
                             <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleOpenImages(a)}
+                              className="text-blue-500 hover:text-blue-700"
+                            >
+                              <Image className="h-4 w-4 mr-1" />
+                              IMÁGENES
+                            </Button>
+                            <Button
                               variant="default"
                               size="sm"
                               onClick={() => handleToggleAprobado(a)}
-                              className={isApproved ? "bg-green-600 hover:bg-green-700 text-white" : "bg-orange-500 hover:bg-orange-600 text-white"}
+                              className={
+                                a.estadoinventario === "APROBADO"
+                                  ? "bg-green-600 hover:bg-green-700 text-white"
+                                  : "bg-red-600 hover:bg-red-700 text-white"
+                              }
                             >
-                              {isApproved ? "APROBADO" : "PENDIENTE"}
+                              {a.estadoinventario === "APROBADO" ? "APROBADO" : "PENDIENTE"}
                             </Button>
                           </div>
                         </TableCell>
@@ -1072,7 +1234,7 @@ const InventarioList = () => {
             <DataPagination
               currentPage={safeCurrentPage}
               totalPages={totalPages}
-              totalCount={resolvedActivos.length}
+              totalCount={filteredActivos.length}
               pageSize={pageSize}
               onPageChange={setCurrentPage}
               onPageSizeChange={(newSize) => { setPageSize(newSize); setCurrentPage(1); }}
@@ -1084,7 +1246,7 @@ const InventarioList = () => {
       <Dialog open={isEditOpen} onOpenChange={(open) => { if (!open) { setIsEditOpen(false); setEditActivo(null); } }}>
         <DialogContent className="sm:max-w-[600px]" onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader>
-            <DialogTitle>Editar Activo</DialogTitle>
+            <DialogTitle>EDITAR CONTROL DE ACTIVOS</DialogTitle>
             <DialogDescription>
               Modifica los datos del activo fijo
             </DialogDescription>
@@ -1128,6 +1290,26 @@ const InventarioList = () => {
               );
             })}
 
+            <div className="border-t pt-4 mt-2">
+              <h3 className="text-sm font-semibold text-muted-foreground mb-3">
+                Estado de Conservación
+              </h3>
+              <Select
+                value={editForm.estadoConservacion}
+                onValueChange={(v) => handleEditSelectChange("estadoConservacion", v)}
+                disabled={isSaving}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Seleccionar estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Bueno">Bueno</SelectItem>
+                  <SelectItem value="Regular">Regular</SelectItem>
+                  <SelectItem value="Malo">Malo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             {editActivo && rubroFromTipo[editActivo.tipoRubroAct] && (
               <div className="border-t pt-4 mt-2">
                 <h3 className="text-sm font-semibold text-muted-foreground mb-3">
@@ -1144,8 +1326,47 @@ const InventarioList = () => {
               Cancelar
             </Button>
             <Button onClick={handleEditSave} disabled={isSaving}>
-              {isSaving ? "Guardando..." : "Guardar"}
+              {isSaving ? "Aprobando..." : "APROBAR"}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isImageModalOpen} onOpenChange={(open) => { if (!open) { setIsImageModalOpen(false); setImageFiles([]); } }}>
+        <DialogContent className="sm:max-w-[700px]">
+          <DialogHeader>
+            <DialogTitle>Imágenes del Activo {selectedActivoImages?._codigoActivo || selectedActivoImages?.codigoActivo}</DialogTitle>
+            <DialogDescription>
+              {isLoadingImages ? "Cargando imágenes..." : `${imageFiles.length} imagen(es) encontrada(s)`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 max-h-[70vh] overflow-y-auto">
+            {isLoadingImages ? (
+              <LoadingSpinner />
+            ) : imageFiles.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">No hay imágenes para este activo.</p>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {imageFiles.map((file) => (
+                  <div key={file.name} className="border rounded-lg overflow-hidden">
+                    <a href={file.url} target="_blank" rel="noopener noreferrer">
+                      <img src={file.url} alt={file.name} className="w-full h-40 object-cover hover:opacity-80 transition-opacity" />
+                    </a>
+                    <div className="p-2 flex justify-between items-center bg-muted/20">
+                      <span className="text-xs truncate flex-1">{file.name}</span>
+                      <a
+                        href={file.url}
+                        download={file.name}
+                        className="text-blue-500 hover:text-blue-700 ml-2"
+                        title="Descargar"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      </a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
