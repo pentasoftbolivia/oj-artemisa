@@ -58,7 +58,7 @@ import {
 
 import ActivosFijosForm from "./ActivosFijosForm";
 
-const INITIAL_FILTERS = { search: "", rubro: "", carnet: "" };
+const INITIAL_FILTERS = { search: "", rubro: "", carnet: "", ambiente: "", inmueble: "", nivel: "" };
 const ESTADO_MAP = { 1: "Activo", 0: "Inactivo" };
 const DEBOUNCE_MS = 300;
 const formatCodigoActivo = (a) =>
@@ -91,6 +91,9 @@ const ActivosFijosList = () => {
   const [tipoRubros, setTipoRubros] = useState([]);
   const [rubros, setRubros] = useState([]);
   const [ambientes, setAmbientes] = useState([]);
+  const [ambienteNivel, setAmbienteNivel] = useState([]);
+  const [inmuebles, setInmuebles] = useState([]);
+  const [niveles, setNiveles] = useState([]);
 
   useEffect(() => {
     supabase
@@ -103,11 +106,65 @@ const ActivosFijosList = () => {
       .select("codigorubroact, descripcionrubroact")
       .order("descripcionrubroact", { ascending: true })
       .then(({ data }) => setRubros(data || []));
+    (async () => {
+      let allAmbientes = [];
+      let start = 0;
+      const CHUNK = 1000;
+      let chunk;
+      do {
+        const { data } = await supabase
+          .from("act_ambiente")
+          .select("codigoambiente, ambiente")
+          .order("ambiente", { ascending: true })
+          .range(start, start + CHUNK - 1);
+        chunk = data || [];
+        allAmbientes = allAmbientes.concat(chunk);
+        start += CHUNK;
+      } while (chunk.length === CHUNK);
+      setAmbientes(allAmbientes);
+    })();
+    (async () => {
+      let allData = [];
+      let start = 0;
+      const CHUNK = 1000;
+      let chunk;
+      do {
+        const { data } = await supabase
+          .from("act_ambiente")
+          .select("codigoambiente, codigonivel")
+          .range(start, start + CHUNK - 1);
+        chunk = data || [];
+        allData = allData.concat(chunk);
+        start += CHUNK;
+      } while (chunk.length === CHUNK);
+      setAmbienteNivel(allData);
+    })();
+    (async () => {
+      let allData = [];
+      let start = 0;
+      const CHUNK = 1000;
+      let chunk;
+      do {
+        const { data } = await supabase
+          .from("act_ambiente")
+          .select("codigoambiente, codigonivel")
+          .range(start, start + CHUNK - 1);
+        chunk = data || [];
+        allData = allData.concat(chunk);
+        start += CHUNK;
+      } while (chunk.length === CHUNK);
+      setAmbienteNivel(allData);
+    })();
     supabase
-      .from("act_ambiente")
-      .select("codigoambiente, ambiente")
-      .order("ambiente", { ascending: true })
-      .then(({ data }) => setAmbientes(data || []));
+      .from("act_inmueble")
+      .select("codigoinmueble, inmueble")
+      .order("inmueble", { ascending: true })
+      .then(({ data }) => setInmuebles(data || []));
+    supabase
+      .from("act_nivel")
+      .select("codigonivel, nivel, codigoinmueble")
+      .order("nivel", { ascending: true })
+      .then(({ data }) => setNiveles(data || []));
   }, []);
 
   const rubroMap = useMemo(() => {
@@ -127,11 +184,49 @@ const ActivosFijosList = () => {
   const ambienteMap = useMemo(() => {
     const map = {};
     (ambientes || []).forEach((a) => {
-      map[a.codigoambiente] = a.ambiente;
-      map[String(a.codigoambiente)] = a.ambiente;
+      const k = String(a.codigoambiente).trim();
+      map[k] = (a.ambiente || "").trim();
     });
     return map;
   }, [ambientes]);
+
+  const ambienteNivelMap = useMemo(() => {
+    const map = {};
+    (ambienteNivel || []).forEach((a) => {
+      const k = String(a.codigoambiente).trim();
+      map[k] = a.codigonivel;
+    });
+    return map;
+  }, [ambienteNivel]);
+
+  const nivelMap = useMemo(() => {
+    const map = {};
+    (niveles || []).forEach((n) => {
+      const k = String(n.codigonivel).trim();
+      map[k] = (n.nivel || "").trim();
+    });
+    return map;
+  }, [niveles]);
+
+  const nivelInmuebleMap = useMemo(() => {
+    const map = {};
+    (niveles || []).forEach((n) => {
+      const k = String(n.codigonivel).trim();
+      map[k] = String(n.codigoinmueble).trim();
+    });
+    return map;
+  }, [niveles]);
+
+  const inmuebleMap = useMemo(() => {
+    const map = {};
+    (inmuebles || []).forEach((i) => {
+      const k = String(i.codigoinmueble).trim();
+      map[k] = (i.inmueble || "").trim();
+    });
+    return map;
+  }, [inmuebles]);
+
+
 
   const tipoRubroMap = useMemo(() => {
     const map = {};
@@ -146,6 +241,24 @@ const ActivosFijosList = () => {
     () =>
       createOptionsList(rubros || [], "codigorubroact", "descripcionrubroact"),
     [rubros],
+  );
+
+  const ambienteOptions = useMemo(
+    () =>
+      createOptionsList(ambientes || [], "codigoambiente", "ambiente"),
+    [ambientes],
+  );
+
+  const inmuebleOptions = useMemo(
+    () =>
+      createOptionsList(inmuebles || [], "codigoinmueble", "inmueble"),
+    [inmuebles],
+  );
+
+  const nivelOptions = useMemo(
+    () =>
+      createOptionsList(niveles || [], "codigonivel", "nivel"),
+    [niveles],
   );
 
   const rubroToTipoIds = useMemo(() => {
@@ -192,6 +305,9 @@ const ActivosFijosList = () => {
           rubro: filters.rubro
             ? rubroToTipoIds[filters.rubro] || []
             : undefined,
+          ambiente: filters.ambiente || undefined,
+          nivel: filters.nivel || undefined,
+          inmueble: filters.inmueble || undefined,
         },
       }),
     );
@@ -201,6 +317,9 @@ const ActivosFijosList = () => {
     debouncedSearch,
     debouncedCarnet,
     filters.rubro,
+    filters.ambiente,
+    filters.nivel,
+    filters.inmueble,
     dispatch,
     rubroToTipoIds,
   ]);
@@ -411,7 +530,7 @@ const ActivosFijosList = () => {
               <Label htmlFor="search">Buscar</Label>
               <Input
                 id="search"
-                placeholder="Código activo, denominación, ambiente..."
+                placeholder="Código activo, denominación..."
                 value={filters.search}
                 onChange={(e) => handleFilterChange("search", e.target.value)}
               />
@@ -436,13 +555,46 @@ const ActivosFijosList = () => {
                 emptyMessage="Sin resultados"
               />
             </div>
+            <div className="space-y-2">
+              <ComboboxField
+                label="Ambiente"
+                value={filters.ambiente}
+                onValueChange={(val) => handleFilterChange("ambiente", val)}
+                options={ambienteOptions}
+                placeholder="Seleccionar ambiente..."
+                searchPlaceholder="Buscar ambiente..."
+                emptyMessage="Sin resultados"
+              />
+            </div>
+            <div className="space-y-2">
+              <ComboboxField
+                label="Inmueble"
+                value={filters.inmueble}
+                onValueChange={(val) => handleFilterChange("inmueble", val)}
+                options={inmuebleOptions}
+                placeholder="Seleccionar inmueble..."
+                searchPlaceholder="Buscar inmueble..."
+                emptyMessage="Sin resultados"
+              />
+            </div>
+            <div className="space-y-2">
+              <ComboboxField
+                label="Nivel"
+                value={filters.nivel}
+                onValueChange={(val) => handleFilterChange("nivel", val)}
+                options={nivelOptions}
+                placeholder="Seleccionar nivel..."
+                searchPlaceholder="Buscar nivel..."
+                emptyMessage="Sin resultados"
+              />
+            </div>
             <div className="space-y-2 flex items-end">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={clearFilters}
                 className="w-full"
-                disabled={!filters.search && !filters.rubro && !filters.carnet}
+                disabled={!filters.search && !filters.rubro && !filters.carnet && !filters.ambiente && !filters.inmueble && !filters.nivel}
               >
                 <X className="mr-2 h-4 w-4" />
                 Limpiar
@@ -470,6 +622,8 @@ const ActivosFijosList = () => {
                   <TableHead>Denominación</TableHead>
                   <TableHead>Valor Actual</TableHead>
                   <TableHead>Ambiente</TableHead>
+                  <TableHead>Inmueble</TableHead>
+                  <TableHead>Nivel</TableHead>
                   <TableHead>CI Responsable</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead className="text-center">Acciones</TableHead>
@@ -503,10 +657,29 @@ const ActivosFijosList = () => {
                           : "—"}
                       </TableCell>
                       <TableCell className="font-mono text-xs whitespace-normal break-words max-w-[180px]">
-                        {ambienteMap[a.codigoambiente] ??
-                          ambienteMap[a.codigoAmbiente] ??
+                        {ambienteMap[String(a.codigoAmbiente ?? a.codigoambiente).trim()] ??
                           a.ambiente ??
+                          a.Ambiente ??
                           "—"}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs whitespace-normal break-words max-w-[180px]">
+                        {(() => {
+                          const amb = String(a.codigoAmbiente ?? a.codigoambiente).trim();
+                          if (!amb) return "—";
+                          const codNivel = ambienteNivelMap[amb];
+                          if (!codNivel) return "—";
+                          const codInmueble = nivelInmuebleMap[String(codNivel).trim()];
+                          if (!codInmueble) return "—";
+                          return inmuebleMap[String(codInmueble).trim()] ?? "—";
+                        })()}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs whitespace-normal break-words max-w-[180px]">
+                        {(() => {
+                          const amb = String(a.codigoAmbiente ?? a.codigoambiente).trim();
+                          if (!amb) return "—";
+                          const codNivel = ambienteNivelMap[amb];
+                          return codNivel ? (nivelMap[String(codNivel).trim()] ?? "—") : "—";
+                        })()}
                       </TableCell>
                       <TableCell className="font-mono text-xs">
                         {a.cirun || "—"}
@@ -563,7 +736,7 @@ const ActivosFijosList = () => {
                 ) : (
                   <TableRow>
                     <TableCell
-                      colSpan={8}
+                      colSpan={11}
                       className="text-center py-12 text-muted-foreground"
                     >
                       <Package className="mx-auto h-12 w-12 opacity-20 mb-2" />

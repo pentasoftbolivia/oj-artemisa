@@ -25,10 +25,10 @@ export async function generateQRLabel({ qrContent, codigoActivo, rubro, tipoRubr
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
 
-  ctx.font = "bold 18px sans-serif";
+  ctx.font = "bold 25px sans-serif";
   ctx.fillText("ORGANO JUDICIAL", cx, leftBox.y + 8);
 
-  const qrSize = 160;
+  const qrSize = 130;
   const qrX = cx - qrSize / 2;
   const qrY = 35;
 
@@ -36,7 +36,7 @@ export async function generateQRLabel({ qrContent, codigoActivo, rubro, tipoRubr
   await QRCode.toCanvas(tempCanvas, qrContent, { width: qrSize, margin: 1 });
   ctx.drawImage(tempCanvas, qrX, qrY, qrSize, qrSize);
 
-  const txtSize = 16;
+  const txtSize = 17;
   const codeY = qrY + qrSize + 6;
   ctx.font = `bold ${txtSize}px Arial`;
   ctx.fillText(codigoActivo, cx, codeY);
@@ -49,15 +49,15 @@ export async function generateQRLabel({ qrContent, codigoActivo, rubro, tipoRubr
   ctx.stroke();
   ctx.setLineDash([]);
 
-  const rubY = dashY + 8;
-  const tipY = rubY + 20;
+  const rubY = dashY + 10;
+  const tipY = rubY + 22;
   ctx.font = `bold ${txtSize}px Arial`;
   ctx.fillText(rubro, cx, rubY);
-  ctx.font = `${txtSize}px Arial`;
+  ctx.font = `bold ${txtSize}px Arial`;
   ctx.fillText(tipoRubro, cx, tipY);
 
-  ctx.font = `${txtSize}px Arial`;
-  ctx.fillText("www.auditores-mj.com", cx, tipY + 21);
+  ctx.font = `bold ${txtSize}px Arial`;
+  ctx.fillText("www.auditores-mj.com", cx, tipY + 40);
 
   const img = new window.Image();
   img.crossOrigin = "anonymous";
