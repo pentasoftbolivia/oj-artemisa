@@ -424,9 +424,15 @@ const InventarioList = () => {
     loadActivos({});
   };
 
+  const getConservacion = (a) => {
+    const val = a.estadoConservacion ?? a.estadoconservacion ?? a.estado_conservacion ?? "";
+    return String(val).trim().toUpperCase();
+  };
+
   const handleEdit = (activo) => {
     const rubroDesc = rubroFromTipo[activo.tipoRubroAct] || "";
     const tipoDesc = tipoRubroDescMap[activo.tipoRubroAct] || "";
+    const consVal = getConservacion(activo);
     setEditActivo(activo);
     setEditForm({
       codigoActivo: activo.codigoActivo != null ? String(activo.codigoActivo) : "",
@@ -434,7 +440,7 @@ const InventarioList = () => {
       tipoRubro: tipoDesc,
       descripcionActivo: (activo.descripcionActivo || "").trim(),
       codigoAmbiente: String(activo.codigoAmbiente ?? "").trim(),
-      estadoConservacion: activo.estadoconservacion || "",
+      estadoConservacion: consVal,
       ...getRubroFieldValues(activo, rubroDesc),
     });
     setIsEditOpen(true);
@@ -984,9 +990,9 @@ const InventarioList = () => {
                     <SelectValue placeholder="Seleccionar estado" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Bueno">Bueno</SelectItem>
-                    <SelectItem value="Regular">Regular</SelectItem>
-                    <SelectItem value="Malo">Malo</SelectItem>
+                    <SelectItem value="BUENO">BUENO</SelectItem>
+                    <SelectItem value="REGULAR">REGULAR</SelectItem>
+                    <SelectItem value="MALO">MALO</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1020,7 +1026,7 @@ const InventarioList = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">INVENTARIO</h1>
+          <h1 className="text-2xl font-bold tracking-tight">PANEL DE CONTROL INVENTARIO</h1>
           <p className="text-muted-foreground">
             Gestión de inventario de activos fijos
           </p>
@@ -1303,9 +1309,9 @@ const InventarioList = () => {
                   <SelectValue placeholder="Seleccionar estado" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Bueno">Bueno</SelectItem>
-                  <SelectItem value="Regular">Regular</SelectItem>
-                  <SelectItem value="Malo">Malo</SelectItem>
+                  <SelectItem value="BUENO">BUENO</SelectItem>
+                  <SelectItem value="REGULAR">REGULAR</SelectItem>
+                  <SelectItem value="MALO">MALO</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1360,7 +1366,7 @@ const InventarioList = () => {
                         className="text-blue-500 hover:text-blue-700 ml-2"
                         title="Descargar"
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
                       </a>
                     </div>
                   </div>

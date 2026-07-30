@@ -40,8 +40,8 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import JsBarcode from "jsbarcode";
-import QRCode from "qrcode";
 import { jsPDF } from "jspdf";
+import { generateQRLabel } from "../helpers/generateQRLabel";
 
 import {
   fetchActivosFijosPaginated,
@@ -221,9 +221,17 @@ const ActivosFijosList = () => {
 
   useEffect(() => {
     if (!qrActivo) return;
-    const content = `${qrActivo.tipoRubroAct || ""}|${formatCodigoActivo(qrActivo)}|${qrActivo.descripcionActivo || ""}`;
-    QRCode.toDataURL(content, { width: 180, margin: 1 }).then(setQrDataUrl);
-  }, [qrActivo]);
+    const content = formatCodigoActivo(qrActivo);
+    const rubro = (rubroMap[qrActivo.tipoRubroAct] ?? rubroMap[qrActivo.tiporubroact] ?? qrActivo.tipoRubroAct ?? qrActivo.tiporubroact ?? "").toString().trim();
+    const tipoRubro = (tipoRubroMap[qrActivo.tipoRubroAct] ?? tipoRubroMap[qrActivo.tiporubroact] ?? qrActivo.descripciontiporubroact ?? "").toString().trim();
+    generateQRLabel({
+      qrContent: content,
+      codigoActivo: formatCodigoActivo(qrActivo),
+      rubro,
+      tipoRubro,
+      fecha: new Date().toLocaleDateString("es-ES"),
+    }).then(setQrDataUrl);
+  }, [qrActivo, rubroMap, tipoRubroMap]);
 
   const printBarcodePDF = useCallback(() => {
     if (!barcodeDataUrl || !barcodeActivo) return;
@@ -247,11 +255,7 @@ const ActivosFijosList = () => {
       unit: "mm",
       format: [50, 25],
     });
-    doc.addImage(qrDataUrl, "PNG", 2, 2, 21, 21);
-    doc.setFontSize(7);
-    doc.text(`Tipo: ${qrActivo.tipoRubroAct || ""}`, 27, 7);
-    doc.text(`Cod: ${formatCodigoActivo(qrActivo)}`, 27, 12);
-    doc.text(qrActivo.descripcionActivo || "", 27, 20, { maxWidth: 21 });
+    doc.addImage(qrDataUrl, "PNG", 0, 0, 50, 25);
     doc.save(`codigo-qr-${qrActivo.codigoActivo}.pdf`);
   }, [qrDataUrl, qrActivo]);
 
@@ -645,10 +649,7 @@ const ActivosFijosList = () => {
           </DialogHeader>
           <div className="flex flex-col items-center gap-4 py-4">
             {qrDataUrl && (
-              <div
-                className="border rounded-lg p-4 bg-white"
-                style={{ width: 220 }}
-              >
+              <div className="border rounded-lg p-1 bg-white w-full max-w-[360px]">
                 <img src={qrDataUrl} alt="Código QR" className="w-full" />
               </div>
             )}
