@@ -86,6 +86,34 @@ export const fetchActivosFijosPaginated = createAsyncThunk(
         }
       }
 
+      if (filters.ciudad) {
+        const { data: inmueblesByCiudad } = await supabase
+          .from("act_inmueble")
+          .select("codigoinmueble")
+          .eq("codigociudad", filters.ciudad);
+        const inmuebleCodes = (inmueblesByCiudad || []).map(i => i.codigoinmueble);
+        let cityAmbientes = [];
+        if (inmuebleCodes.length > 0) {
+          const { data: nivelesByInmueble } = await supabase
+            .from("act_nivel")
+            .select("codigonivel")
+            .in("codigoinmueble", inmuebleCodes);
+          const nivelCodes = (nivelesByInmueble || []).map(n => n.codigonivel);
+          if (nivelCodes.length > 0) {
+            const { data: ambientesByNivel } = await supabase
+              .from("act_ambiente")
+              .select("codigoambiente")
+              .in("codigonivel", nivelCodes);
+            cityAmbientes = (ambientesByNivel || []).map(a => a.codigoambiente);
+          }
+        }
+        if (cityAmbientes.length > 0) {
+          query = query.in("codigoambiente", cityAmbientes);
+        } else {
+          query = query.in("codigoambiente", [-1]);
+        }
+      }
+
       const { data, error, count } = await query;
       if (error) throw error;
 

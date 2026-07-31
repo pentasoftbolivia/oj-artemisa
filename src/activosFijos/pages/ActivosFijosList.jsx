@@ -58,7 +58,7 @@ import {
 
 import ActivosFijosForm from "./ActivosFijosForm";
 
-const INITIAL_FILTERS = { search: "", rubro: "", carnet: "", ambiente: "", inmueble: "", nivel: "" };
+const INITIAL_FILTERS = { search: "", rubro: "", carnet: "", ciudad: "", ambiente: "", inmueble: "", nivel: "" };
 const ESTADO_MAP = { 1: "Activo", 0: "Inactivo" };
 const DEBOUNCE_MS = 300;
 const formatCodigoActivo = (a) =>
@@ -94,6 +94,7 @@ const ActivosFijosList = () => {
   const [ambienteNivel, setAmbienteNivel] = useState([]);
   const [inmuebles, setInmuebles] = useState([]);
   const [niveles, setNiveles] = useState([]);
+  const [ciudades, setCiudades] = useState([]);
 
   useEffect(() => {
     supabase
@@ -157,7 +158,7 @@ const ActivosFijosList = () => {
     })();
     supabase
       .from("act_inmueble")
-      .select("codigoinmueble, inmueble")
+      .select("codigoinmueble, inmueble, codigociudad")
       .order("inmueble", { ascending: true })
       .then(({ data }) => setInmuebles(data || []));
     supabase
@@ -165,6 +166,11 @@ const ActivosFijosList = () => {
       .select("codigonivel, nivel, codigoinmueble")
       .order("nivel", { ascending: true })
       .then(({ data }) => setNiveles(data || []));
+    supabase
+      .from("act_ciudad")
+      .select("codigociudad, descripcion")
+      .order("descripcion", { ascending: true })
+      .then(({ data }) => setCiudades(data || []));
   }, []);
 
   const rubroMap = useMemo(() => {
@@ -226,6 +232,15 @@ const ActivosFijosList = () => {
     return map;
   }, [inmuebles]);
 
+  const inmuebleCiudadMap = useMemo(() => {
+    const map = {};
+    (inmuebles || []).forEach((i) => {
+      const k = String(i.codigoinmueble).trim();
+      map[k] = String(i.codigociudad ?? "").trim();
+    });
+    return map;
+  }, [inmuebles]);
+
 
 
   const tipoRubroMap = useMemo(() => {
@@ -241,6 +256,12 @@ const ActivosFijosList = () => {
     () =>
       createOptionsList(rubros || [], "codigorubroact", "descripcionrubroact"),
     [rubros],
+  );
+
+  const ciudadOptions = useMemo(
+    () =>
+      createOptionsList(ciudades || [], "codigociudad", "descripcion"),
+    [ciudades],
   );
 
   const ambienteOptions = useMemo(
@@ -260,6 +281,30 @@ const ActivosFijosList = () => {
       createOptionsList(niveles || [], "codigonivel", "nivel"),
     [niveles],
   );
+
+  const inmuebleOptionsByCiudad = useMemo(() => {
+    if (!filters.ciudad) return inmuebleOptions;
+    const ciudad = String(filters.ciudad).trim();
+    return inmuebleOptions.filter(
+      (o) => inmuebleCiudadMap[String(o.value).trim()] === ciudad,
+    );
+  }, [inmuebleOptions, inmuebleCiudadMap, filters.ciudad]);
+
+  const nivelOptionsByInmueble = useMemo(() => {
+    if (!filters.inmueble) return nivelOptions;
+    const inmueble = String(filters.inmueble).trim();
+    return nivelOptions.filter(
+      (o) => nivelInmuebleMap[String(o.value).trim()] === inmueble,
+    );
+  }, [nivelOptions, nivelInmuebleMap, filters.inmueble]);
+
+  const ambienteOptionsByNivel = useMemo(() => {
+    if (!filters.nivel) return ambienteOptions;
+    const nivel = String(filters.nivel).trim();
+    return ambienteOptions.filter(
+      (o) => String(ambienteNivelMap[String(o.value).trim()] ?? "") === nivel,
+    );
+  }, [ambienteOptions, ambienteNivelMap, filters.nivel]);
 
   const rubroToTipoIds = useMemo(() => {
     const map = {};
@@ -308,6 +353,7 @@ const ActivosFijosList = () => {
           ambiente: filters.ambiente || undefined,
           nivel: filters.nivel || undefined,
           inmueble: filters.inmueble || undefined,
+          ciudad: filters.ciudad || undefined,
         },
       }),
     );
@@ -320,6 +366,7 @@ const ActivosFijosList = () => {
     filters.ambiente,
     filters.nivel,
     filters.inmueble,
+    filters.ciudad,
     dispatch,
     rubroToTipoIds,
   ]);
@@ -425,7 +472,20 @@ const ActivosFijosList = () => {
     setEditingActivo(null);
   }, []);
   const handleFilterChange = useCallback((type, value) => {
-    setFilters((p) => ({ ...p, [type]: value }));
+    setFilters((p) => {
+      const next = { ...p, [type]: value };
+      if (type === "ciudad") {
+        next.inmueble = "";
+        next.nivel = "";
+        next.ambiente = "";
+      } else if (type === "inmueble") {
+        next.nivel = "";
+        next.ambiente = "";
+      } else if (type === "nivel") {
+        next.ambiente = "";
+      }
+      return next;
+    });
   }, []);
 
   const clearFilters = useCallback(() => {
@@ -557,12 +617,12 @@ const ActivosFijosList = () => {
             </div>
             <div className="space-y-2">
               <ComboboxField
-                label="Ambiente"
-                value={filters.ambiente}
-                onValueChange={(val) => handleFilterChange("ambiente", val)}
-                options={ambienteOptions}
-                placeholder="Seleccionar ambiente..."
-                searchPlaceholder="Buscar ambiente..."
+                label="Ciudad"
+                value={filters.ciudad}
+                onValueChange={(val) => handleFilterChange("ciudad", val)}
+                options={ciudadOptions}
+                placeholder="Seleccionar ciudad..."
+                searchPlaceholder="Buscar ciudad..."
                 emptyMessage="Sin resultados"
               />
             </div>
@@ -571,7 +631,7 @@ const ActivosFijosList = () => {
                 label="Inmueble"
                 value={filters.inmueble}
                 onValueChange={(val) => handleFilterChange("inmueble", val)}
-                options={inmuebleOptions}
+                options={inmuebleOptionsByCiudad}
                 placeholder="Seleccionar inmueble..."
                 searchPlaceholder="Buscar inmueble..."
                 emptyMessage="Sin resultados"
@@ -582,9 +642,20 @@ const ActivosFijosList = () => {
                 label="Nivel"
                 value={filters.nivel}
                 onValueChange={(val) => handleFilterChange("nivel", val)}
-                options={nivelOptions}
+                options={nivelOptionsByInmueble}
                 placeholder="Seleccionar nivel..."
                 searchPlaceholder="Buscar nivel..."
+                emptyMessage="Sin resultados"
+              />
+            </div>
+            <div className="space-y-2">
+              <ComboboxField
+                label="Ambiente"
+                value={filters.ambiente}
+                onValueChange={(val) => handleFilterChange("ambiente", val)}
+                options={ambienteOptionsByNivel}
+                placeholder="Seleccionar ambiente..."
+                searchPlaceholder="Buscar ambiente..."
                 emptyMessage="Sin resultados"
               />
             </div>
@@ -594,7 +665,7 @@ const ActivosFijosList = () => {
                 size="sm"
                 onClick={clearFilters}
                 className="w-full"
-                disabled={!filters.search && !filters.rubro && !filters.carnet && !filters.ambiente && !filters.inmueble && !filters.nivel}
+                disabled={!filters.search && !filters.rubro && !filters.carnet && !filters.ciudad && !filters.ambiente && !filters.inmueble && !filters.nivel}
               >
                 <X className="mr-2 h-4 w-4" />
                 Limpiar
