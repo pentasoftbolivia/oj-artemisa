@@ -37,6 +37,8 @@ import {
   X,
   Barcode,
   QrCode,
+  Printer,
+  Download,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import JsBarcode from "jsbarcode";
@@ -88,6 +90,9 @@ const ActivosFijosList = () => {
   const [qrActivo, setQrActivo] = useState(null);
   const [barcodeDataUrl, setBarcodeDataUrl] = useState("");
   const [qrDataUrl, setQrDataUrl] = useState("");
+  const [isQrPrintOpen, setIsQrPrintOpen] = useState(false);
+  const [qrLabels, setQrLabels] = useState([]);
+  const [isGeneratingQrs, setIsGeneratingQrs] = useState(false);
   const [tipoRubros, setTipoRubros] = useState([]);
   const [rubros, setRubros] = useState([]);
   const [ambientes, setAmbientes] = useState([]);
@@ -425,6 +430,83 @@ const ActivosFijosList = () => {
     doc.save(`codigo-qr-${qrActivo.codigoActivo}.pdf`);
   }, [qrDataUrl, qrActivo]);
 
+  const generateBulkQRLabels = useCallback(
+    async (items) => {
+      const labels = [];
+      for (const item of items) {
+        const content = formatCodigoActivo(item);
+        const rubro = (rubroMap[item.tipoRubroAct] ?? rubroMap[item.tiporubroact] ?? item.tipoRubroAct ?? item.tiporubroact ?? "").toString().trim();
+        const tipoRubro = (tipoRubroMap[item.tipoRubroAct] ?? tipoRubroMap[item.tiporubroact] ?? item.descripciontiporubroact ?? "").toString().trim();
+        const dataUrl = await generateQRLabel({
+          qrContent: content,
+          codigoActivo: content,
+          rubro,
+          tipoRubro,
+          fecha: new Date().toLocaleDateString("es-ES"),
+        });
+        labels.push({ codigoActivo: content, dataUrl });
+      }
+      return labels;
+    },
+    [rubroMap, tipoRubroMap],
+  );
+
+  const handlePrintQRs = useCallback(async () => {
+    if (!activosFijos.length) return;
+    setIsGeneratingQrs(true);
+    try {
+      const labels = await generateBulkQRLabels(activosFijos);
+      setQrLabels(labels);
+      setIsQrPrintOpen(true);
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: `Fallo al generar QRs: ${err.message || "Error desconocido"}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingQrs(false);
+    }
+  }, [activosFijos, generateBulkQRLabels, toast]);
+
+  const printQRLabels = useCallback(() => {
+    if (!qrLabels.length) return;
+    const printWindow = window.open("", "_blank", "width=800,height=600");
+    if (!printWindow) return;
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Imprimir QRs</title>
+          <style>
+            @page { size: auto; margin: 0; }
+            html, body { margin: 0; padding: 0; }
+            .label { width: 50mm; height: 25mm; display: inline-block; page-break-inside: avoid; }
+            .label img { width: 100%; height: 100%; }
+          </style>
+        </head>
+        <body>
+          ${qrLabels.map((l) => `<div class="label"><img src="${l.dataUrl}" /></div>`).join("")}
+          <script>window.onload = function () { window.focus(); window.print(); };</script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  }, [qrLabels]);
+
+  const downloadQRsPDF = useCallback(() => {
+    if (!qrLabels.length) return;
+    const doc = new jsPDF({
+      orientation: "landscape",
+      unit: "mm",
+      format: [50, 25],
+    });
+    qrLabels.forEach((l, i) => {
+      if (i > 0) doc.addPage();
+      doc.addImage(l.dataUrl, "PNG", 0, 0, 50, 25);
+    });
+    doc.save("codigos-qr.pdf");
+  }, [qrLabels]);
+
   const handlePageChange = useCallback((page) => {
     setCurrentPage(page);
   }, []);
@@ -543,13 +625,25 @@ const ActivosFijosList = () => {
             Administra los activos fijos del sistema
           </p>
         </div>
-        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={handleAdd}>
-              <Plus className="mr-2 h-4 w-4" />
-              Nuevo
+        <div className="flex items-center gap-2">
+          {(filters.ciudad || filters.inmueble || filters.nivel || filters.ambiente) && (
+            <Button
+              variant="outline"
+              onClick={handlePrintQRs}
+              disabled={isGeneratingQrs || !activosFijos.length}
+              className="bg-yellow-500 text-black hover:bg-yellow-600 hover:text-black"
+            >
+              <Printer className="mr-2 h-4 w-4" />
+              {isGeneratingQrs ? "Generando..." : "Imprimir QRs"}
             </Button>
-          </DialogTrigger>
+          )}
+          <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={handleAdd}>
+                <Plus className="mr-2 h-4 w-4" />
+                Nuevo
+              </Button>
+            </DialogTrigger>
           <DialogContent
             className="sm:max-w-[700px]"
             onInteractOutside={(e) => {
@@ -575,6 +669,7 @@ const ActivosFijosList = () => {
             />
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <Card>
@@ -905,6 +1000,41 @@ const ActivosFijosList = () => {
             <Button onClick={printQRPDF} disabled={!qrDataUrl}>
               <QrCode className="h-4 w-4 mr-2" />
               Descargar PDF
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isQrPrintOpen} onOpenChange={setIsQrPrintOpen}>
+        <DialogContent className="sm:max-w-[760px]">
+          <DialogHeader>
+            <DialogTitle>Imprimir QRs ({qrLabels.length})</DialogTitle>
+            <DialogDescription>
+              Etiquetas generadas a partir de la lista actual. Listas para
+              imprimir o descargar.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 max-h-[60vh] overflow-auto p-1">
+            {qrLabels.map((l) => (
+              <div
+                key={l.codigoActivo}
+                className="border rounded-lg overflow-hidden bg-white"
+              >
+                <img src={l.dataUrl} alt={l.codigoActivo} className="w-full" />
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsQrPrintOpen(false)}>
+              Cerrar
+            </Button>
+            <Button onClick={downloadQRsPDF} disabled={!qrLabels.length}>
+              <Download className="h-4 w-4 mr-2" />
+              Descargar PDF
+            </Button>
+            <Button onClick={printQRLabels} disabled={!qrLabels.length}>
+              <Printer className="h-4 w-4 mr-2" />
+              Imprimir
             </Button>
           </DialogFooter>
         </DialogContent>
