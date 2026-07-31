@@ -12,7 +12,7 @@ export async function generateQRLabel({ qrContent, codigoActivo, rubro, tipoRubr
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, W, H);
 
-  const leftBox = { x: 5, y: 5, w: 355, h: 290 };
+  const leftBox = { x: 5, y: 5, w: 410, h: 290 };
   ctx.setLineDash([4, 4]);
   ctx.strokeStyle = "#000000";
   ctx.lineWidth = 1;
@@ -25,23 +25,23 @@ export async function generateQRLabel({ qrContent, codigoActivo, rubro, tipoRubr
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
 
-  ctx.font = "bold 25px sans-serif";
+  ctx.font = "bold 28px sans-serif";
   ctx.fillText("ORGANO JUDICIAL", cx, leftBox.y + 8);
 
-  const qrSize = 130;
+  const qrSize = 155;
   const qrX = cx - qrSize / 2;
-  const qrY = 35;
+  const qrY = 44;
 
   const tempCanvas = document.createElement("canvas");
   await QRCode.toCanvas(tempCanvas, qrContent, { width: qrSize, margin: 1 });
   ctx.drawImage(tempCanvas, qrX, qrY, qrSize, qrSize);
 
-  const txtSize = 17;
-  const codeY = qrY + qrSize + 6;
-  ctx.font = `bold ${txtSize}px Arial`;
+  const txtSize = 15;
+  const codeY = qrY + qrSize + 1;
+  ctx.font = `bold 25px Arial`;
   ctx.fillText(codigoActivo, cx, codeY);
 
-  const dashY = codeY + 19;
+  const dashY = codeY + 28;
   ctx.setLineDash([3, 3]);
   ctx.beginPath();
   ctx.moveTo(leftBox.x + 10, dashY);
@@ -49,15 +49,15 @@ export async function generateQRLabel({ qrContent, codigoActivo, rubro, tipoRubr
   ctx.stroke();
   ctx.setLineDash([]);
 
-  const rubY = dashY + 10;
-  const tipY = rubY + 22;
+  const rubY = dashY + 8;
+  const tipY = rubY + 20;
   ctx.font = `bold ${txtSize}px Arial`;
   ctx.fillText(rubro, cx, rubY);
   ctx.font = `bold ${txtSize}px Arial`;
   ctx.fillText(tipoRubro, cx, tipY);
 
   ctx.font = `bold ${txtSize}px Arial`;
-  ctx.fillText("www.auditores-mj.com", cx, tipY + 40);
+  ctx.fillText("www.auditores-mj.com", cx, tipY + 26);
 
   const img = new window.Image();
   img.crossOrigin = "anonymous";
@@ -67,9 +67,9 @@ export async function generateQRLabel({ qrContent, codigoActivo, rubro, tipoRubr
     img.onerror = resolve;
   });
 
-  const rightX = 360;
-  const rightW = 240;
-  const imgH = 260;
+  const rightX = 420;
+  const rightW = 180;
+  const imgH = 265;
   ctx.drawImage(img, rightX, 0, rightW, imgH);
 
   ctx.font = `bold ${txtSize}px Arial`;
