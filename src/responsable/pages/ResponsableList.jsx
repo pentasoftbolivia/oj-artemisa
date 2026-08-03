@@ -1,16 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Card,
   CardContent,
@@ -26,17 +16,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import LoadingSpinner from "@/components/ui/loading-spinner";
 import DataPagination from "@/components/ui/data-pagination";
-import { Plus, Edit, Trash2, Users, Filter, X } from "lucide-react";
+import { Plus, Users } from "lucide-react";
+
+import ResponsableFilters from "../components/ResponsableFilters";
+import ResponsableTable from "../components/ResponsableTable";
 import { useToast } from "@/hooks/use-toast";
 import {
   fetchResponsable,
@@ -293,59 +278,14 @@ const ResponsableList = () => {
         </Dialog>
       </div>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            Filtros
-            {hasActiveFilters && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearFilters}
-                className="ml-auto h-7 px-2 text-muted-foreground hover:text-foreground"
-                title="Limpiar filtros"
-              >
-                <X className="h-4 w-4 mr-1" />
-                Limpiar
-              </Button>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="search">Buscar</Label>
-              <Input
-                id="search"
-                placeholder={MESSAGES.placeholders.search}
-                value={filters.search}
-                onChange={(e) => handleFilterChange("search", e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="cargo">Cargo</Label>
-              <Select
-                value={filters.cargo}
-                onValueChange={(value) => handleFilterChange("cargo", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={MESSAGES.placeholders.cargo} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">
-                    {MESSAGES.placeholders.cargo}
-                  </SelectItem>
-                  {[...new Set(responsables.map(r => r.cargo?.trim()).filter(Boolean))].sort().map((c) => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <ResponsableFilters
+        filters={filters}
+        hasActiveFilters={hasActiveFilters}
+        cargos={[...new Set(responsables.map(r => r.cargo?.trim()).filter(Boolean))].sort()}
+        onFilterChange={handleFilterChange}
+        onClearFilters={clearFilters}
+        messages={MESSAGES}
+      />
 
       <Card>
         <CardHeader>
@@ -358,88 +298,13 @@ const ResponsableList = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>CI</TableHead>
-                  <TableHead>Primer Nombre</TableHead>
-                  <TableHead>Segundo Nombre</TableHead>
-                  <TableHead>Apellido Paterno</TableHead>
-                  <TableHead>Apellido Materno</TableHead>
-                  <TableHead>Cargo</TableHead>
-                  <TableHead>Estado Activo</TableHead>
-                  <TableHead className="text-center">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paginatedResponsables.length > 0 ? (
-                  paginatedResponsables.map((r) => (
-                    <TableRow key={r.cirun}>
-                      <TableCell className="font-medium font-mono text-xs">
-                        {r.cirun}
-                      </TableCell>
-                      <TableCell>{r.nombre1?.trim() || "—"}</TableCell>
-                      <TableCell>{r.nombre2?.trim() || "—"}</TableCell>
-                      <TableCell>{r.paterno?.trim() || "—"}</TableCell>
-                      <TableCell>{r.materno?.trim() || "—"}</TableCell>
-                      <TableCell>{r.cargo?.trim() || "—"}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            r.registroActivo === 1 ? "default" : "secondary"
-                          }
-                        >
-                          {ESTADO_MAP[r.registroActivo] ?? "—"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex space-x-1 justify-end">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEdit(r)}
-                            title="Editar responsable"
-                            className="text-yellow-500 hover:text-yellow-700"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(r)}
-                            title="Eliminar responsable"
-                            className="text-red-500 hover:text-red-700"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell
-                      colSpan={8}
-                      className="text-center py-12 text-muted-foreground"
-                    >
-                      <Users className="mx-auto h-12 w-12 opacity-20 mb-2" />
-                      <p className="text-lg font-medium">
-                        {filters.search || filters.estado
-                          ? MESSAGES.empty.filtered
-                          : MESSAGES.empty.noData}
-                      </p>
-                      <p className="text-sm mt-1">
-                        {filters.search || filters.estado
-                          ? MESSAGES.empty.adjustFilters
-                          : MESSAGES.empty.createFirst}
-                      </p>
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
+          <ResponsableTable
+            responsables={paginatedResponsables}
+            hasActiveFilters={hasActiveFilters}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+            messages={MESSAGES}
+          />
 
           {filteredResponsables.length > 0 && (
             <DataPagination

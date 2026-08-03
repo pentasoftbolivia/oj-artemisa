@@ -4,7 +4,7 @@ const InicioPage = () => {
       <div className="max-w-2xl text-center space-y-6">
         <img
           src="/logo-oj.png"
-          alt="Órgano Judicial - La Paz"
+          alt="ACTIVOS FIJOS"
           className="h-24 w-auto mx-auto"
         />
         <p className="text-lg md:text-xl font-semibold text-gray-700 leading-relaxed">

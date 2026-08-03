@@ -11,10 +11,10 @@ export const DEFAULT_NAV_ITEMS = [
       { title: "Tipos de Rubro", href: "/tiporubro" },
     ],
   },
-  { title: "Responsables", href: "/responsables" },
   { title: "Activos fijos", href: "/activos" },
-/*   { title: "Movimientos", href: "/movimientos" }, */
-  { title: "Asignaciones", href: "/asignaciones" },
+  { title: "Responsables", href: "/responsables" },
   { title: "Inventario", href: "/inventario" },
+  { title: "Asignaciones", href: "/asignaciones" },
+/*   { title: "Movimientos", href: "/movimientos" }, */
 /*   { title: "Revaluo", href: "/" }, */
 ];

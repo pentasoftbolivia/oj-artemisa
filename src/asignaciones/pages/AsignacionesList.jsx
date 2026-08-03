@@ -1,31 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useSelector, useDispatch } from "react-redux";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import LoadingSpinner from "@/components/ui/loading-spinner";
 import DataPagination from "@/components/ui/data-pagination";
-import ComboboxField from "@/components/ui/combobox-field";
-import { ClipboardList, Filter, X, Search } from "lucide-react";
+import { ClipboardList } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+
+import AsignacionesFilters from "../components/AsignacionesFilters";
+import AsignacionesTable from "../components/AsignacionesTable";
 
 import { fetchAsignaciones } from "@/store/asignaciones/asignacionesThunks";
 import {
@@ -137,98 +120,14 @@ const AsignacionesList = () => {
         </p>
       </div>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            Filtros
-            {hasActiveFilters && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearFilters}
-                className="ml-auto h-7 px-2 text-muted-foreground hover:text-foreground"
-                title="Limpiar filtros"
-              >
-                <X className="h-4 w-4 mr-1" />
-                Limpiar
-              </Button>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="searchFuncionario">Buscar por Funcionario</Label>
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="searchFuncionario"
-                  placeholder="CI, nombres o apellidos..."
-                  className="pl-8"
-                  value={filters.searchFuncionario}
-                  onChange={(e) =>
-                    handleFilterChange("searchFuncionario", e.target.value)
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="searchActivo">Buscar por Activo</Label>
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="searchActivo"
-                  placeholder="Código, denominación o serie..."
-                  className="pl-8"
-                  value={filters.searchActivo}
-                  onChange={(e) =>
-                    handleFilterChange("searchActivo", e.target.value)
-                  }
-                />
-              </div>
-            </div>
-
-            <ComboboxField
-              label="Buscar por Rubro"
-              value={filters.searchGrupo}
-              onValueChange={(value) =>
-                handleFilterChange("searchGrupo", value)
-              }
-              options={[
-                { value: "__todos__", label: "Todos los grupos" },
-                ...rubros.map((r) => ({
-                  value: r.descripcionrubroact,
-                  label: r.descripcionrubroact,
-                })),
-              ]}
-              placeholder="Seleccionar grupo"
-              searchPlaceholder="Buscar grupo..."
-            />
-
-            <div className="space-y-2">
-              <Label htmlFor="estado">Buscar por Estado</Label>
-              <Select
-                value={filters.estado}
-                onValueChange={(value) => handleFilterChange("estado", value)}
-              >
-                <SelectTrigger id="estado">
-                  <SelectValue placeholder="Todos los estados" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los estados</SelectItem>
-                  {ESTADOS.map((est) => (
-                    <SelectItem key={est} value={est}>
-                      {est}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <AsignacionesFilters
+        filters={filters}
+        hasActiveFilters={hasActiveFilters}
+        rubros={rubros}
+        estados={ESTADOS}
+        onFilterChange={handleFilterChange}
+        onClearFilters={clearFilters}
+      />
 
       <Card>
         <CardHeader>
@@ -243,100 +142,10 @@ const AsignacionesList = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Código Activo</TableHead>
-                  <TableHead>Denominación</TableHead>
-                  <TableHead>Serie</TableHead>
-                  <TableHead>Marca</TableHead>
-                  <TableHead>Grupo</TableHead>
-                  <TableHead>Tipo Grupo</TableHead>
-                  <TableHead>Responsable</TableHead>
-                  <TableHead>CI</TableHead>
-                  <TableHead>Cargo</TableHead>
-                  <TableHead>Ubicación</TableHead>
-                  <TableHead>Estado</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {asignaciones.length > 0 ? (
-                  asignaciones.map((a, i) => (
-                    <TableRow key={a.codigoactivo ?? `row-${i}`}>
-                      <TableCell className="font-medium whitespace-normal break-words max-w-[180px]">
-                        {a.codigoactivo || "—"}
-                      </TableCell>
-                      <TableCell className="whitespace-normal break-words max-w-[250px]">
-                        {a.descripcionactivo || "—"}
-                      </TableCell>
-                      <TableCell className="whitespace-normal break-words max-w-[120px]">
-                        {a.serie || "—"}
-                      </TableCell>
-                      <TableCell className="whitespace-normal break-words max-w-[150px]">
-                        {a.marcamaterial || "—"}
-                      </TableCell>
-                      <TableCell className="whitespace-normal break-words max-w-[150px]">
-                        {a.grupo || "—"}
-                      </TableCell>
-                      <TableCell className="whitespace-normal break-words max-w-[150px]">
-                        {a.tipogrupo || "—"}
-                      </TableCell>
-                      <TableCell className="font-medium whitespace-normal break-words max-w-[180px]">
-                        {getNombreCompleto(a)}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {a.cirun || "—"}
-                      </TableCell>
-                      <TableCell className="whitespace-normal break-words max-w-[150px]">
-                        {a.cargoresponsable || "—"}
-                      </TableCell>
-                      <TableCell className="whitespace-normal break-words max-w-[200px]">
-                        {[a.descripcion, a.inmueble, a.nivel, a.ambiente]
-                          .filter(Boolean)
-                          .join(" - ") || "—"}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            (a.estado || "") === "Activo"
-                              ? "default"
-                              : "secondary"
-                          }
-                          className={
-                            a.estado === "Baja"
-                              ? "bg-gray-100 text-gray-600 hover:bg-gray-100"
-                              : ""
-                          }
-                        >
-                          {a.estado || "Desconocido"}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell
-                      colSpan={11}
-                      className="text-center py-12 text-muted-foreground"
-                    >
-                      <ClipboardList className="mx-auto h-12 w-12 opacity-20 mb-2" />
-                      <p className="text-lg font-medium">
-                        {hasActiveFilters
-                          ? "No se encontraron asignaciones que coincidan con los filtros"
-                          : "Usa los filtros para buscar asignaciones"}
-                      </p>
-                      <p className="text-sm mt-1">
-                        {hasActiveFilters
-                          ? "Intenta ajustar los filtros de búsqueda"
-                          : ""}
-                      </p>
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
+          <AsignacionesTable
+            asignaciones={asignaciones}
+            hasActiveFilters={hasActiveFilters}
+          />
 
           {showPagination && (
             <DataPagination

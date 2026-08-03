@@ -1,137 +1,81 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSelector } from "react-redux";
-import { supabase, fetchAllFromTable } from "@/lib/supabase";
-import { toCamelCaseArray } from "@/lib/mapFields";
+import { ArrowLeft, Edit, Filter, Package, Search, X, Plus, Users } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 import { selectUser } from "@/store/auth/authSlice";
+import { useToast } from "@/hooks/use-toast";
+
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Card, CardContent, CardHeader, CardTitle,
-} from "@/components/ui/card";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
-} from "@/components/ui/dialog";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import LoadingSpinner from "@/components/ui/loading-spinner";
+
+import InventarioFilters from "../components/InventarioFilters";
+import InventarioTable from "../components/InventarioTable";
 import DataPagination from "@/components/ui/data-pagination";
-import {
-  ArrowLeft, Plus, Edit, Search, Package, Filter, X, Image,
-} from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 
-const normalizeKey = (s) => String(s ?? "").toLowerCase().replace(/\s+/g, " ").trim();
-
-const RUBRO_ALIAS = {
-  "equipo de oficina y muebles": "equipos de oficina y muebles",
-  "equipos de comunicaciones": "equipos de comunicación",
-  "equipos de comunicaciónes": "equipos de comunicación",
-  "equipo de comunicaciones": "equipos de comunicación",
-  "equipo de comunicaciónes": "equipos de comunicación",
-  "equipo de comunicación": "equipos de comunicación",
-  "equipo de computación": "equipos de computación",
-  "equipo de computacion": "equipos de computación",
-  "equipos de computacion": "equipos de computación",
-  "maquinaria y equipos": "maquinaria y equipo",
-  "maquinarias y equipo": "maquinaria y equipo",
-  "maquinarias y equipos": "maquinaria y equipo",
-  "maquinaria y equipo de produccion": "maquinaria y equipo",
-  "maquinaria y equipo de producción": "maquinaria y equipo",
-  "otro equipo y maquinaria": "otros equipos y maquinaria",
-  "otros equipos y maquinarias": "otros equipos y maquinaria",
-  "otro equipo y maquinarias": "otros equipos y maquinaria",
-  "otro activo fijo": "otros activos fijos",
-  "otros activo fijo": "otros activos fijos",
-  "otro activos fijos": "otros activos fijos",
-};
-
-const RUBRO_FIELDS_RAW = {
-  "EQUIPO EDUCACIONAL Y RECREATIVO": [
-    { key: "modelo", label: "Modelo" },
-    { key: "capacidad", label: "Capacidad" },
-    { key: "dimension", label: "Dimensión" },
-    { key: "fuentealimentacion", label: "Fuente de Alimentación" },
-    { key: "accesorios", label: "Accesorios" },
-  ],
-  "EQUIPO DE TRANSPORTE, ELEVACIÓN Y TRACCIÓN": [
-    { key: "numeromotor", label: "Número de Motor" },
-    { key: "numerochasis", label: "Número de Chasis" },
-    { key: "serial", label: "Serial" },
-    { key: "placamatricula", label: "Placa Matrícula" },
-    { key: "capacidadcargatraccion", label: "Capacidad de Carga/Tracción" },
-  ],
-  "EQUIPOS DE COMUNICACIÓN": [
-    { key: "alcancecobertura", label: "Alcance y Cobertura" },
-  ],
-  "EQUIPOS DE OFICINA Y MUEBLES": [
-    { key: "medidas", label: "Medidas" },
-    { key: "color", label: "Color" },
-    { key: "divisionescajonesbandejas", label: "Divisiones/Cajones/Bandejas" },
-    { key: "chapa", label: "Chapa" },
-    { key: "abatible", label: "Abatible" },
-    { key: "deslizable", label: "Deslizable" },
-  ],
-  "EQUIPOS DE COMPUTACIÓN": [
-    { key: "ram", label: "RAM" },
-    { key: "procesador", label: "Procesador" },
-    { key: "discoduro", label: "Disco Duro" },
-  ],
-  "MAQUINARIA Y EQUIPO": [
-    { key: "potencia", label: "Potencia" },
-    { key: "horometro", label: "Horómetro" },
-    { key: "combustibleenergia", label: "Combustible/Energía" },
-  ],
-  "OTROS EQUIPOS Y MAQUINARIA": [
-    { key: "potencia", label: "Potencia" },
-    { key: "funcion", label: "Función" },
-  ],
-  "OTROS ACTIVOS FIJOS": [
-    { key: "categoria", label: "Categoría" },
-    { key: "caracteristicas", label: "Características" },
-  ],
-};
-
-const RUBRO_FIELDS = {};
-Object.entries(RUBRO_FIELDS_RAW).forEach(([key, fields]) => {
-  RUBRO_FIELDS[normalizeKey(key)] = fields;
-});
-
-const getRubroFields = (rubroDesc) => {
-  const key = RUBRO_ALIAS[normalizeKey(rubroDesc)] || normalizeKey(rubroDesc);
-  return RUBRO_FIELDS[key] || [];
-};
-
-const BASE_EDIT_FIELDS = [
-  { key: "codigoActivo", label: "Código Activo", type: "text", readonly: true },
-  { key: "rubro", label: "Rubro", type: "text", readonly: true },
-  { key: "tipoRubro", label: "Tipo Rubro", type: "text", readonly: true },
-  { key: "descripcionActivo", label: "Descripción del Activo", type: "text" },
-  { key: "codigoAmbiente", label: "Ambiente", type: "select" },
-];
+import { useInventarioData } from "../hooks/useInventarioData";
+import { getRubroFields, normalizeCi, normalizeCiLoose, getCiPrefix, BASE_EDIT_FIELDS } from "../constants/inventarioConstants";
+import { InventarioEditModal, InventarioImagesModal } from "../components/InventarioModals";
 
 const PAGE_SIZE = 100;
-
-const normalizeCi = (v) => String(v ?? "").replace(/[^\d]/g, "");
-const normalizeCiLoose = (v) => normalizeCi(v).replace(/^0+/, "") || "0";
-const getCiPrefix = (ci) => String(ci ?? "").match(/^\d+/)?.[0] ?? "";
 
 const InventarioList = () => {
   const { toast } = useToast();
   const currentUser = useSelector(selectUser);
 
-  const [showSearch, setShowSearch] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [activos, setActivos] = useState([]);
-  const [rubros, setRubros] = useState([]);
-  const [tipoRubros, setTipoRubros] = useState([]);
-  const [ambientes, setAmbientes] = useState([]);
-  const [responsables, setResponsables] = useState([]);
+  const {
+    isLoading,
+    activos,
+    setActivos,
+    rubros,
+    tipoRubros,
+    ambientes,
+    directAmbMap,
+    directRespMap,
+    ambientesRef,
+    responsablesRef,
+    directAmbRef,
+    directRespRef,
+    rubroDescMap,
+    rubroFromTipo,
+    tipoRubroDescMap,
+    inventariadorStats,
+    ambienteMap,
+    responsableMap,
+    loadActivos,
+    loadInitialData,
+  } = useInventarioData();
 
+  const [showSearch, setShowSearch] = useState(false);
   const [filtroCodigoActivo, setFiltroCodigoActivo] = useState("");
   const [filtroInventariador, setFiltroInventariador] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("all");
@@ -142,13 +86,6 @@ const InventarioList = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
 
-  const [directAmbMap, setDirectAmbMap] = useState({});
-  const [directRespMap, setDirectRespMap] = useState({});
-  const ambientesRef = useRef([]);
-  const responsablesRef = useRef([]);
-  const directAmbRef = useRef({});
-  const directRespRef = useRef({});
-
   const [editActivo, setEditActivo] = useState(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editForm, setEditForm] = useState({});
@@ -158,236 +95,6 @@ const InventarioList = () => {
   const [selectedActivoImages, setSelectedActivoImages] = useState(null);
   const [imageFiles, setImageFiles] = useState([]);
   const [isLoadingImages, setIsLoadingImages] = useState(false);
-
-  const rubroDescMap = useMemo(() => {
-    const map = {};
-    (rubros || []).forEach(r => {
-      map[r.codigorubroact] = r.descripcionrubroact;
-      map[String(r.codigorubroact)] = r.descripcionrubroact;
-    });
-    return map;
-  }, [rubros]);
-
-  const rubroFromTipo = useMemo(() => {
-    const map = {};
-    (tipoRubros || []).forEach(t => {
-      map[t.tiporubroact] = rubroDescMap[t.codigorubroact];
-      map[String(t.tiporubroact)] = rubroDescMap[t.codigorubroact];
-    });
-    return map;
-  }, [tipoRubros, rubroDescMap]);
-
-  const tipoRubroDescMap = useMemo(() => {
-    const map = {};
-    (tipoRubros || []).forEach(t => {
-      map[t.tiporubroact] = t.descripciontiporubroact;
-      map[String(t.tiporubroact)] = t.descripciontiporubroact;
-    });
-    return map;
-  }, [tipoRubros]);
-
-  const inventariadorStats = useMemo(() => {
-    const stats = {};
-    (activos || []).forEach(a => {
-      const email = a.usuarioinventario;
-      if (!email) return;
-
-      if (!stats[email]) {
-        stats[email] = { aprobado: 0, pendiente: 0 };
-      }
-
-      if (a.estadoinventario === "APROBADO") {
-        stats[email].aprobado++;
-      } else {
-        stats[email].pendiente++;
-      }
-    });
-    return Object.entries(stats).map(([email, count]) => ({
-      email,
-      ...count
-    }));
-  }, [activos]);
-
-  const ambienteMap = useMemo(() => {
-    const map = {};
-    (ambientes.length > 0 ? ambientes : ambientesRef.current).forEach(a => {
-      const code = String(a.codigoambiente ?? "").trim();
-      if (code) { map[code] = a.ambiente; }
-    });
-    return map;
-  }, [ambientes]);
-
-  const responsableMap = useMemo(() => {
-    const map = {};
-    (responsables.length > 0 ? responsables : responsablesRef.current).forEach(r => {
-      const raw = String(r.cirun ?? "").trim();
-      map[raw] = r;
-      const norm = normalizeCi(r.cirun);
-      if (norm !== raw) map[norm] = r;
-      const loose = normalizeCiLoose(r.cirun);
-      if (loose !== raw && loose !== norm) map[loose] = r;
-      const prefix = getCiPrefix(raw);
-      if (prefix && prefix !== raw && prefix !== norm && prefix !== loose) map[prefix] = r;
-    });
-    return map;
-  }, [responsables]);
-
-  const loadCatalogos = useCallback(async () => {
-    const [rubroRes, tipoRes] = await Promise.all([
-      supabase.from("act_rubro").select("*").order("descripcionrubroact", { ascending: true }),
-      supabase.from("act_tiporubro").select("*").order("descripciontiporubroact", { ascending: true }),
-    ]);
-    if (!rubroRes.error) setRubros(rubroRes.data || []);
-    else console.error("Error loading rubros:", rubroRes.error);
-    if (!tipoRes.error) setTipoRubros(tipoRes.data || []);
-    else console.error("Error loading tipoRubros:", tipoRes.error);
-
-    try {
-      const [ambData, respData] = await Promise.all([
-        fetchAllFromTable("act_ambiente", "*", { orderColumn: "ambiente", ascending: true }),
-        fetchAllFromTable("act_responsable", "*", { orderColumn: "cirun", ascending: true }),
-      ]);
-      setAmbientes(ambData || []);
-      ambientesRef.current = ambData || [];
-      setResponsables(respData || []);
-      responsablesRef.current = respData || [];
-    } catch (err) {
-      console.error("Error loading catalogos:", err);
-    }
-  }, []);
-
-  const loadActivos = useCallback(async (filters = {}) => {
-    const { codigoActivo = "", inventariador = "", carnet = "", nombre = "", all = false } = filters;
-    setIsLoading(true);
-    try {
-      let ciFilter = [];
-
-      if (nombre.trim()) {
-        const words = nombre.trim().split(/\s+/).filter(Boolean);
-        let respQuery = supabase.from("act_responsable").select("cirun");
-        words.forEach(word => {
-          respQuery = respQuery.or(`nombre1.ilike.%${word}%,nombre2.ilike.%${word}%,paterno.ilike.%${word}%,materno.ilike.%${word}%`);
-        });
-
-        const { data: matchingResp, error: respError } = await respQuery;
-
-        if (respError) throw respError;
-
-        if (!matchingResp || matchingResp.length === 0) {
-          setActivos([]);
-          setIsLoading(false);
-          return;
-        }
-        ciFilter = matchingResp.map(r => normalizeCi(r.cirun));
-      }
-
-      const BATCH_SIZE = 1000;
-      let allData = [];
-      let totalCount = 0;
-      let lastCodigoActivo = null;
-
-      for (let i = 0; ; i++) {
-        let batchQuery = supabase
-          .from("act_activos")
-          .select("*", { count: i === 0 ? "exact" : undefined })
-          .eq("ultimoregistro", 1)
-          .order("codigoactivointerno", { ascending: true })
-          .limit(BATCH_SIZE);
-
-        if (!all && !carnet && !nombre) {
-          batchQuery = batchQuery.gte("codigoactivointerno", 335774);
-        }
-
-        if (lastCodigoActivo != null) {
-          batchQuery = batchQuery.gt("codigoactivointerno", lastCodigoActivo);
-        }
-
-        if (codigoActivo.trim()) {
-          const val = codigoActivo.trim().replace(/%/g, "");
-          const numVal = Number(val);
-          if (!isNaN(numVal)) {
-            batchQuery = batchQuery.eq("codigoactivo", numVal);
-          } else {
-            batchQuery = batchQuery.eq("codigoactivo", -1);
-          }
-        }
-
-        if (inventariador.trim()) {
-          const val = inventariador.trim().replace(/%/g, "");
-          batchQuery = batchQuery.ilike("usuarioinventario", `%${val}%`);
-        }
-
-        if (carnet.trim()) {
-          const ci = carnet.trim().replace(/%/g, "");
-          batchQuery = batchQuery.ilike("cirun", `%${ci}%`);
-        }
-
-        if (ciFilter.length > 0) {
-          batchQuery = batchQuery.in("cirun", ciFilter);
-        }
-
-        const { data: batch, error: batchError, count } = await batchQuery;
-        if (batchError) throw batchError;
-
-        if (i === 0) totalCount = count || 0;
-        if (batch && batch.length > 0) {
-          allData = allData.concat(batch);
-          lastCodigoActivo = batch[batch.length - 1].codigoactivointerno;
-        }
-        if (!batch || batch.length < BATCH_SIZE) break;
-      }
-
-      const data = allData;
-      const count = totalCount;
-
-      const directAmb = {};
-      if (data) {
-        const uniqueAmbCodes = [...new Set(data.map(a => String(a.codigoambiente ?? "").trim()).filter(Boolean))];
-        if (uniqueAmbCodes.length > 0) {
-          const { data: ambData } = await supabase.from("act_ambiente").select("codigoambiente, ambiente").in("codigoambiente", uniqueAmbCodes);
-          if (ambData) {
-            ambData.forEach(a => { const code = String(a.codigoambiente ?? "").trim(); if (code) directAmb[code] = a.ambiente; });
-          }
-        }
-      }
-      setDirectAmbMap(directAmb);
-      directAmbRef.current = directAmb;
-
-      const directResp = {};
-      if (data) {
-        const uniqueCirs = [...new Set(data.map(a => String(a.cirun ?? "").trim()).filter(Boolean))];
-        if (uniqueCirs.length > 0) {
-          const { data: respData } = await supabase.from("act_responsable").select("*").in("cirun", uniqueCirs);
-          if (respData) {
-            respData.forEach(r => {
-              const raw = String(r.cirun ?? "").trim();
-              directResp[raw] = r;
-              const norm = normalizeCi(r.cirun);
-              if (norm !== raw) directResp[norm] = r;
-              const loose = normalizeCiLoose(r.cirun);
-              if (loose !== raw && loose !== norm) directResp[loose] = r;
-              const prefix = getCiPrefix(raw);
-              if (prefix && prefix !== raw && prefix !== norm && prefix !== loose) directResp[prefix] = r;
-            });
-          }
-        }
-      }
-      setDirectRespMap(directResp);
-      directRespRef.current = directResp;
-
-      setActivos(toCamelCaseArray(data || []));
-    } catch (err) {
-      toast({ title: "Error", description: `Error al cargar activos: ${err.message}`, variant: "destructive" });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [toast]);
-
-  const loadInitialData = useCallback(async () => {
-    setIsLoading(true);
-    await loadCatalogos();
-    setIsLoading(false);
-  }, [loadCatalogos]);
 
   useEffect(() => {
     loadInitialData();
@@ -641,38 +348,6 @@ const InventarioList = () => {
       setImageFiles([]);
     }
     setIsLoadingImages(false);
-  };
-
-  const handleToggleEnviado = async (activo) => {
-    try {
-      const isEnviado = activo.estado === 1;
-      const nuevoEstado = isEnviado ? 0 : 1;
-
-      const { error } = await supabase
-        .from("act_activos")
-        .update({ estado: nuevoEstado })
-        .eq("codigoactivointerno", activo.codigoActivoInterno);
-
-      if (error) throw error;
-
-      toast({
-        title: "Éxito",
-        description: `Estado cambiado a ${nuevoEstado}.`,
-      });
-      setActivos((prev) =>
-        prev.map((a) =>
-          a.codigoActivoInterno === activo.codigoActivoInterno
-            ? { ...a, estado: nuevoEstado }
-            : a
-        )
-      );
-    } catch (err) {
-      toast({
-        title: "Error",
-        description: `Error al actualizar: ${err.message}`,
-        variant: "destructive",
-      });
-    }
   };
 
   const renderEditFields = () => {
@@ -1040,7 +715,10 @@ const InventarioList = () => {
       {inventariadorStats.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold">Resumen por Inventariador</CardTitle>
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Resumen por Inventariador
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -1066,64 +744,16 @@ const InventarioList = () => {
         </Card>
       )}
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Filter className="h-4 w-4" />
-            Filtros
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="filtroCodigoActivo">Código Activo</Label>
-              <Input
-                id="filtroCodigoActivo"
-                placeholder="Buscar por código activo..."
-                value={filtroCodigoActivo}
-                onChange={(e) => setFiltroCodigoActivo(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="filtroInventariador">Inventariador</Label>
-              <Input
-                id="filtroInventariador"
-                placeholder="Buscar por inventariador..."
-                value={filtroInventariador}
-                onChange={(e) => setFiltroInventariador(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="filtroEstado">Estado</Label>
-              <Select value={filtroEstado} onValueChange={(v) => { setFiltroEstado(v); setCurrentPage(1); }}>
-                <SelectTrigger id="filtroEstado" className="w-full">
-                  <SelectValue placeholder="Todos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="pendiente">Pendiente</SelectItem>
-                  <SelectItem value="enviado">Enviado</SelectItem>
-                  <SelectItem value="aprobado">Aprobado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2 flex items-end gap-2">
-              <Button onClick={handleFilter}>
-                <Search className="h-4 w-4 mr-2" />
-                Buscar
-              </Button>
-              <Button
-                variant="outline"
-                onClick={clearFilters}
-                disabled={!filtroCodigoActivo && !filtroInventariador && filtroEstado === "all"}
-              >
-                <X className="h-4 w-4 mr-2" />
-                Limpiar
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <InventarioFilters
+        filtroCodigoActivo={filtroCodigoActivo}
+        setFiltroCodigoActivo={setFiltroCodigoActivo}
+        filtroInventariador={filtroInventariador}
+        setFiltroInventariador={setFiltroInventariador}
+        filtroEstado={filtroEstado}
+        setFiltroEstado={setFiltroEstado}
+        onFilter={handleFilter}
+        onClearFilters={clearFilters}
+      />
 
       <Card>
         <CardHeader>
@@ -1133,108 +763,15 @@ const InventarioList = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Código Activo</TableHead>
-                  <TableHead>Rubro</TableHead>
-                  <TableHead>Tipo Rubro</TableHead>
-                  <TableHead>Descripción del Activo</TableHead>
-                  <TableHead>Ambiente</TableHead>
-                  <TableHead>Responsable</TableHead>
-                  <TableHead>Carnet Responsable</TableHead>
-                  <TableHead>Inventariador</TableHead>
-                  <TableHead className="text-center">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paginatedData.length > 0 ? (
-                  paginatedData.map((a) => {
-                    const isApproved = a.estadoinventario === "APROBADO";
-                    const displayInventariador = a.usuarioinventario || "—";
-                    return (
-                      <TableRow
-                        key={a.codigoActivoInterno}
-                        className={isApproved
-                          ? "bg-green-50/70 hover:bg-green-100/70 dark:bg-green-950/20 dark:hover:bg-green-900/30"
-                          : "bg-orange-50/50 hover:bg-orange-100/50 dark:bg-orange-950/10 dark:hover:bg-orange-900/20"
-                        }
-                      >
-                        <TableCell className="font-mono text-xs">
-                          {a._codigoActivo}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs whitespace-normal break-words max-w-[180px]">
-                          {a._rubro}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {a._tipoRubro}
-                        </TableCell>
-                        <TableCell className="whitespace-normal break-words max-w-[250px]">
-                          {a.descripcionActivo}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs whitespace-normal break-words max-w-[200px]">
-                          {getAmbienteName(a._ambienteKey)}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs whitespace-normal break-words max-w-[200px]">
-                          {getResponsableName(a._ci)}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {a._carnetResponsable}
-                        </TableCell>
-                        <TableCell className="text-xs max-w-[150px] truncate" title={displayInventariador}>
-                          {displayInventariador}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex space-x-1 justify-end">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleEdit(a)}
-                              className="text-yellow-500 hover:text-yellow-700"
-                            >
-                              <Edit className="h-4 w-4 mr-1" />
-                              EDITAR
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleOpenImages(a)}
-                              className="text-blue-500 hover:text-blue-700"
-                            >
-                              <Image className="h-4 w-4 mr-1" />
-                              IMÁGENES
-                            </Button>
-                            <Button
-                              variant="default"
-                              size="sm"
-                              onClick={() => handleToggleAprobado(a)}
-                              className={
-                                a.estadoinventario === "APROBADO"
-                                  ? "bg-green-600 hover:bg-green-700 text-white"
-                                  : "bg-red-600 hover:bg-red-700 text-white"
-                              }
-                            >
-                              {a.estadoinventario === "APROBADO" ? "APROBADO" : "PENDIENTE"}
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
-                      <Package className="mx-auto h-12 w-12 opacity-20 mb-2" />
-                      <p className="text-lg font-medium">
-                        {isLoading ? "Cargando..." : "No se encontraron activos"}
-                      </p>
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
+          <InventarioTable
+            data={paginatedData}
+            isLoading={isLoading}
+            getAmbienteName={getAmbienteName}
+            getResponsableName={getResponsableName}
+            onEdit={handleEdit}
+            onOpenImages={handleOpenImages}
+            onToggleAprobado={handleToggleAprobado}
+          />
 
           {resolvedActivos.length > 0 && (
             <DataPagination
@@ -1249,133 +786,28 @@ const InventarioList = () => {
         </CardContent>
       </Card>
 
-      <Dialog open={isEditOpen} onOpenChange={(open) => { if (!open) { setIsEditOpen(false); setEditActivo(null); } }}>
-        <DialogContent className="sm:max-w-[600px]" onInteractOutside={(e) => e.preventDefault()}>
-          <DialogHeader>
-            <DialogTitle>EDITAR CONTROL DE ACTIVOS</DialogTitle>
-            <DialogDescription>
-              Modifica los datos del activo fijo
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
-            {BASE_EDIT_FIELDS.map(f => {
-              if (f.type === "select") {
-                return (
-                  <div key={f.key} className="space-y-2">
-                    <Label htmlFor={f.key}>{f.label}</Label>
-                    <Select
-                      value={editForm.codigoAmbiente}
-                      onValueChange={(v) => handleEditSelectChange("codigoAmbiente", v)}
-                      disabled={isSaving}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Seleccionar ambiente" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ambientes.map(a => (
-                          <SelectItem key={a.codigoambiente} value={String(a.codigoambiente).trim()}>
-                            {`${a.codigoambiente} - ${a.ambiente}`}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                );
-              }
-              return (
-                <div key={f.key} className="space-y-2">
-                  <Label htmlFor={f.key}>{f.label}</Label>
-                  <Input
-                    id={f.key}
-                    value={editForm[f.key] || ""}
-                    onChange={f.readonly ? undefined : handleEditChange}
-                    disabled={isSaving || f.readonly}
-                    readOnly={f.readonly}
-                  />
-                </div>
-              );
-            })}
+      <InventarioEditModal
+        isEditOpen={isEditOpen}
+        setIsEditOpen={setIsEditOpen}
+        editActivo={editActivo}
+        setEditActivo={setEditActivo}
+        editForm={editForm}
+        handleEditChange={handleEditChange}
+        handleEditSelectChange={handleEditSelectChange}
+        isSaving={isSaving}
+        handleEditSave={handleEditSave}
+        ambientes={ambientes}
+        rubroFromTipo={rubroFromTipo}
+      />
 
-            <div className="border-t pt-4 mt-2">
-              <h3 className="text-sm font-semibold text-muted-foreground mb-3">
-                Estado de Conservación
-              </h3>
-              <Select
-                value={editForm.estadoConservacion}
-                onValueChange={(v) => handleEditSelectChange("estadoConservacion", v)}
-                disabled={isSaving}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Seleccionar estado" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="BUENO">BUENO</SelectItem>
-                  <SelectItem value="REGULAR">REGULAR</SelectItem>
-                  <SelectItem value="MALO">MALO</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {editActivo && rubroFromTipo[editActivo.tipoRubroAct] && (
-              <div className="border-t pt-4 mt-2">
-                <h3 className="text-sm font-semibold text-muted-foreground mb-3">
-                  Campos específicos: {rubroFromTipo[editActivo.tipoRubroAct]}
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {renderEditFields()}
-                </div>
-              </div>
-            )}
-          </div>
-          <div className="flex justify-end space-x-2 pt-4">
-            <Button variant="outline" onClick={() => { setIsEditOpen(false); setEditActivo(null); }} disabled={isSaving}>
-              Cancelar
-            </Button>
-            <Button onClick={handleEditSave} disabled={isSaving}>
-              {isSaving ? "Aprobando..." : "APROBAR"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isImageModalOpen} onOpenChange={(open) => { if (!open) { setIsImageModalOpen(false); setImageFiles([]); } }}>
-        <DialogContent className="sm:max-w-[700px]">
-          <DialogHeader>
-            <DialogTitle>Imágenes del Activo {selectedActivoImages?._codigoActivo || selectedActivoImages?.codigoActivo}</DialogTitle>
-            <DialogDescription>
-              {isLoadingImages ? "Cargando imágenes..." : `${imageFiles.length} imagen(es) encontrada(s)`}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4 max-h-[70vh] overflow-y-auto">
-            {isLoadingImages ? (
-              <LoadingSpinner />
-            ) : imageFiles.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">No hay imágenes para este activo.</p>
-            ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {imageFiles.map((file) => (
-                  <div key={file.name} className="border rounded-lg overflow-hidden">
-                    <a href={file.url} target="_blank" rel="noopener noreferrer">
-                      <img src={file.url} alt={file.name} className="w-full h-40 object-cover hover:opacity-80 transition-opacity" />
-                    </a>
-                    <div className="p-2 flex justify-between items-center bg-muted/20">
-                      <span className="text-xs truncate flex-1">{file.name}</span>
-                      <a
-                        href={file.url}
-                        download={file.name}
-                        className="text-blue-500 hover:text-blue-700 ml-2"
-                        title="Descargar"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-                      </a>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <InventarioImagesModal
+        isImageModalOpen={isImageModalOpen}
+        setIsImageModalOpen={setIsImageModalOpen}
+        selectedActivoImages={selectedActivoImages}
+        isLoadingImages={isLoadingImages}
+        imageFiles={imageFiles}
+        setImageFiles={setImageFiles}
+      />
     </div>
   );
 };

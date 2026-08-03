@@ -80,13 +80,13 @@ export const LoginPage = () => {
         <Card className="w-full max-w-md">
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl font-bold text-center">
-              ÓRGANO JUDICIAL - LA PAZ
+              DASHBOARD WEB
             </CardTitle>
             <p className="text-center text-base font-semibold text-muted-foreground uppercase tracking-wide">
               ACTIVOS FIJOS
             </p>
-            <CardDescription className="text-center">
-              Ingrese su correo electrónico y contraseña para iniciar sesión
+            <CardDescription className="text-center font-bold">
+              Iniciar sesión con Email
             </CardDescription>
           </CardHeader>
 
@@ -106,7 +106,7 @@ export const LoginPage = () => {
                   id="emailText"
                   name="emailText"
                   type="email"
-                  placeholder="Correo electrónico"
+                  placeholder="Email"
                   autoComplete="username"
                   value={emailText}
                   onChange={onInputChange}
@@ -129,6 +129,7 @@ export const LoginPage = () => {
                     id="passwordText"
                     name="passwordText"
                     type={showPassword ? "text" : "password"}
+                    placeholder="Contraseña"
                     autoComplete="current-password"
                     value={passwordText}
                     onChange={onInputChange}
@@ -158,7 +159,7 @@ export const LoginPage = () => {
               </div>
               <Button
                 type="submit"
-                className="w-full disabled:opacity-70 flex items-center justify-center gap-2"
+                className="w-full disabled:opacity-70 flex items-center justify-center gap-2 text-white"
                 disabled={isSubmitting}
                 aria-busy={isSubmitting}
                 aria-live="polite"
@@ -229,7 +230,7 @@ export const LoginPage = () => {
               </div>
               <div className="relative flex justify-center text-xs uppercase">
                 <span className="bg-background px-2 text-muted-foreground">
-                  ó
+                  O
                 </span>
               </div>
             </div>
@@ -257,12 +258,12 @@ export const LoginPage = () => {
                     fill="#EA4335"
                   />
                 </svg>
-                Continuar con Google
+                Inicia sesión con Google
               </Button>
             </div>
 
             <div className="text-center text-xs text-muted-foreground pt-2">
-              Desarrollado por{" "}
+              Desarrollado para{" "}
               <a
                 href="https://auditores-mj.com/"
                 target="_blank"

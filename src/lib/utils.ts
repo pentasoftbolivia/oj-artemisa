@@ -32,3 +32,53 @@ export function createOptionsList<T extends Record<string, unknown>>(
         : String(item[labelFormatter] ?? item),
   }))
 }
+
+export const buildDenominacion = (activo: any, rubroName: string): string => {
+  let baseText = activo.descripcionActivo || "";
+  if (!rubroName) return baseText;
+
+  const valid = (val: any) => {
+    if (val === null || val === undefined) return false;
+    const str = String(val).trim();
+    if (str === "" || str === "0") return false;
+    return true;
+  };
+
+  const fieldsToConcat: string[] = [];
+  const add = (key: string, prefix: string = "") => {
+    const val = activo[key] !== undefined ? activo[key] : activo[key.toLowerCase()];
+    if (valid(val)) {
+      const strVal = String(val).trim();
+      fieldsToConcat.push(`${prefix}${strVal}`);
+    }
+  };
+
+  const rn = rubroName.toUpperCase();
+  if (rn.includes("EQUIPO EDUCACIONAL Y RECREATIVO")) {
+    add("modelo", "MOD: "); add("capacidaddimension", "CAPACIDAD/DIMENSIÓN: "); add("fuentealimentacion", "FUENTE ALIM: "); add("accesorios", "ACCESORIOS: ");
+  } else if (rn.includes("EQUIPO DE TRANSPORTE, ELEVACIÓN Y TRACCIÓN") || rn.includes("EQUIPO DE TRANSPORTE")) {
+    add("numeromotor", "MOTOR: "); add("numerochasisserial", "CHASIS: "); add("placamatricula", "PLACA: "); add("capacidadcargatraccion", "CAPACIDAD CARGA: ");
+  } else if (rn.includes("EQUIPO DE COMUNICAC") || rn.includes("EQUIPOS DE COMUNICAC")) {
+    add("marcaMaterial", "MARCA: "); add("modelo", "MOD: "); add("serie", "S/N: "); add("alcancecobertura", "ALCANCE: ");
+  } else if (rn.includes("EQUIPO DE OFICINA") || rn.includes("EQUIPOS DE OFICINA")) {
+    add("medidas", "MEDIDAS: "); add("color", "COLOR: "); add("divisionescajonesbandejas", "DIVISIONES: "); add("chapa", "CHAPA: "); add("abatible", "ABATIBLE: "); add("deslizable", "DESLIZABLE: ");
+  } else if (rn.includes("EQUIPO DE COMPUTAC") || rn.includes("EQUIPOS DE COMPUTAC")) {
+    add("marcaMaterial", "MARCA: "); add("modelo", "MOD: "); add("serie", "S/N: "); add("ram", "RAM: "); add("procesador", "CPU: "); add("discoduro", "HDD/SSD: ");
+  } else if (rn === "MAQUINARIA Y EQUIPO" || rn.includes("MAQUINARIA Y EQUIPO")) {
+    if (rn.includes("OTROS EQUIPOS")) {
+      add("potencia", "POTENCIA: "); add("funcion", "FUNCIÓN: ");
+    } else {
+      add("potencia", "POTENCIA: "); add("horometro", "HORÓMETRO: "); add("combustibleenergia", "COMBUSTIBLE: ");
+    }
+  } else if (rn.includes("OTROS EQUIPOS Y MAQUINARIA")) {
+    add("potencia", "POTENCIA: "); add("funcion", "FUNCIÓN: ");
+  } else if (rn.includes("OTROS ACTIVOS FIJOS")) {
+    add("categoria", "CATEGORÍA: "); add("caracteristicas", "CARACTERÍSTICAS: ");
+  }
+
+  if (fieldsToConcat.length > 0) {
+    baseText += ", " + fieldsToConcat.join(", ");
+  }
+
+  return baseText;
+};

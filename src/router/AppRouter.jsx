@@ -19,7 +19,7 @@ const RubroRoutes = lazyWithRetry(() => import("@/rubro/routes/RubroRoutes").the
 const TipoRubroRoutes = lazyWithRetry(() => import("@/tiporubro/routes/TipoRubroRoutes").then(m => ({ default: m.TipoRubroRoutes })));
 const ActivosFijosRoutes = lazyWithRetry(() => import("@/activosFijos/routes/ActivosFijosRoutes").then(m => ({ default: m.ActivosFijosRoutes })));
 const AsignacionesRoutes = lazyWithRetry(() => import("@/asignaciones/routes/AsignacionesRoutes").then(m => ({ default: m.AsignacionesRoutes })));
-const MovimientosRoutes = lazyWithRetry(() => import("@/movimientos/routes/MovimientosRoutes").then(m => ({ default: m.MovimientosRoutes })));
+
 const ResponsableRoutes = lazyWithRetry(() => import("@/responsable/routes/ResponsableRoutes").then(m => ({ default: m.ResponsableRoutes })));
 const InventarioRoutes = lazyWithRetry(() => import("@/inventario/routes/InventarioRoutes").then(m => ({ default: m.InventarioRoutes })));
 
@@ -130,15 +130,7 @@ export const AppRouter = () => {
           }
         />
 
-        <Route
-          path="/movimientos/*"
-          element={
-            <PrivateRoute>
-              <Navbar />
-              <MovimientosRoutes />
-            </PrivateRoute>
-          }
-        />
+
 
         <Route
           path="/responsables/*"

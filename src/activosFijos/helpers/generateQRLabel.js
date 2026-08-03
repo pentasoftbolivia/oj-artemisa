@@ -67,7 +67,7 @@ export async function generateQRLabel({ qrContent, codigoActivo, rubro, tipoRubr
   const img = new window.Image();
   img.crossOrigin = "anonymous";
   img.src = "/DiosaReal.png";
-  await new Promise((resolve, reject) => {
+  await new Promise((resolve) => {
     img.onload = resolve;
     img.onerror = resolve;
   });
