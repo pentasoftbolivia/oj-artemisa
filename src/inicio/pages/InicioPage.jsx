@@ -12,6 +12,7 @@ const InicioPage = () => {
           RECODIFICACIÓN CLASIFICACIÓN Y REVALÚO TÉCNICO DE LOS ACTIVOS FIJOS
           DEL ÓRGANO JUDICIAL - DISTRITAL LA PAZ
         </p>
+        <p>ACTIVOS V.1.0.1</p>
       </div>
     </div>
   );
