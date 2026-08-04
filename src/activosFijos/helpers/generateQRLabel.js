@@ -30,11 +30,11 @@ export async function generateQRLabel({ qrContent, codigoActivo, rubro, tipo, fe
   ctx.font = "bold 20px sans-serif";
   ctx.fillText("ORGANO JUDICIAL", cx, leftBox.y + 6);
 
-  ctx.font = "bold 14px sans-serif";
+  ctx.font = "bold 16px sans-serif";
   ctx.fillText("DAF - LA PAZ", cx, leftBox.y + 24);
 
-  const qrY = 44;
-  const codeY = 232;
+  const qrY = 42;
+  const codeY = 236;
   const qrSize = codeY - qrY - 4;
   const qrX = cx - qrSize / 2;
 
@@ -53,8 +53,8 @@ export async function generateQRLabel({ qrContent, codigoActivo, rubro, tipo, fe
   ctx.stroke();
   ctx.setLineDash([]);
 
-  const rubY = dashY + 11;
-  const tipY = rubY + 20;
+  const rubY = dashY + 4;
+  const tipY = rubY + 18;
   const drawLine = (text, fontSize, y) => {
     ctx.font = `bold ${fontSize}px Arial`;
     ctx.fillText(text, cx, y);
