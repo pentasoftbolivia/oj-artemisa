@@ -55,11 +55,11 @@ export const useInventarioData = () => {
       if (!email) return;
 
       if (!stats[email]) {
-        stats[email] = { aprobado: 0, pendiente: 0 };
+        stats[email] = { revisado: 0, pendiente: 0 };
       }
 
-      if (a.estadoinventario === "APROBADO") {
-        stats[email].aprobado++;
+      if (a.estadoinventario === "REVISADO") {
+        stats[email].revisado++;
       } else {
         stats[email].pendiente++;
       }

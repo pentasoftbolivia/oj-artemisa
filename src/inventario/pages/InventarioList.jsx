@@ -225,7 +225,6 @@ const InventarioList = () => {
         fieldsToUpdate[f.key] = val || null;
       });
 
-      fieldsToUpdate.aprobadorinventario = currentUser?.email || "unknown";
       if (showSearch) {
         fieldsToUpdate.estado = 1;
       }
@@ -329,11 +328,11 @@ const InventarioList = () => {
 
   const handleToggleAprobado = async (activo) => {
     try {
-      const isApproved = activo.estadoinventario === "APROBADO";
-      const updateData = isApproved
-        ? { estadoinventario: "PENDIENTE", aprobadorinventario: null }
+      const isRevisado = activo.estadoinventario === "REVISADO";
+      const updateData = isRevisado
+        ? { estadoinventario: "INVENTARIADO", aprobadorinventario: null }
         : {
-            estadoinventario: "APROBADO",
+            estadoinventario: "REVISADO",
             aprobadorinventario: currentUser?.email || "unknown",
           };
 
@@ -346,9 +345,9 @@ const InventarioList = () => {
 
       toast({
         title: "Éxito",
-        description: isApproved
-          ? "Estado de inventario cambiado a PENDIENTE."
-          : "Estado de inventario cambiado a APROBADO.",
+        description: isRevisado
+          ? "Estado de inventario cambiado a INVENTARIADO."
+          : "Estado de inventario cambiado a REVISADO.",
       });
       setActivos((prev) =>
         prev.map((a) =>
@@ -499,7 +498,7 @@ const InventarioList = () => {
   };
 
   const resolvedActivos = useMemo(() => {
-    return activos.map((a) => {
+    const mapped = activos.map((a) => {
       const tipoRubro = tipoRubros.find(
         (t) => String(t.tiporubroact) === String(a.tipoRubroAct),
       );
@@ -547,6 +546,7 @@ const InventarioList = () => {
         _ambienteKey: ambCodeCache,
       };
     });
+    return mapped.sort((a, b) => b.codigoActivoInterno - a.codigoActivoInterno);
   }, [
     activos,
     rubroDescMap,
@@ -561,11 +561,11 @@ const InventarioList = () => {
   const filteredActivos = useMemo(() => {
     if (filtroEstado === "all") return resolvedActivos;
     return resolvedActivos.filter((a) => {
-      const isApproved = a.estadoinventario === "APROBADO";
       if (filtroEstado === "enviado") return a.estado === 1;
-      if (filtroEstado === "aprobado") return isApproved && a.estado !== 1;
+      if (filtroEstado === "revisado")
+        return a.estadoinventario === "REVISADO" && a.estado !== 1;
       if (filtroEstado === "pendiente")
-        return a.estadoinventario === "PENDIENTE";
+        return a.estadoinventario === "INVENTARIADO";
       return true;
     });
   }, [resolvedActivos, filtroEstado]);
@@ -961,15 +961,15 @@ const InventarioList = () => {
                   <div className="flex gap-2">
                     <div className="flex-1 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded p-2 text-center">
                       <div className="text-xs text-green-600 dark:text-green-400 font-medium">
-                        Aprobados
+                        Revisados
                       </div>
                       <div className="text-lg font-bold text-green-700 dark:text-green-300">
-                        {stat.aprobado}
+                        {stat.revisado}
                       </div>
                     </div>
                     <div className="flex-1 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-900 rounded p-2 text-center">
                       <div className="text-xs text-orange-600 dark:text-orange-400 font-medium">
-                        Pendiente
+                        Pendientes
                       </div>
                       <div className="text-lg font-bold text-orange-700 dark:text-orange-300">
                         {stat.pendiente}

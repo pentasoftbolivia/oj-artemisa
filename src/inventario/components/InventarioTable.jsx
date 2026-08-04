@@ -34,14 +34,16 @@ const InventarioTable = memo(
               <TableHead>Responsable</TableHead>
               <TableHead>CI</TableHead>
               <TableHead>Inventariador</TableHead>
+              <TableHead>Revisor</TableHead>
               <TableHead className="text-center">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {data.length > 0 ? (
               data.map((a) => {
-                const isReviewed = a.aprobadorinventario != null;
+                const isReviewed = a.estadoinventario === "REVISADO";
                 const displayInventariador = a.usuarioinventario || "—";
+                const displayRevisor = a.aprobadorinventario || "—";
                 return (
                   <TableRow
                     key={a.codigoActivoInterno}
@@ -78,6 +80,12 @@ const InventarioTable = memo(
                     >
                       {displayInventariador}
                     </TableCell>
+                    <TableCell
+                      className="text-xs max-w-[150px] truncate"
+                      title={displayRevisor}
+                    >
+                      {displayRevisor}
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex space-x-1 justify-end">
                         <Button
@@ -86,8 +94,7 @@ const InventarioTable = memo(
                           onClick={() => onEdit(a)}
                           className="text-yellow-500 hover:text-yellow-700"
                         >
-                          <Edit className="h-4 w-4 mr-1" />
-                          EDITAR
+                          <Edit className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="ghost"
@@ -95,22 +102,19 @@ const InventarioTable = memo(
                           onClick={() => onOpenImages(a)}
                           className="text-blue-500 hover:text-blue-700"
                         >
-                          <ImageIcon className="h-4 w-4 mr-1" />
-                          IMÁGENES
+                          <ImageIcon className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="default"
                           size="sm"
                           onClick={() => onToggleAprobado(a)}
                           className={
-                            a.aprobadorinventario != null
+                            isReviewed
                               ? "bg-green-600 hover:bg-green-700 text-white"
                               : "bg-red-600 hover:bg-red-700 text-white"
                           }
                         >
-                          {a.aprobadorinventario != null
-                            ? "REVISADO"
-                            : "PENDIENTE"}
+                          {isReviewed ? "REVISADO" : "PENDIENTE"}
                         </Button>
                       </div>
                     </TableCell>
@@ -120,7 +124,7 @@ const InventarioTable = memo(
             ) : (
               <TableRow>
                 <TableCell
-                  colSpan={9}
+                  colSpan={10}
                   className="text-center py-12 text-muted-foreground"
                 >
                   <Package className="mx-auto h-12 w-12 opacity-20 mb-2" />
