@@ -959,20 +959,20 @@ const InventarioList = () => {
                     {stat.email}
                   </div>
                   <div className="flex gap-2">
-                    <div className="flex-1 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded p-2 text-center">
-                      <div className="text-xs text-green-600 dark:text-green-400 font-medium">
-                        Revisados
-                      </div>
-                      <div className="text-lg font-bold text-green-700 dark:text-green-300">
-                        {stat.revisado}
-                      </div>
-                    </div>
                     <div className="flex-1 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-900 rounded p-2 text-center">
                       <div className="text-xs text-orange-600 dark:text-orange-400 font-medium">
                         Pendientes
                       </div>
                       <div className="text-lg font-bold text-orange-700 dark:text-orange-300">
                         {stat.pendiente}
+                      </div>
+                    </div>
+                    <div className="flex-1 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded p-2 text-center">
+                      <div className="text-xs text-green-600 dark:text-green-400 font-medium">
+                        Revisados
+                      </div>
+                      <div className="text-lg font-bold text-green-700 dark:text-green-300">
+                        {stat.revisado}
                       </div>
                     </div>
                   </div>
