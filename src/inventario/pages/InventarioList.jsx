@@ -583,6 +583,19 @@ const InventarioList = () => {
     return filteredActivos.slice(start, start + pageSize);
   }, [filteredActivos, safeCurrentPage, pageSize]);
 
+  const totalStats = useMemo(() => {
+    let revisados = 0;
+    activos.forEach((a) => {
+      const est = String(a.estadoinventario || "").toUpperCase();
+      if (est === "REVISADO") revisados++;
+    });
+    return {
+      total: activos.length,
+      revisados,
+      noRevisados: activos.length - revisados,
+    };
+  }, [activos]);
+
   if (isLoading && activos.length === 0 && rubros.length === 0) {
     return <LoadingSpinner />;
   }
@@ -936,6 +949,55 @@ const InventarioList = () => {
           NUEVO
         </Button>
       </div>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle
+            className="text-lg font-bold flex items-center gap-2 tracking-wide"
+            style={{ textShadow: "1px 1px 2px rgba(0, 0, 0, 0.35)" }}
+          >
+            <Package className="h-4 w-4" />
+            RESUMEN DE TOTALES
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="rounded-lg border border-blue-200 dark:border-blue-900 border-b-4 border-b-blue-400 dark:border-b-blue-700 p-4 bg-blue-50 dark:bg-blue-950/20 text-center shadow-lg shadow-blue-200/60 dark:shadow-blue-950/40">
+              <div
+                className="text-base font-bold text-blue-600 dark:text-blue-400 tracking-wide"
+                style={{ textShadow: "1px 1px 2px rgba(37, 99, 235, 0.35)" }}
+              >
+                TOTAL ACTIVOS INVENTARIADOS
+              </div>
+              <div className="text-3xl font-bold text-blue-700 dark:text-blue-300">
+                {totalStats.total}
+              </div>
+            </div>
+            <div className="rounded-lg border border-red-200 dark:border-red-900 border-b-4 border-b-red-400 dark:border-b-red-700 p-4 bg-red-50 dark:bg-red-950/20 text-center shadow-lg shadow-red-200/60 dark:shadow-red-950/40">
+              <div
+                className="text-base font-bold text-red-600 dark:text-red-400 tracking-wide"
+                style={{ textShadow: "1px 1px 2px rgba(220, 38, 38, 0.35)" }}
+              >
+                NO REVISADOS
+              </div>
+              <div className="text-3xl font-bold text-red-700 dark:text-red-300">
+                {totalStats.noRevisados}
+              </div>
+            </div>
+            <div className="rounded-lg border border-yellow-200 dark:border-yellow-900 border-b-4 border-b-yellow-400 dark:border-b-yellow-700 p-4 bg-yellow-50 dark:bg-yellow-950/20 text-center shadow-lg shadow-yellow-200/60 dark:shadow-yellow-950/40">
+              <div
+                className="text-base font-bold text-yellow-600 dark:text-yellow-400 tracking-wide"
+                style={{ textShadow: "1px 1px 2px rgba(202, 138, 4, 0.35)" }}
+              >
+                REVISADOS
+              </div>
+              <div className="text-3xl font-bold text-yellow-700 dark:text-yellow-300">
+                {totalStats.revisados}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {inventariadorStats.length > 0 && (
         <Card>
