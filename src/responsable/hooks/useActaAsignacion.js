@@ -271,9 +271,9 @@ export const useActaAsignacion = () => {
         theme: 'plain',
         styles: {
           fontSize: 8,
-          cellPadding: 1,
-          minCellHeight: 4,
-          lineHeight: 1.2,
+          cellPadding: 0.5,
+          minCellHeight: 0,
+          lineHeight: 1,
           overflow: 'linebreak',
           lineColor: [0, 0, 0],
           lineWidth: 0.1,
