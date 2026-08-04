@@ -1,6 +1,6 @@
 import QRCode from "qrcode";
 
-export async function generateQRLabel({ qrContent, codigoActivo, rubro, tipoRubro, fecha }) {
+export async function generateQRLabel({ qrContent, codigoActivo, rubro, tipo, fecha }) {
   const W = 590;
   const H = 295;
 
@@ -27,26 +27,25 @@ export async function generateQRLabel({ qrContent, codigoActivo, rubro, tipoRubr
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
 
-  ctx.font = "bold 28px sans-serif";
+  ctx.font = "bold 20px sans-serif";
   ctx.fillText("ORGANO JUDICIAL", cx, leftBox.y + 6);
 
-  ctx.font = "bold 16px sans-serif";
-  ctx.fillText("DAF - LA PAZ", cx, leftBox.y + 37);
+  ctx.font = "bold 14px sans-serif";
+  ctx.fillText("DAF - LA PAZ", cx, leftBox.y + 24);
 
-  const qrSize = 135;
+  const qrY = 44;
+  const codeY = 232;
+  const qrSize = codeY - qrY - 4;
   const qrX = cx - qrSize / 2;
-  const qrY = 58;
 
   const tempCanvas = document.createElement("canvas");
   await QRCode.toCanvas(tempCanvas, qrContent, { width: qrSize, margin: 1 });
   ctx.drawImage(tempCanvas, qrX, qrY, qrSize, qrSize);
 
-  const txtSize = 20;
-  const codeY = qrY + qrSize + 2;
-  ctx.font = `bold 25px Arial`;
+  ctx.font = `bold 20px Arial`;
   ctx.fillText(codigoActivo, cx, codeY);
 
-  const dashY = codeY + 27;
+  const dashY = codeY + 24;
   ctx.setLineDash([3, 3]);
   ctx.beginPath();
   ctx.moveTo(leftBox.x + 10, dashY);
@@ -54,15 +53,15 @@ export async function generateQRLabel({ qrContent, codigoActivo, rubro, tipoRubr
   ctx.stroke();
   ctx.setLineDash([]);
 
-  const rubY = dashY + 7;
-  const tipY = rubY + 19; //espacios rubro y tipo
-  ctx.font = `bold ${txtSize}px Arial`;
-  ctx.fillText(rubro, cx, rubY);
-  ctx.font = `bold ${txtSize}px Arial`;
-  ctx.fillText(tipoRubro, cx, tipY);
+  const rubY = dashY + 11;
+  const tipY = rubY + 20;
+  const drawLine = (text, fontSize, y) => {
+    ctx.font = `bold ${fontSize}px Arial`;
+    ctx.fillText(text, cx, y);
+  };
 
-  ctx.font = `bold ${txtSize}px Arial`;
-  ctx.fillText("www.auditores-mj.com", cx, tipY + 23);//subir/ bajar
+  drawLine(rubro || "—", 16, rubY);
+  drawLine(tipo || "—", 16, tipY);
 
   const img = new window.Image();
   img.crossOrigin = "anonymous";
@@ -77,7 +76,7 @@ export async function generateQRLabel({ qrContent, codigoActivo, rubro, tipoRubr
   const imgH = 265;
   ctx.drawImage(img, rightX, 0, rightW, imgH);
 
-  ctx.font = `bold ${txtSize}px Arial`;
+  ctx.font = `bold 20px Arial`;
   ctx.fillText(fecha, rightX + rightW / 2, imgH + 6);
 
   return canvas.toDataURL("image/png");

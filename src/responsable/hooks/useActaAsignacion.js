@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { jsPDF } from "jspdf";
-import "jspdf-autotable";
-import { supabase } from "@/lib/supabase";
+import autoTable from "jspdf-autotable";
+import { supabase, fetchAllFromTable } from "@/lib/supabase";
 import { buildDenominacion } from "@/lib/utils";
 import { toCamelCaseArray } from "@/lib/mapFields";
 import { useToast } from "@/hooks/use-toast";
@@ -11,6 +11,13 @@ const ESTADO_CONSERVACION_MAP = {
   2: "Regular",
   3: "Malo",
 };
+
+const loadImage = (src) => new Promise((resolve) => {
+  const img = new Image();
+  img.onload = () => resolve(img);
+  img.onerror = () => resolve(null);
+  img.src = src;
+});
 
 export const useActaAsignacion = () => {
   const { toast } = useToast();
@@ -27,7 +34,7 @@ export const useActaAsignacion = () => {
       // 1. Fetch assigned assets
       const { data: rawAssets, error: assetsError } = await supabase
         .from("act_activos")
-        .select("*")
+        .select("codigoactivo, codigoambiente, tiporubroact, descripcionactivo, observaciones, marcamaterial, modelo, serie, ram, procesador, discoduro, numeromotor, numerochasisserial, placamatricula, capacidadcargatraccion, capacidaddimension, fuentealimentacion, accesorios, alcancecobertura, medidas, color, divisionescajonesbandejas, chapa, abatible, deslizable, potencia, horometro, combustibleenergia, funcion, categoria, caracteristicas, estadoconservacion")
         .eq("cirun", responsable.cirun)
         .eq("ultimoregistro", 1)
         .not("estadoinventario", "is", null)
@@ -46,14 +53,14 @@ export const useActaAsignacion = () => {
         return;
       }
 
-      // 2. Fetch necessary catalogs for resolving Rubro names and Ambiente
-      const [trRes, rRes, ambRes, nivelRes, inmuebleRes, ciudadRes] = await Promise.all([
-        supabase.from("act_tiporubro").select("tiporubroact, codigorubroact"),
+      // 2. Fetch necessary catalogs for resolving Rubro names and Ubicación
+      const [trRes, rRes, ambData, nData, iData, cData] = await Promise.all([
+        supabase.from("act_tiporubro").select("tiporubroact, codigorubroact, descripciontiporubroact"),
         supabase.from("act_rubro").select("codigorubroact, descripcionrubroact"),
-        supabase.from("act_ambiente").select("codigoambiente, ambiente, codigonivel"),
-        supabase.from("act_nivel").select("codigonivel, codigoinmueble"),
-        supabase.from("act_inmueble").select("codigoinmueble, codigociudad"),
-        supabase.from("act_ciudad").select("codigociudad, descripcionciudad")
+        fetchAllFromTable("act_ambiente", "codigoambiente, ambiente, codigonivel", { orderColumn: "codigoambiente" }),
+        fetchAllFromTable("act_nivel", "codigonivel, nivel, codigoinmueble", { orderColumn: "codigonivel" }),
+        fetchAllFromTable("act_inmueble", "codigoinmueble, inmueble, codigociudad", { orderColumn: "codigoinmueble" }),
+        fetchAllFromTable("act_ciudad", "codigociudad, descripcion", { orderColumn: "codigociudad" })
       ]);
 
       const rubroMap = {};
@@ -62,37 +69,100 @@ export const useActaAsignacion = () => {
       }
       
       const tipoRubroMap = {};
+      const descTipoRubroMap = {};
       if (!trRes.error) {
-        trRes.data.forEach(tr => tipoRubroMap[tr.tiporubroact] = rubroMap[tr.codigorubroact]);
+        trRes.data.forEach(tr => {
+          tipoRubroMap[tr.tiporubroact] = rubroMap[tr.codigorubroact];
+          descTipoRubroMap[tr.tiporubroact] = tr.descripciontiporubroact;
+        });
       }
 
-      // Resolve Unidad & Oficina
-      let unidadName = "—";
-      let oficinaName = "—";
-      
-      if (responsable.codigoAmbiente && !ambRes.error) {
-        const amb = ambRes.data.find(a => String(a.codigoambiente).trim() === String(responsable.codigoAmbiente).trim());
-        if (amb) {
-          unidadName = amb.ambiente || "—";
-          
-          if (!nivelRes.error && !inmuebleRes.error && !ciudadRes.error) {
-            const niv = nivelRes.data.find(n => n.codigonivel === amb.codigonivel);
-            if (niv) {
-              const inm = inmuebleRes.data.find(i => i.codigoinmueble === niv.codigoinmueble);
-              if (inm) {
-                const ciu = ciudadRes.data.find(c => c.codigociudad === inm.codigociudad);
-                if (ciu) {
-                  oficinaName = ciu.descripcionciudad || "—";
-                }
-              }
-            }
-          }
+      const ambienteMap = {};
+      const ambienteNivelMap = {};
+      if (ambData && ambData.length) {
+        ambData.forEach(a => {
+          ambienteMap[String(a.codigoambiente).trim()] = a.ambiente;
+          ambienteNivelMap[String(a.codigoambiente).trim()] = a.codigonivel;
+        });
+      }
+
+      const nivelMap = {};
+      const nivelInmuebleMap = {};
+      if (nData && nData.length) {
+        nData.forEach(n => {
+          nivelMap[String(n.codigonivel).trim()] = n.nivel;
+          nivelInmuebleMap[String(n.codigonivel).trim()] = n.codigoinmueble;
+        });
+      }
+
+      const inmuebleMap = {};
+      const inmuebleCiudadMap = {};
+      if (iData && iData.length) {
+        iData.forEach(i => {
+          inmuebleMap[String(i.codigoinmueble).trim()] = i.inmueble;
+          inmuebleCiudadMap[String(i.codigoinmueble).trim()] = i.codigociudad;
+        });
+      }
+
+      const ciudadMap = {};
+      if (cData && cData.length) {
+        cData.forEach(c => ciudadMap[String(c.codigociudad).trim()] = c.descripcion);
+      }
+
+      const resolveUbicacion = (codigoAmbiente) => {
+        const ca = String(codigoAmbiente || "").trim();
+        if (!ca) return "";
+        const ambiente = (ambienteMap[ca] || "").trim();
+        const codNivel = String(ambienteNivelMap[ca] || "").trim();
+        const nivel = codNivel ? (nivelMap[codNivel] || "").trim() : "";
+        const codInmueble = codNivel ? String(nivelInmuebleMap[codNivel] || "").trim() : "";
+        const inmueble = codInmueble ? (inmuebleMap[codInmueble] || "").trim() : "";
+        const codCiudad = codInmueble ? String(inmuebleCiudadMap[codInmueble] || "").trim() : "";
+        const ciudad = codCiudad ? (ciudadMap[codCiudad] || "").trim() : "";
+        return [ciudad, inmueble, nivel, ambiente].filter(Boolean).join(", ");
+      };
+
+      // 3. Resolve Acta number
+      const { data: respRow, error: respError } = await supabase
+        .from("act_responsable")
+        .select("numeroacta")
+        .eq("cirun", responsable.cirun)
+        .maybeSingle();
+
+      if (respError) throw respError;
+
+      const numeroExistente = Number(respRow?.numeroacta) || 0;
+      let numeroActa = numeroExistente;
+
+      if (!numeroExistente) {
+        const { data: contadorRows, error: contadorError } = await supabase
+          .from("act_contadores")
+          .select("id, numeroacta")
+          .order("numeroacta", { ascending: false })
+          .limit(1);
+
+        if (contadorError) throw contadorError;
+
+        numeroActa = (Number(contadorRows && contadorRows[0]?.numeroacta) || 0) + 1;
+
+        if (contadorRows && contadorRows[0]?.id != null) {
+          const { error: updateError } = await supabase
+            .from("act_contadores")
+            .update({ numeroacta: numeroActa })
+            .eq("id", contadorRows[0].id);
+          if (updateError) throw updateError;
         }
+
+        const { error: respUpdateError } = await supabase
+          .from("act_responsable")
+          .update({ numeroacta: numeroActa })
+          .eq("cirun", responsable.cirun);
+        if (respUpdateError) throw respUpdateError;
       }
 
-      // 3. Generate PDF
+      // 4. Generate PDF
       const doc = new jsPDF({
-        orientation: "portrait",
+        orientation: "landscape",
         unit: "mm",
         format: "letter"
       });
@@ -100,11 +170,28 @@ export const useActaAsignacion = () => {
       // Fonts & Base Setup
       doc.setFont("helvetica");
       const pageWidth = doc.internal.pageSize.getWidth();
+
+      // LOGO (top-left)
+      const logoUrl = `${window.location.origin}/logo-oj.png`;
+      const logoImg = await loadImage(logoUrl);
+      if (logoImg) {
+        const canvas = document.createElement("canvas");
+        canvas.width = logoImg.naturalWidth;
+        canvas.height = logoImg.naturalHeight;
+        canvas.getContext("2d").drawImage(logoImg, 0, 0);
+        const logoDataUrl = canvas.toDataURL("image/png");
+        const logoWidth = 30;
+        const logoHeight = logoWidth * (logoImg.naturalHeight / logoImg.naturalWidth);
+        doc.addImage(logoDataUrl, "PNG", 14, 8, logoWidth, logoHeight);
+      }
       
       // HEADER
       doc.setFontSize(14);
       doc.setFont("helvetica", "bold");
       doc.text("ASIGNACIÓN INDIVIDUAL DE BIENES", pageWidth / 2, 20, { align: "center" });
+
+      doc.setFontSize(9);
+      doc.text(`ACTA No. ${numeroActa}`, pageWidth / 2, 23.5, { align: "center" });
 
       doc.setFontSize(9);
       doc.setFont("helvetica", "normal");
@@ -115,10 +202,10 @@ export const useActaAsignacion = () => {
         year: "numeric"
       }).toUpperCase();
       
-      doc.text(`FECHA DE IMPRESIÓN: ${printDateStr}`, pageWidth - 14, 28, { align: "right" });
+      doc.text(`FECHA DE IMPRESIÓN: ${printDateStr}`, pageWidth / 2, 27, { align: "center" });
 
       // Information Block
-      const startYInfo = 35;
+      const startYInfo = 40;
       const col1 = 14;
       const col2 = 45;
       const col3 = 140;
@@ -129,64 +216,65 @@ export const useActaAsignacion = () => {
       doc.setFont("helvetica", "normal");
       doc.text("Órgano Judicial - La Paz", col2, startYInfo);
 
-      doc.setFont("helvetica", "bold");
-      doc.text("UNIDAD:", col1, startYInfo + 6);
-      doc.setFont("helvetica", "normal");
-      const splitUnidad = doc.splitTextToSize(unidadName, 90);
-      doc.text(splitUnidad, col2, startYInfo + 6);
-
-      const yOffsetAfterUnidad = startYInfo + 6 + (splitUnidad.length * 4);
+      const infoY = startYInfo + 6;
 
       doc.setFont("helvetica", "bold");
-      doc.text("RESPONSABLE:", col1, yOffsetAfterUnidad);
+      doc.text("RESPONSABLE:", col1, infoY);
       doc.setFont("helvetica", "normal");
       const fullName = `${responsable.nombre1 || ""} ${responsable.nombre2 || ""} ${responsable.paterno || ""} ${responsable.materno || ""}`.replace(/\s+/g, ' ').trim();
-      doc.text(fullName, col2, yOffsetAfterUnidad);
+      doc.text(fullName, col2, infoY);
 
       doc.setFont("helvetica", "bold");
-      doc.text("CARGO:", col1, yOffsetAfterUnidad + 6);
+      doc.text("CARGO:", col1, infoY + 6);
       doc.setFont("helvetica", "normal");
-      const splitCargo = doc.splitTextToSize(responsable.cargo || "—", 90);
-      doc.text(splitCargo, col2, yOffsetAfterUnidad + 6);
+      const splitCargo = doc.splitTextToSize(String(responsable.cargo || "—"), 90);
+      doc.text(splitCargo, col2, infoY + 6);
 
       // Right Column of Info
       doc.setFont("helvetica", "bold");
-      doc.text("ESTADO:", col3, startYInfo + 6);
+      doc.text("C.I.:", col3, startYInfo + 6);
       doc.setFont("helvetica", "normal");
-      doc.text("CONSOLIDADO", col4, startYInfo + 6);
+      doc.text(String(responsable.cirun || "—"), col4, startYInfo + 6);
 
       doc.setFont("helvetica", "bold");
-      doc.text("C.I.:", col3, yOffsetAfterUnidad);
+      doc.text("ESTADO:", col3, infoY + 6);
       doc.setFont("helvetica", "normal");
-      doc.text(responsable.cirun || "—", col4, yOffsetAfterUnidad);
-
-      doc.setFont("helvetica", "bold");
-      doc.text("OFICINA:", col3, yOffsetAfterUnidad + 6);
-      doc.setFont("helvetica", "normal");
-      doc.text(oficinaName, col4, yOffsetAfterUnidad + 6);
+      doc.text("CONSOLIDADO", col4, infoY + 6);
 
       // TABLE
-      const tableStartY = yOffsetAfterUnidad + 6 + (splitCargo.length * 4) + 5;
+      const tableStartY = infoY + 6 + (splitCargo.length * 4) + 5;
 
       const tableData = assets.map(a => {
-        const rn = tipoRubroMap[a.tipoRubroAct || a.tiporubroact] || "";
-        const desc = buildDenominacion(a, rn);
+        const trId = a.tipoRubroAct || a.tiporubroact;
+        const rn = tipoRubroMap[trId] || "";
+        const tn = descTipoRubroMap[trId] || "";
+        const desc = buildDenominacion(a, rn) || "";
+        const obs = (a.observaciones || "").toString().trim();
+        const codigoFormateado = `OJ-02-${a.codigoActivo || a.codigoactivo || ""}`;
+        const ubicacion = resolveUbicacion(a.codigoAmbiente || a.codigoambiente);
+        
         return [
-          a.codigoActivo || a.codigoactivo || "—",
-          a.codigoAuxiliar || a.codigoauxiliar || "—",
+          codigoFormateado,
+          rn,
+          tn,
           desc,
+          obs,
+          ubicacion,
           ESTADO_CONSERVACION_MAP[a.estadoConservacion || a.estadoconservacion] || "Regular"
         ];
       });
 
-      doc.autoTable({
+      autoTable(doc, {
         startY: tableStartY,
-        head: [['CÓDIGO', 'AUXILIAR', 'DESCRIPCIÓN DE ACTIVO', 'ESTADO']],
+        head: [['CÓDIGO', 'RUBRO', 'TIPO', 'DESCRIPCIÓN', 'OBSERVACIONES', 'UBICACIÓN', 'ESTADO']],
         body: tableData,
         theme: 'plain',
         styles: {
           fontSize: 8,
-          cellPadding: 2,
+          cellPadding: 1,
+          minCellHeight: 4,
+          lineHeight: 1.2,
+          overflow: 'linebreak',
           lineColor: [0, 0, 0],
           lineWidth: 0.1,
         },
@@ -198,9 +286,12 @@ export const useActaAsignacion = () => {
         },
         columnStyles: {
           0: { cellWidth: 30 },
-          1: { cellWidth: 20 },
-          2: { cellWidth: 'auto' },
-          3: { cellWidth: 20, halign: 'center' }
+          1: { cellWidth: 22 },
+          2: { cellWidth: 22 },
+          3: { cellWidth: 'auto' },
+          4: { cellWidth: 38 },
+          5: { cellWidth: 48 },
+          6: { cellWidth: 20, halign: 'center' }
         },
         margin: { top: 20, left: 14, right: 14 }
       });
@@ -220,33 +311,28 @@ export const useActaAsignacion = () => {
 
       // Signatures
       const sigY = finalY + 15 + (splitDisclaimer.length * 3) + 25;
+
+      const sigLeft = (pageWidth - 170) / 2;
+      const sigLabels = [
+        { x: sigLeft + 25, label: "Responsable de Activos Fijos" },
+        { x: sigLeft + 90, label: "Autorización de Asignación" },
+        { x: sigLeft + 150, label: "Funcionario" },
+      ];
+
+      const drawSignatures = (y) => {
+        sigLabels.forEach(({ x, label }, i) => {
+          doc.line(sigLeft + (i * 60), y, sigLeft + (i * 60) + 50, y);
+          doc.text(label, x, y + 4, { align: "center" });
+        });
+      };
       
       if (sigY > doc.internal.pageSize.getHeight() - 20) {
         doc.addPage();
         // If we added a page, signatures go at the top
-        const newSigY = 40;
-        doc.line(20, newSigY, 70, newSigY);
-        doc.text("Responsable de Activos Fijos", 45, newSigY + 4, { align: "center" });
-
-        doc.line(80, newSigY, 130, newSigY);
-        doc.text("Autorización de Asignación", 105, newSigY + 4, { align: "center" });
-
-        doc.line(140, newSigY, 190, newSigY);
-        doc.text("Funcionario", 165, newSigY + 4, { align: "center" });
+        drawSignatures(40);
       } else {
-        doc.line(20, sigY, 70, sigY);
-        doc.text("Responsable de Activos Fijos", 45, sigY + 4, { align: "center" });
-
-        doc.line(80, sigY, 130, sigY);
-        doc.text("Autorización de Asignación", 105, sigY + 4, { align: "center" });
-
-        doc.line(140, sigY, 190, sigY);
-        doc.text("Funcionario", 165, sigY + 4, { align: "center" });
+        drawSignatures(sigY);
       }
-
-      // Add system watermark or version
-      doc.setFontSize(6);
-      doc.text("Generado por SINAJ", 14, doc.internal.pageSize.getHeight() - 10);
 
       // Save PDF
       doc.save(`Acta_Asignacion_${responsable.cirun}.pdf`);
@@ -257,10 +343,11 @@ export const useActaAsignacion = () => {
       });
 
     } catch (err) {
-      console.error(err);
+      console.error("Error al generar acta:", err);
+      const errorMsg = err?.message || err?.details || err?.error_description || JSON.stringify(err);
       toast({
         title: "Error",
-        description: "Hubo un problema al generar el acta de asignación.",
+        description: `Hubo un problema al generar el acta: ${errorMsg}`,
         variant: "destructive",
       });
     } finally {

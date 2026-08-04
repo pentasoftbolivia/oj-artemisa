@@ -7,6 +7,31 @@ import { buildDenominacion } from "@/lib/utils";
 const formatCodigoActivo = (a) =>
   a?.codigoActivo != null ? `OJ-02-${a.codigoActivo}` : "";
 
+const ESTADO_CONSERVACION_MAP = {
+  1: "Bueno",
+  2: "Regular",
+  3: "Malo",
+  BUENO: "Bueno",
+  REGULAR: "Regular",
+  MALO: "Malo",
+};
+
+const resolveEstadoConservacion = (a) => {
+  const raw = a?.estadoConservacion ?? a?.estadoconservacion ?? "";
+  if (raw === null || raw === undefined || raw === "") return "";
+  return ESTADO_CONSERVACION_MAP[String(raw).trim().toUpperCase()] ?? String(raw).trim() ?? "";
+};
+
+const buildQrFields = (item, rubroMap, tipoRubroMap) => {
+  const codigoActivo = formatCodigoActivo(item);
+  const rubro = (rubroMap[item.tipoRubroAct] ?? rubroMap[item.tiporubroact] ?? item.tipoRubroAct ?? item.tiporubroact ?? "").toString().trim();
+  const tipo = (tipoRubroMap[item.tipoRubroAct] ?? tipoRubroMap[item.tiporubroact] ?? item.descripciontiporubroact ?? "").toString().trim();
+  const descripcion = buildDenominacion(item, rubro);
+  const estado = resolveEstadoConservacion(item);
+  const qrContent = `${codigoActivo}|${rubro}|${tipo}|${descripcion}|${estado}`;
+  return { codigoActivo, rubro, tipo, qrContent };
+};
+
 export const useBarcodeQR = ({ rubroMap, tipoRubroMap, activosFijos = [] }) => {
   const { toast } = useToast();
 
@@ -34,18 +59,13 @@ export const useBarcodeQR = ({ rubroMap, tipoRubroMap, activosFijos = [] }) => {
 
   useEffect(() => {
     if (!qrActivo) return;
-    const content = formatCodigoActivo(qrActivo);
-    const rubro = (rubroMap[qrActivo.tipoRubroAct] ?? rubroMap[qrActivo.tiporubroact] ?? qrActivo.tipoRubroAct ?? qrActivo.tiporubroact ?? "").toString().trim();
-    const tipoRubro = (tipoRubroMap[qrActivo.tipoRubroAct] ?? tipoRubroMap[qrActivo.tiporubroact] ?? qrActivo.descripciontiporubroact ?? "").toString().trim();
-    const denominacion = buildDenominacion(qrActivo, rubro);
-    
-    const pipedContent = `${content}|${rubro}|${tipoRubro}|${denominacion}`;
-    
+    const { codigoActivo, rubro, tipo, qrContent } = buildQrFields(qrActivo, rubroMap, tipoRubroMap);
+
     generateQRLabel({
-      qrContent: pipedContent,
-      codigoActivo: content,
+      qrContent,
+      codigoActivo,
       rubro,
-      tipoRubro,
+      tipo,
       fecha: new Date().toLocaleDateString("es-ES"),
     }).then(setQrDataUrl);
   }, [qrActivo, rubroMap, tipoRubroMap]);
@@ -80,21 +100,16 @@ export const useBarcodeQR = ({ rubroMap, tipoRubroMap, activosFijos = [] }) => {
     async (items) => {
       const labels = [];
       for (const item of items) {
-        const content = formatCodigoActivo(item);
-        const rubro = (rubroMap[item.tipoRubroAct] ?? rubroMap[item.tiporubroact] ?? item.tipoRubroAct ?? item.tiporubroact ?? "").toString().trim();
-        const tipoRubro = (tipoRubroMap[item.tipoRubroAct] ?? tipoRubroMap[item.tiporubroact] ?? item.descripciontiporubroact ?? "").toString().trim();
-        const denominacion = buildDenominacion(item, rubro);
-        
-        const pipedContent = `${content}|${rubro}|${tipoRubro}|${denominacion}`;
+        const { codigoActivo, rubro, tipo, qrContent } = buildQrFields(item, rubroMap, tipoRubroMap);
 
         const dataUrl = await generateQRLabel({
-          qrContent: pipedContent,
-          codigoActivo: content,
+          qrContent,
+          codigoActivo,
           rubro,
-          tipoRubro,
+          tipo,
           fecha: new Date().toLocaleDateString("es-ES"),
         });
-        labels.push({ codigoActivo: content, dataUrl });
+        labels.push({ codigoActivo, dataUrl });
       }
       return labels;
     },

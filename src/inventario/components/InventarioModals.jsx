@@ -16,7 +16,10 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import LoadingSpinner from "@/components/ui/loading-spinner";
-import { BASE_EDIT_FIELDS, getRubroFields } from "../constants/inventarioConstants";
+import {
+  BASE_EDIT_FIELDS,
+  getRubroFields,
+} from "../constants/inventarioConstants";
 
 export const InventarioEditModal = ({
   isEditOpen,
@@ -65,7 +68,9 @@ export const InventarioEditModal = ({
       >
         <DialogHeader>
           <DialogTitle>EDITAR CONTROL DE ACTIVOS</DialogTitle>
-          <DialogDescription>Modifica los datos del activo fijo</DialogDescription>
+          <DialogDescription>
+            Modifica los datos del activo fijo
+          </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
           {BASE_EDIT_FIELDS.map((f) => {
@@ -133,6 +138,41 @@ export const InventarioEditModal = ({
             </Select>
           </div>
 
+          <div className="border-t pt-4 mt-2">
+            <h3 className="text-sm font-semibold text-muted-foreground mb-3">
+              Características
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="marcamaterial">Marca Material</Label>
+                <Input
+                  id="marcamaterial"
+                  value={editForm.marcamaterial || ""}
+                  onChange={handleEditChange}
+                  disabled={isSaving}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="modelo">Modelo</Label>
+                <Input
+                  id="modelo"
+                  value={editForm.modelo || ""}
+                  onChange={handleEditChange}
+                  disabled={isSaving}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="serie">Serie</Label>
+                <Input
+                  id="serie"
+                  value={editForm.serie || ""}
+                  onChange={handleEditChange}
+                  disabled={isSaving}
+                />
+              </div>
+            </div>
+          </div>
+
           {editActivo && rubroFromTipo[editActivo.tipoRubroAct] && (
             <div className="border-t pt-4 mt-2">
               <h3 className="text-sm font-semibold text-muted-foreground mb-3">
@@ -156,7 +196,7 @@ export const InventarioEditModal = ({
             Cancelar
           </Button>
           <Button onClick={handleEditSave} disabled={isSaving}>
-            {isSaving ? "Aprobando..." : "APROBAR"}
+            {isSaving ? "Guardando..." : "GUARDAR"}
           </Button>
         </div>
       </DialogContent>

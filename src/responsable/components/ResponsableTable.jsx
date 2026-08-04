@@ -35,6 +35,7 @@ const ResponsableTable = memo(({
             <TableHead>Apellido Materno</TableHead>
             <TableHead>Cargo</TableHead>
             <TableHead>Estado Activo</TableHead>
+            <TableHead>Número Acta</TableHead>
             <TableHead className="text-center">Acciones</TableHead>
           </TableRow>
         </TableHeader>
@@ -58,6 +59,9 @@ const ResponsableTable = memo(({
                   >
                     {ESTADO_MAP[r.registroActivo] ?? "—"}
                   </Badge>
+                </TableCell>
+                <TableCell className="text-center font-mono text-xs">
+                  {r.numeroacta ?? "—"}
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex space-x-1 justify-end">
@@ -100,7 +104,7 @@ const ResponsableTable = memo(({
           ) : (
             <TableRow>
               <TableCell
-                colSpan={8}
+                colSpan={9}
                 className="text-center py-12 text-muted-foreground"
               >
                 <Users className="mx-auto h-12 w-12 opacity-20 mb-2" />
