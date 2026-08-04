@@ -1,7 +1,0 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-<Relationship Target="/Documents/1/Resources/Fonts/735A448E-21E9-483D-8796-C6BA8788F8EA.odttf" Id="R0" Type="http://schemas.microsoft.com/xps/2005/06/required-resource"/>
-<Relationship Target="/Documents/1/Resources/Fonts/302D88E7-0A2C-4649-AD4F-4CF652D6C77D.odttf" Id="R1" Type="http://schemas.microsoft.com/xps/2005/06/required-resource"/>
-<Relationship Target="/Documents/1/Resources/Fonts/655E0C0D-0EAA-4601-86BD-62FAF4F4A529.odttf" Id="R2" Type="http://schemas.microsoft.com/xps/2005/06/required-resource"/>
-<Relationship Target="/Documents/1/Resources/Images/1.PNG" Id="R3" Type="http://schemas.microsoft.com/xps/2005/06/required-resource"/>
-</Relationships>

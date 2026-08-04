@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Edit, Trash2, Printer, Loader2 } from "lucide-react";
+import { Users, Edit, Trash2, Printer, FileText, Loader2 } from "lucide-react";
 import { useActaAsignacion } from "../hooks/useActaAsignacion";
 
 const ESTADO_MAP = { 0: "Inactivo", 1: "Activo" };
@@ -21,7 +21,7 @@ const ResponsableTable = memo(({
   onDelete,
   messages
 }) => {
-  const { printActaAsignacion, isPrinting, printingId } = useActaAsignacion();
+  const { printActaAsignacion, printActaListado, isPrinting, printingId } = useActaAsignacion();
 
   return (
     <div className="rounded-md border">
@@ -77,6 +77,20 @@ const ResponsableTable = memo(({
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <Printer className="h-4 w-4" />
+                      )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => printActaListado(r)}
+                      title="Imprimir listado"
+                      className="text-teal-500 hover:text-teal-700"
+                      disabled={isPrinting && printingId === `${r.cirun}:listado`}
+                    >
+                      {isPrinting && printingId === `${r.cirun}:listado` ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <FileText className="h-4 w-4" />
                       )}
                     </Button>
                     <Button
