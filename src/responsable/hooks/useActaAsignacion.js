@@ -6,12 +6,6 @@ import { buildDenominacion } from "@/lib/utils";
 import { toCamelCaseArray } from "@/lib/mapFields";
 import { useToast } from "@/hooks/use-toast";
 
-const ESTADO_CONSERVACION_MAP = {
-  1: "BUENO",
-  2: "REGULAR",
-  3: "MALO",
-};
-
 const ASSET_SELECT =
   "codigoactivo, codigoambiente, tiporubroact, descripcionactivo, observaciones, marcamaterial, modelo, serie, ram, procesador, discoduro, numeromotor, numerochasisserial, placamatricula, capacidadcargatraccion, capacidaddimension, fuentealimentacion, accesorios, alcancecobertura, medidas, color, divisionescajonesbandejas, chapa, abatible, deslizable, potencia, horometro, combustibleenergia, funcion, categoria, caracteristicas, estadoconservacion";
 
@@ -259,6 +253,19 @@ const drawSignatureFooter = (doc, { finalY, cantidad, pageWidth }) => {
   }
 };
 
+const drawPageNumbers = (doc) => {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const totalPages = doc.getNumberOfPages();
+
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Página ${i} de ${totalPages}`, pageWidth / 2, pageHeight - 8, { align: "center" });
+  }
+};
+
 export const useActaAsignacion = () => {
   const { toast } = useToast();
   const [isPrinting, setIsPrinting] = useState(false);
@@ -308,7 +315,7 @@ export const useActaAsignacion = () => {
           desc,
           obs,
           ubicacion,
-          (ESTADO_CONSERVACION_MAP[a.estadoConservacion || a.estadoconservacion] || "Regular").toUpperCase()
+          (a.estadoConservacion || a.estadoconservacion || "REGULAR").toString().trim().toUpperCase()
         ];
       });
 
@@ -352,6 +359,7 @@ export const useActaAsignacion = () => {
 
       const pageWidth = doc.internal.pageSize.getWidth();
       drawSignatureFooter(doc, { finalY, cantidad: assets.length, pageWidth });
+      drawPageNumbers(doc);
 
       doc.save(`Acta_Asignacion_${responsable.cirun}.pdf`);
 
@@ -410,7 +418,7 @@ export const useActaAsignacion = () => {
         const obs = (a.observaciones || "").toString().trim();
         const codigo = `OJ-02-${(a.codigoActivo || a.codigoactivo || "").toString().trim()}`;
         const ubicacion = (resolveUbicacion(a.codigoAmbiente || a.codigoambiente) || "").trim();
-        const estado = (ESTADO_CONSERVACION_MAP[a.estadoConservacion || a.estadoconservacion] || "Regular").toUpperCase();
+        const estado = (a.estadoConservacion || a.estadoconservacion || "REGULAR").toString().trim().toUpperCase();
         return [codigo, rn, tn, desc, obs, ubicacion, estado].join(";");
       });
 
@@ -435,6 +443,7 @@ export const useActaAsignacion = () => {
       }
 
       drawSignatureFooter(doc, { finalY: y, cantidad: assets.length, pageWidth });
+      drawPageNumbers(doc);
 
       doc.save(`Acta_Asignacion_${responsable.cirun}_listado.pdf`);
 
