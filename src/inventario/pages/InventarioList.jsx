@@ -92,6 +92,7 @@ const InventarioList = () => {
   const [showSearch, setShowSearch] = useState(false);
   const [filtroCodigoActivo, setFiltroCodigoActivo] = useState("");
   const [filtroInventariador, setFiltroInventariador] = useState("");
+  const [filtroCarnet, setFiltroCarnet] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("all");
 
   const [searchCarnet, setSearchCarnet] = useState("");
@@ -125,6 +126,7 @@ const InventarioList = () => {
     loadActivos({
       codigoActivo: filtroCodigoActivo,
       inventariador: filtroInventariador,
+      carnet: filtroCarnet,
     });
   };
 
@@ -132,6 +134,7 @@ const InventarioList = () => {
     setCurrentPage(1);
     setFiltroCodigoActivo("");
     setFiltroInventariador("");
+    setFiltroCarnet("");
     setFiltroEstado("all");
     loadActivos({});
   };
@@ -246,6 +249,7 @@ const InventarioList = () => {
       loadActivos({
         codigoActivo: filtroCodigoActivo,
         inventariador: filtroInventariador,
+        carnet: filtroCarnet,
       });
     } catch (err) {
       toast({
@@ -562,11 +566,10 @@ const InventarioList = () => {
   const filteredActivos = useMemo(() => {
     if (filtroEstado === "all") return resolvedActivos;
     return resolvedActivos.filter((a) => {
-      if (filtroEstado === "enviado") return a.estado === 1;
       if (filtroEstado === "revisado")
-        return a.estadoinventario === "REVISADO" && a.estado !== 1;
+        return a.estadoinventario === "REVISADO";
       if (filtroEstado === "pendiente")
-        return a.estadoinventario === "INVENTARIADO";
+        return a.estadoinventario !== "REVISADO";
       return true;
     });
   }, [resolvedActivos, filtroEstado]);
@@ -1352,6 +1355,8 @@ const InventarioList = () => {
         setFiltroCodigoActivo={setFiltroCodigoActivo}
         filtroInventariador={filtroInventariador}
         setFiltroInventariador={setFiltroInventariador}
+        filtroCarnet={filtroCarnet}
+        setFiltroCarnet={setFiltroCarnet}
         filtroEstado={filtroEstado}
         setFiltroEstado={setFiltroEstado}
         onFilter={handleFilter}

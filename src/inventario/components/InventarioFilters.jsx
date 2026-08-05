@@ -18,13 +18,18 @@ const InventarioFilters = memo(
     setFiltroCodigoActivo,
     filtroInventariador,
     setFiltroInventariador,
+    filtroCarnet,
+    setFiltroCarnet,
     filtroEstado,
     setFiltroEstado,
     onFilter,
     onClearFilters,
   }) => {
     const isFilterActive =
-      !!filtroCodigoActivo || !!filtroInventariador || filtroEstado !== "all";
+      !!filtroCodigoActivo ||
+      !!filtroInventariador ||
+      !!filtroCarnet ||
+      filtroEstado !== "all";
 
     return (
       <Card>
@@ -47,7 +52,7 @@ const InventarioFilters = memo(
           ) : null}
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div className="space-y-2">
               <Label htmlFor="filtroCodigoActivo">Código Activo</Label>
               <Input
@@ -64,6 +69,15 @@ const InventarioFilters = memo(
                 placeholder="Buscar por inventariador..."
                 value={filtroInventariador}
                 onChange={(e) => setFiltroInventariador(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="filtroCarnet">Carnet del Responsable</Label>
+              <Input
+                id="filtroCarnet"
+                placeholder="Buscar por carnet..."
+                value={filtroCarnet}
+                onChange={(e) => setFiltroCarnet(e.target.value)}
               />
             </div>
             <div className="space-y-2">
