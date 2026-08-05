@@ -14,8 +14,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useRef, useState } from "react";
+import { Upload, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import LoadingSpinner from "@/components/ui/loading-spinner";
+import { supabase } from "@/lib/supabase";
+import { useToast } from "@/hooks/use-toast";
 import {
   BASE_EDIT_FIELDS,
   getRubroFields,
@@ -212,6 +216,65 @@ export const InventarioImagesModal = ({
   imageFiles,
   setImageFiles,
 }) => {
+  const { toast } = useToast();
+  const fileInputRef = useRef(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const refreshImages = async (codigo) => {
+    const prefix = `${codigo}_`;
+    const { data, error } = await supabase.storage
+      .from("imagenes")
+      .list("", { search: prefix, sortBy: { column: "name", order: "asc" } });
+    if (!error && data) {
+      const refreshed = data
+        .filter((f) => f.name.startsWith(prefix))
+        .map((f) => ({
+          name: f.name,
+          url: supabase.storage.from("imagenes").getPublicUrl(f.name).data
+            .publicUrl,
+        }));
+      setImageFiles(refreshed);
+    }
+  };
+
+  const handleUpload = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    const codigo = selectedActivoImages?.codigoActivo;
+    if (!codigo) return;
+
+    setIsUploading(true);
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+        const fileName = `${codigo}_${Date.now()}_${i}.${ext}`;
+        const { error } = await supabase.storage
+          .from("imagenes")
+          .upload(fileName, file);
+        if (error) throw error;
+      }
+
+      await refreshImages(codigo);
+
+      toast({
+        title: "Fotos subidas",
+        description: `Se subieron ${files.length} foto(s) correctamente.`,
+      });
+    } catch (err) {
+      console.error("Error al subir fotos:", err);
+      toast({
+        title: "Error",
+        description: `No se pudieron subir las fotos: ${err?.message || JSON.stringify(err)}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   return (
     <Dialog
       open={isImageModalOpen}
@@ -236,6 +299,31 @@ export const InventarioImagesModal = ({
           </DialogDescription>
         </DialogHeader>
         <div className="py-4 max-h-[70vh] overflow-y-auto">
+          <div className="flex items-center justify-between mb-4">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={handleUpload}
+              disabled={isUploading}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              className="bg-orange-500 text-white hover:bg-orange-600 hover:text-white"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isLoadingImages || isUploading}
+            >
+              {isUploading ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Upload className="h-4 w-4 mr-2" />
+              )}
+              {isUploading ? "Subiendo..." : "Subir fotos"}
+            </Button>
+          </div>
           {isLoadingImages ? (
             <LoadingSpinner />
           ) : imageFiles.length === 0 ? (
