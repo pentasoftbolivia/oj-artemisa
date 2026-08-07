@@ -13,13 +13,22 @@ export const loginUserWithEmailPassword = async ({ email, password }) => {
 
     const { user } = data;
 
+    // Verificar si el usuario es administrador en la tabla "rol"
+    const { data: roleData, error: roleError } = await supabase
+      .from("rol")
+      .select("rol")
+      .eq("UID", user.id)
+      .maybeSingle();
+
+    const role = roleData ? roleData.rol || "Administrador" : "Usuario";
+
     return {
       ok: true,
       uid: user.id,
       email: user.email,
       photoURL: user.user_metadata?.avatar_url || null,
       name: user.user_metadata?.full_name || user.email,
-      role: user.user_metadata?.role || null,
+      role: role,
     };
   } catch (error) {
     return { ok: false, errorMessage: error.message };

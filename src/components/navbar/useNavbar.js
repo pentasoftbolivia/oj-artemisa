@@ -15,7 +15,10 @@ const useNavbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const navItems = DEFAULT_NAV_ITEMS;
+  const isAdmin = user?.role !== "Usuario";
+  const navItems = isAdmin
+    ? DEFAULT_NAV_ITEMS
+    : DEFAULT_NAV_ITEMS.filter((item) => !item.adminOnly);
 
   const onLogout = useCallback(
     (e) => {

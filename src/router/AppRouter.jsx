@@ -4,6 +4,7 @@ import InicioPage from "@/inicio/pages/InicioPage";
 
 import { PrivateRoute } from "./PrivateRoute";
 import { PublicRoute } from "./PublicRoute";
+import { AdminRoute } from "./AdminRoute";
 import { useCheckAuth, useSupabaseRealtime } from "@/hooks";
 import { Navbar } from "@/components/navbar/Navbar";
 import LoadingSpinner from "@/components/ui/loading-spinner";
@@ -54,8 +55,10 @@ export const AppRouter = () => {
           path="/ambientes/*"
           element={
             <PrivateRoute>
-              <Navbar />
-              <AmbienteRoutes />
+              <AdminRoute>
+                <Navbar />
+                <AmbienteRoutes />
+              </AdminRoute>
             </PrivateRoute>
           }
         />
@@ -64,8 +67,10 @@ export const AppRouter = () => {
           path="/ciudades/*"
           element={
             <PrivateRoute>
-              <Navbar />
-              <CiudadRoutes />
+              <AdminRoute>
+                <Navbar />
+                <CiudadRoutes />
+              </AdminRoute>
             </PrivateRoute>
           }
         />
@@ -74,8 +79,10 @@ export const AppRouter = () => {
           path="/inmuebles/*"
           element={
             <PrivateRoute>
-              <Navbar />
-              <InmuebleRoutes />
+              <AdminRoute>
+                <Navbar />
+                <InmuebleRoutes />
+              </AdminRoute>
             </PrivateRoute>
           }
         />
@@ -84,8 +91,10 @@ export const AppRouter = () => {
           path="/niveles/*"
           element={
             <PrivateRoute>
-              <Navbar />
-              <NivelRoutes />
+              <AdminRoute>
+                <Navbar />
+                <NivelRoutes />
+              </AdminRoute>
             </PrivateRoute>
           }
         />
@@ -94,8 +103,10 @@ export const AppRouter = () => {
           path="/rubros/*"
           element={
             <PrivateRoute>
-              <Navbar />
-              <RubroRoutes />
+              <AdminRoute>
+                <Navbar />
+                <RubroRoutes />
+              </AdminRoute>
             </PrivateRoute>
           }
         />
@@ -104,8 +115,10 @@ export const AppRouter = () => {
           path="/tiporubro/*"
           element={
             <PrivateRoute>
-              <Navbar />
-              <TipoRubroRoutes />
+              <AdminRoute>
+                <Navbar />
+                <TipoRubroRoutes />
+              </AdminRoute>
             </PrivateRoute>
           }
         />
@@ -114,8 +127,10 @@ export const AppRouter = () => {
           path="/activos/*"
           element={
             <PrivateRoute>
-              <Navbar />
-              <ActivosFijosRoutes />
+              <AdminRoute>
+                <Navbar />
+                <ActivosFijosRoutes />
+              </AdminRoute>
             </PrivateRoute>
           }
         />
@@ -136,8 +151,10 @@ export const AppRouter = () => {
           path="/responsables/*"
           element={
             <PrivateRoute>
-              <Navbar />
-              <ResponsableRoutes />
+              <AdminRoute>
+                <Navbar />
+                <ResponsableRoutes />
+              </AdminRoute>
             </PrivateRoute>
           }
         />

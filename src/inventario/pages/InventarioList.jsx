@@ -720,7 +720,9 @@ const InventarioList = () => {
                     <TableHead>Ambiente</TableHead>
                     <TableHead>Responsable</TableHead>
                     <TableHead>CI</TableHead>
-                    <TableHead className="text-center">Acciones</TableHead>
+                    {currentUser?.role !== "Usuario" && (
+                      <TableHead className="text-center">Acciones</TableHead>
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -748,37 +750,39 @@ const InventarioList = () => {
                         <TableCell className="font-mono text-xs">
                           {a._carnetResponsable}
                         </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex space-x-1 justify-end">
-                            {a.ultimoregistro !== 0 && (
+                        {currentUser?.role !== "Usuario" && (
+                          <TableCell className="text-right">
+                            <div className="flex space-x-1 justify-end">
+                              {a.ultimoregistro !== 0 && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleEdit(a)}
+                                  className="text-yellow-500 hover:text-yellow-700"
+                                >
+                                  <Edit className="h-4 w-4 mr-1" />
+                                  EDITAR
+                                </Button>
+                              )}
                               <Button
-                                variant="ghost"
+                                variant="default"
                                 size="sm"
-                                onClick={() => handleEdit(a)}
-                                className="text-yellow-500 hover:text-yellow-700"
+                                onClick={() => handleEnviar(a)}
+                                className={
+                                  a.ultimoregistro === 0 ||
+                                  a.estadoinventario === "ENVIADO"
+                                    ? "bg-orange-500 hover:bg-orange-600 text-white font-bold"
+                                    : "bg-red-600 hover:bg-red-700 text-white font-bold"
+                                }
                               >
-                                <Edit className="h-4 w-4 mr-1" />
-                                EDITAR
-                              </Button>
-                            )}
-                            <Button
-                              variant="default"
-                              size="sm"
-                              onClick={() => handleEnviar(a)}
-                              className={
-                                a.ultimoregistro === 0 ||
+                                {a.ultimoregistro === 0 ||
                                 a.estadoinventario === "ENVIADO"
-                                  ? "bg-orange-500 hover:bg-orange-600 text-white font-bold"
-                                  : "bg-red-600 hover:bg-red-700 text-white font-bold"
-                              }
-                            >
-                              {a.ultimoregistro === 0 ||
-                              a.estadoinventario === "ENVIADO"
-                                ? "ENVIADO"
-                                : "PENDIENTE"}
-                            </Button>
-                          </div>
-                        </TableCell>
+                                  ? "ENVIADO"
+                                  : "PENDIENTE"}
+                              </Button>
+                            </div>
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))
                   ) : (
@@ -979,14 +983,16 @@ const InventarioList = () => {
             Gestión de inventario de activos fijos
           </p>
         </div>
-        <Button
-          onClick={() => {
-            setShowSearch(true);
-          }}
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          NUEVO
-        </Button>
+        {currentUser?.role !== "Usuario" && (
+          <Button
+            onClick={() => {
+              setShowSearch(true);
+            }}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            NUEVO
+          </Button>
+        )}
       </div>
 
       <Card>
@@ -1379,6 +1385,7 @@ const InventarioList = () => {
             onEdit={handleEdit}
             onOpenImages={handleOpenImages}
             onToggleAprobado={handleToggleAprobado}
+            currentUser={currentUser}
           />
 
           {resolvedActivos.length > 0 && (

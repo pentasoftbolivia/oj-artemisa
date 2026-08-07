@@ -22,13 +22,24 @@ export const useCheckAuth = () => {
       }
 
       try {
+        const { data: roleData, error: roleError } = await supabase
+          .from("rol")
+          .select("rol")
+          .eq("UID", session.user.id)
+          .maybeSingle();
+
+        console.log("Checking role for UID:", session.user.id);
+        console.log("Role Data:", roleData, "Role Error:", roleError);
+
+        const role = roleData ? roleData.rol || "Administrador" : "Usuario";
+
         const userInfo = {
           uid: session.user.id,
           email: session.user.email,
           displayName:
             session.user.user_metadata?.full_name || session.user.email,
           photoURL: session.user.user_metadata?.avatar_url,
-          role: session.user.user_metadata?.role || null,
+          role: role,
         };
 
         localStorage.setItem("user", JSON.stringify(userInfo));

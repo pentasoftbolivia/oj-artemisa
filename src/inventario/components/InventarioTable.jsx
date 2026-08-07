@@ -20,6 +20,7 @@ const InventarioTable = memo(
     onEdit,
     onOpenImages,
     onToggleAprobado,
+    currentUser,
   }) => {
     return (
       <div className="rounded-md border">
@@ -35,7 +36,9 @@ const InventarioTable = memo(
               <TableHead>CI</TableHead>
               <TableHead>Inventariador</TableHead>
               <TableHead>Revisor</TableHead>
-              <TableHead className="text-center">Acciones</TableHead>
+              {currentUser?.role !== "Usuario" && (
+                <TableHead className="text-center">Acciones</TableHead>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -86,38 +89,40 @@ const InventarioTable = memo(
                     >
                       {displayRevisor}
                     </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex space-x-1 justify-end">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => onEdit(a)}
-                          className="text-yellow-500 hover:text-yellow-700"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => onOpenImages(a)}
-                          className="text-blue-500 hover:text-blue-700"
-                        >
-                          <ImageIcon className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="default"
-                          size="sm"
-                          onClick={() => onToggleAprobado(a)}
-                          className={
-                            isReviewed
-                              ? "bg-green-600 hover:bg-green-700 text-white"
-                              : "bg-red-600 hover:bg-red-700 text-white"
-                          }
-                        >
-                          {isReviewed ? "REVISADO" : "PENDIENTE"}
-                        </Button>
-                      </div>
-                    </TableCell>
+                    {currentUser?.role !== "Usuario" && (
+                      <TableCell className="text-right">
+                        <div className="flex space-x-1 justify-end">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onEdit(a)}
+                            className="text-yellow-500 hover:text-yellow-700"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onOpenImages(a)}
+                            className="text-blue-500 hover:text-blue-700"
+                          >
+                            <ImageIcon className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => onToggleAprobado(a)}
+                            className={
+                              isReviewed
+                                ? "bg-green-600 hover:bg-green-700 text-white"
+                                : "bg-red-600 hover:bg-red-700 text-white"
+                            }
+                          >
+                            {isReviewed ? "REVISADO" : "PENDIENTE"}
+                          </Button>
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 );
               })
