@@ -16,7 +16,7 @@ const loadImage = (src) => new Promise((resolve) => {
   img.src = src;
 });
 
-const loadActaData = async (responsable) => {
+export const loadActaData = async (responsable) => {
   const { data: rawAssets, error: assetsError } = await supabase
     .from("act_activos")
     .select(ASSET_SELECT)

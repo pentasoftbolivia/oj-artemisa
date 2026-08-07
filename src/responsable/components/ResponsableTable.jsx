@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useState } from "react";
 import {
   Table,
   TableBody,
@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Users, Edit, Trash2, Printer, FileText, Loader2 } from "lucide-react";
 import { useActaAsignacion } from "../hooks/useActaAsignacion";
+import ActaPreviewModal from "./ActaPreviewModal";
 
 const ESTADO_MAP = { 0: "Inactivo", 1: "Activo" };
 
@@ -22,6 +23,30 @@ const ResponsableTable = memo(({
   messages
 }) => {
   const { printActaAsignacion, printActaListado, isPrinting, printingId } = useActaAsignacion();
+  const [printModalOpen, setPrintModalOpen] = useState(false);
+  const [selectedPrintData, setSelectedPrintData] = useState(null);
+
+  const handlePrintClick = (r, type) => {
+    setSelectedPrintData({ responsable: r, type });
+    setPrintModalOpen(true);
+  };
+
+  const confirmPrint = () => {
+    if (!selectedPrintData) return;
+    const { responsable, type } = selectedPrintData;
+    if (type === "asignacion") {
+      printActaAsignacion(responsable);
+    } else if (type === "listado") {
+      printActaListado(responsable);
+    }
+    setPrintModalOpen(false);
+    setSelectedPrintData(null);
+  };
+
+  const closePrintModal = () => {
+    setPrintModalOpen(false);
+    setSelectedPrintData(null);
+  };
 
   return (
     <div className="rounded-md border">
@@ -68,7 +93,7 @@ const ResponsableTable = memo(({
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => printActaAsignacion(r)}
+                      onClick={() => handlePrintClick(r, "asignacion")}
                       title="Imprimir Acta de Asignación"
                       className="text-blue-500 hover:text-blue-700"
                       disabled={isPrinting && printingId === r.cirun}
@@ -82,7 +107,7 @@ const ResponsableTable = memo(({
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => printActaListado(r)}
+                      onClick={() => handlePrintClick(r, "listado")}
                       title="Imprimir listado"
                       className="text-teal-500 hover:text-teal-700"
                       disabled={isPrinting && printingId === `${r.cirun}:listado`}
@@ -137,6 +162,14 @@ const ResponsableTable = memo(({
           )}
         </TableBody>
       </Table>
+
+      <ActaPreviewModal
+        isOpen={printModalOpen}
+        onClose={closePrintModal}
+        onAccept={confirmPrint}
+        responsable={selectedPrintData?.responsable}
+        type={selectedPrintData?.type}
+      />
     </div>
   );
 });
