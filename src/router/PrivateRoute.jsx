@@ -6,6 +6,7 @@ import {
   selectIsAuthenticated,
   selectAuthStatus,
 } from "@/store/auth/authSlice";
+import LoadingSpinner from "@/components/ui/loading-spinner";
 
 export const PrivateRoute = ({ children }) => {
   const isAuthenticated = useSelector(selectIsAuthenticated);
@@ -19,7 +20,13 @@ export const PrivateRoute = ({ children }) => {
     localStorage.setItem("lastPath", lastPath);
   }, [lastPath]);
 
-  if (authStatus === "checking") return null;
+  if (authStatus === "checking") {
+    return (
+      <div className="h-screen w-full flex items-center justify-center">
+        <LoadingSpinner containerHeight="80px" />
+      </div>
+    );
+  }
 
   return isAuthenticated ? (
     children
