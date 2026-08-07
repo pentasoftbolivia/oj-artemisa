@@ -1,9 +1,9 @@
 import React from 'react';
 import { ClipLoader } from 'react-spinners';
 
-const LoadingSpinner = () => {
+const LoadingSpinner = ({ containerHeight = '80vh' }) => {
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: containerHeight }}>
       <ClipLoader
         color={"#1e40af"} // Puedes personalizar el color
         size={50} // Puedes personalizar el tamaño
