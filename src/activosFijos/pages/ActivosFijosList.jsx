@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useCallback, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 
 
@@ -17,10 +17,10 @@ import { useToast } from "@/hooks/use-toast";
 import LoadingSpinner from "@/components/ui/loading-spinner";
 
 import {
-  fetchActivosFijosPaginated,
   addActivoFijo,
   updateActivoFijo,
   deleteActivoFijo,
+  fetchActivosFijosPaginated,
 } from "@/store/activosFijos/activosFijosThunks";
 import {
   selectActivosFijos,
@@ -36,9 +36,8 @@ import ActivosFijosTable from "../components/ActivosFijosTable";
 import { useCatalogos } from "@/hooks/useCatalogos";
 import { useBarcodeQR } from "../hooks/useBarcodeQR";
 import { useActivosFijosCatalogs } from "../hooks/useActivosFijosCatalogs";
-
-const INITIAL_FILTERS = { search: "", rubro: "", carnet: "", ciudad: "", ambiente: "", inmueble: "", nivel: "" };
-const DEBOUNCE_MS = 300;
+import { useCrudModal } from "@/hooks/useCrudModal";
+import { useActivosFijosState } from "../hooks/useActivosFijosState";
 
 const formatCodigoActivo = (a) =>
   a?.codigoActivo != null ? `OJ-02-${a.codigoActivo}` : "";
@@ -70,19 +69,30 @@ const ActivosFijosList = () => {
     loadCiudades: true,
   });
 
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingActivo, setEditingActivo] = useState(null);
-  const [activoToDelete, setActivoToDelete] = useState(null);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  
-  const [filters, setFilters] = useState({ ...INITIAL_FILTERS });
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(100);
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [debouncedCarnet, setDebouncedCarnet] = useState("");
-  
-  const isFirstRender = useRef(true);
-  const debounceTimer = useRef(null);
+  const {
+    isFormOpen,
+    setIsFormOpen,
+    editingItem: editingActivo,
+    handleAdd,
+    handleEdit,
+    handleCancelForm: handleCancel,
+    
+    itemToDelete: activoToDelete,
+    isDeleteDialogOpen,
+    setIsDeleteDialogOpen,
+    handleDelete,
+    handleCancelDelete,
+  } = useCrudModal();
+
+  const {
+    filters,
+    currentPage,
+    pageSize,
+    handlePageChange,
+    handlePageSizeChange,
+    handleFilterChange,
+    clearFilters
+  } = useActivosFijosState({ rubroToTipoIds: {} }); // We will update rubroToTipoIds below
 
   const {
     rubroMap,
@@ -128,46 +138,27 @@ const ActivosFijosList = () => {
     printQRLabels,
     downloadQRsPDF,
   } = useBarcodeQR({ rubroMap, tipoRubroMap, activosFijos });
-
-  useEffect(() => {
-    if (debounceTimer.current) clearTimeout(debounceTimer.current);
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      setDebouncedSearch(filters.search);
-      setDebouncedCarnet(filters.carnet);
-      return;
-    }
-    debounceTimer.current = setTimeout(() => {
-      setDebouncedSearch(filters.search);
-      setDebouncedCarnet(filters.carnet);
-      setCurrentPage(1);
-    }, DEBOUNCE_MS);
-    return () => {
-      if (debounceTimer.current) clearTimeout(debounceTimer.current);
-    };
-  }, [filters.search, filters.carnet]);
-
   useEffect(() => {
     dispatch(
       fetchActivosFijosPaginated({
         page: currentPage,
         pageSize,
         filters: {
-          search: debouncedSearch,
-          carnet: debouncedCarnet,
+          search: filters.search, // or debouncedSearch if we return it
+          carnet: filters.carnet,
           rubro: filters.rubro ? rubroToTipoIds[filters.rubro] || [] : undefined,
           ambiente: filters.ambiente || undefined,
           nivel: filters.nivel || undefined,
           inmueble: filters.inmueble || undefined,
           ciudad: filters.ciudad || undefined,
         },
-      }),
+      })
     );
   }, [
     currentPage,
     pageSize,
-    debouncedSearch,
-    debouncedCarnet,
+    filters.search,
+    filters.carnet,
     filters.rubro,
     filters.ambiente,
     filters.nivel,
@@ -177,70 +168,18 @@ const ActivosFijosList = () => {
     rubroToTipoIds,
   ]);
 
-  const handlePageChange = useCallback((page) => setCurrentPage(page), []);
-  const handlePageSizeChange = useCallback((newSize) => {
-    setPageSize(newSize);
-    setCurrentPage(1);
-  }, []);
-
-  const handleAdd = useCallback(() => {
-    setEditingActivo(null);
-    setIsFormOpen(true);
-  }, []);
-  
-  const handleEdit = useCallback((a) => {
-    setEditingActivo(a);
-    setIsFormOpen(true);
-  }, []);
-  
-  const handleDelete = useCallback((a) => {
-    setActivoToDelete(a);
-    setIsDeleteDialogOpen(true);
-  }, []);
-
   const confirmDelete = useCallback(() => {
     if (!activoToDelete) return;
     dispatch(deleteActivoFijo(activoToDelete.codigoActivoInterno))
       .unwrap()
       .then(() => {
-        setIsDeleteDialogOpen(false);
-        setActivoToDelete(null);
+        handleCancelDelete();
         toast({ title: "¡Éxito!", description: "El activo fijo se ha eliminado correctamente." });
       })
       .catch((err) => {
         toast({ title: "Error", description: `Fallo al eliminar: ${err.message || "Error desconocido"}`, variant: "destructive" });
       });
-  }, [activoToDelete, dispatch, toast]);
-
-  const handleCancel = useCallback(() => {
-    setIsFormOpen(false);
-    setEditingActivo(null);
-  }, []);
-
-  const handleFilterChange = useCallback((type, value) => {
-    setFilters((p) => {
-      const next = { ...p, [type]: value };
-      if (type === "ciudad") {
-        next.inmueble = "";
-        next.nivel = "";
-        next.ambiente = "";
-      } else if (type === "inmueble") {
-        next.nivel = "";
-        next.ambiente = "";
-      } else if (type === "nivel") {
-        next.ambiente = "";
-      }
-      return next;
-    });
-  }, []);
-
-  const clearFilters = useCallback(() => {
-    setFilters({ ...INITIAL_FILTERS });
-    setDebouncedSearch("");
-    setDebouncedCarnet("");
-    setCurrentPage(1);
-    isFirstRender.current = true;
-  }, []);
+  }, [activoToDelete, dispatch, toast, handleCancelDelete]);
 
   const handleSubmit = useCallback(
     async (data) => {

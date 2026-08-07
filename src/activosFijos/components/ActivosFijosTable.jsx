@@ -15,6 +15,141 @@ import { buildDenominacion } from "@/lib/utils";
 
 const ESTADO_MAP = { 1: "Activo", 0: "Inactivo" };
 
+const ActivosFijosTableRow = memo(({
+  activo: a,
+  rubroMap,
+  tipoRubroMap,
+  ambienteMap,
+  ambienteNivelMap,
+  nivelInmuebleMap,
+  inmuebleMap,
+  inmuebleCiudadMap,
+  ciudadMap,
+  nivelMap,
+  onBarcode,
+  onQr,
+  onEdit,
+  onDelete
+}) => {
+  return (
+    <TableRow>
+      <TableCell className="font-mono text-xs">
+        {a.codigoActivo != null ? `OJ-02-${a.codigoActivo}` : "—"}
+      </TableCell>
+      <TableCell className="font-mono text-xs whitespace-normal break-words max-w-[180px]">
+        {rubroMap[a.tiporubroact] ??
+          rubroMap[a.tipoRubroAct] ??
+          "—"}
+      </TableCell>
+      <TableCell className="font-mono text-xs whitespace-normal break-words text-wrap min-w-[150px] max-w-[250px]">
+        {tipoRubroMap[a.tiporubroact] ??
+          tipoRubroMap[a.tipoRubroAct] ??
+          a.tiporubroact ??
+          a.tipoRubroAct ??
+          "—"}
+      </TableCell>
+      <TableCell className="whitespace-normal break-words text-wrap min-w-[200px] max-w-[350px]">
+        {buildDenominacion(a, rubroMap[a.tiporubroact] ?? rubroMap[a.tipoRubroAct] ?? "")}
+      </TableCell>
+      <TableCell className="text-right font-mono text-xs">
+        {a.valorActual != null
+          ? `Bs ${Number(a.valorActual).toFixed(2)}`
+          : "—"}
+      </TableCell>
+      <TableCell className="font-mono text-xs whitespace-normal break-words max-w-[180px]">
+        {(() => {
+          const amb = String(a.codigoAmbiente ?? a.codigoambiente).trim();
+          if (!amb) return "—";
+          const codNivel = ambienteNivelMap[amb];
+          if (!codNivel) return "—";
+          const codInmueble = nivelInmuebleMap[String(codNivel).trim()];
+          if (!codInmueble) return "—";
+          const codCiudad = inmuebleCiudadMap[String(codInmueble).trim()];
+          if (!codCiudad) return "—";
+          return ciudadMap[String(codCiudad).trim()] ?? "—";
+        })()}
+      </TableCell>
+      <TableCell className="font-mono text-xs whitespace-normal break-words max-w-[180px]">
+        {(() => {
+          const amb = String(a.codigoAmbiente ?? a.codigoambiente).trim();
+          if (!amb) return "—";
+          const codNivel = ambienteNivelMap[amb];
+          if (!codNivel) return "—";
+          const codInmueble = nivelInmuebleMap[String(codNivel).trim()];
+          if (!codInmueble) return "—";
+          return inmuebleMap[String(codInmueble).trim()] ?? "—";
+        })()}
+      </TableCell>
+      <TableCell className="font-mono text-xs whitespace-normal break-words max-w-[180px]">
+        {(() => {
+          const amb = String(a.codigoAmbiente ?? a.codigoambiente).trim();
+          if (!amb) return "—";
+          const codNivel = ambienteNivelMap[amb];
+          return codNivel ? (nivelMap[String(codNivel).trim()] ?? "—") : "—";
+        })()}
+      </TableCell>
+      <TableCell className="font-mono text-xs whitespace-normal break-words max-w-[180px]">
+        {ambienteMap[String(a.codigoAmbiente ?? a.codigoambiente).trim()] ??
+          a.ambiente ??
+          a.Ambiente ??
+          "—"}
+      </TableCell>
+      <TableCell className="font-mono text-xs">
+        {a.cirun || "—"}
+      </TableCell>
+      <TableCell>
+        <Badge
+          variant={a.estado === 1 ? "default" : "secondary"}
+        >
+          {ESTADO_MAP[a.estado] || "—"}
+        </Badge>
+      </TableCell>
+      <TableCell className="text-right">
+        <div className="flex space-x-1 justify-end">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onBarcode(a)}
+            title="Código de barras"
+            className="text-green-600 hover:text-green-800"
+          >
+            <Barcode className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onQr(a)}
+            title="Código QR"
+            className="text-purple-600 hover:text-purple-800"
+          >
+            <QrCode className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onEdit(a)}
+            title="Editar"
+            className="text-yellow-500 hover:text-yellow-700"
+          >
+            <Edit className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onDelete(a)}
+            title="Eliminar"
+            className="text-red-500 hover:text-red-700"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+});
+
+ActivosFijosTableRow.displayName = "ActivosFijosTableRow";
+
 const ActivosFijosTable = memo(({
   activosFijos,
   isLoading,
@@ -61,119 +196,23 @@ const ActivosFijosTable = memo(({
           <TableBody>
             {activosFijos.length > 0 ? (
               activosFijos.map((a) => (
-                <TableRow key={a.codigoActivoInterno}>
-                  <TableCell className="font-mono text-xs">
-                    {a.codigoActivo != null ? `OJ-02-${a.codigoActivo}` : "—"}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs whitespace-normal break-words max-w-[180px]">
-                    {rubroMap[a.tiporubroact] ??
-                      rubroMap[a.tipoRubroAct] ??
-                      "—"}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs whitespace-normal break-words text-wrap min-w-[150px] max-w-[250px]">
-                    {tipoRubroMap[a.tiporubroact] ??
-                      tipoRubroMap[a.tipoRubroAct] ??
-                      a.tiporubroact ??
-                      a.tipoRubroAct ??
-                      "—"}
-                  </TableCell>
-                  <TableCell className="whitespace-normal break-words text-wrap min-w-[200px] max-w-[350px]">
-                    {buildDenominacion(a, rubroMap[a.tiporubroact] ?? rubroMap[a.tipoRubroAct] ?? "")}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-xs">
-                    {a.valorActual != null
-                      ? `Bs ${Number(a.valorActual).toFixed(2)}`
-                      : "—"}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs whitespace-normal break-words max-w-[180px]">
-                    {(() => {
-                      const amb = String(a.codigoAmbiente ?? a.codigoambiente).trim();
-                      if (!amb) return "—";
-                      const codNivel = ambienteNivelMap[amb];
-                      if (!codNivel) return "—";
-                      const codInmueble = nivelInmuebleMap[String(codNivel).trim()];
-                      if (!codInmueble) return "—";
-                      const codCiudad = inmuebleCiudadMap[String(codInmueble).trim()];
-                      if (!codCiudad) return "—";
-                      return ciudadMap[String(codCiudad).trim()] ?? "—";
-                    })()}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs whitespace-normal break-words max-w-[180px]">
-                    {(() => {
-                      const amb = String(a.codigoAmbiente ?? a.codigoambiente).trim();
-                      if (!amb) return "—";
-                      const codNivel = ambienteNivelMap[amb];
-                      if (!codNivel) return "—";
-                      const codInmueble = nivelInmuebleMap[String(codNivel).trim()];
-                      if (!codInmueble) return "—";
-                      return inmuebleMap[String(codInmueble).trim()] ?? "—";
-                    })()}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs whitespace-normal break-words max-w-[180px]">
-                    {(() => {
-                      const amb = String(a.codigoAmbiente ?? a.codigoambiente).trim();
-                      if (!amb) return "—";
-                      const codNivel = ambienteNivelMap[amb];
-                      return codNivel ? (nivelMap[String(codNivel).trim()] ?? "—") : "—";
-                    })()}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs whitespace-normal break-words max-w-[180px]">
-                    {ambienteMap[String(a.codigoAmbiente ?? a.codigoambiente).trim()] ??
-                      a.ambiente ??
-                      a.Ambiente ??
-                      "—"}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">
-                    {a.cirun || "—"}
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={a.estado === 1 ? "default" : "secondary"}
-                    >
-                      {ESTADO_MAP[a.estado] || "—"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex space-x-1 justify-end">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onBarcode(a)}
-                        title="Código de barras"
-                        className="text-green-600 hover:text-green-800"
-                      >
-                        <Barcode className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onQr(a)}
-                        title="Código QR"
-                        className="text-purple-600 hover:text-purple-800"
-                      >
-                        <QrCode className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onEdit(a)}
-                        title="Editar"
-                        className="text-yellow-500 hover:text-yellow-700"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onDelete(a)}
-                        title="Eliminar"
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
+                <ActivosFijosTableRow
+                  key={a.codigoActivoInterno}
+                  activo={a}
+                  rubroMap={rubroMap}
+                  tipoRubroMap={tipoRubroMap}
+                  ambienteMap={ambienteMap}
+                  ambienteNivelMap={ambienteNivelMap}
+                  nivelInmuebleMap={nivelInmuebleMap}
+                  inmuebleMap={inmuebleMap}
+                  inmuebleCiudadMap={inmuebleCiudadMap}
+                  ciudadMap={ciudadMap}
+                  nivelMap={nivelMap}
+                  onBarcode={onBarcode}
+                  onQr={onQr}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                />
               ))
             ) : (
               <TableRow>

@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/select";
 import ComboboxField from "@/components/ui/combobox-field";
 import { Textarea } from "@/components/ui/textarea";
+import { ActivoGeneralFields } from "../components/forms/ActivoGeneralFields";
 
 const INITIAL_STATE = {
   codigoActivoInterno: "",
@@ -126,16 +127,12 @@ const ActivosFijosForm = ({ activoToEdit, onSubmit, onCancel }) => {
 
   return (
     <form onSubmit={handleSubmit} className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="codigoActivoInterno">Código Interno</Label>
-          <Input id="codigoActivoInterno" type="number" value={formData.codigoActivoInterno} onChange={handleChange} placeholder="ej: 226689" disabled={isSubmitting || isEditing} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="codigoActivo">Código Activo</Label>
-          <Input id="codigoActivo" type="number" value={formData.codigoActivo} onChange={handleChange} placeholder="ej: 1" disabled={isSubmitting} />
-        </div>
-      </div>
+      <ActivoGeneralFields
+        formData={formData}
+        handleChange={handleChange}
+        isSubmitting={isSubmitting}
+        isEditing={isEditing}
+      />
 
       <div className="space-y-2">
         <Label htmlFor="descripcionActivo">Descripción del Activo</Label>
