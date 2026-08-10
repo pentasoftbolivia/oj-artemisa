@@ -87,7 +87,7 @@ export const InventarioEditModal = ({
                     onValueChange={(v) =>
                       handleEditSelectChange("codigoAmbiente", v)
                     }
-                    disabled={isSaving}
+                    disabled
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Seleccionar ambiente" />
