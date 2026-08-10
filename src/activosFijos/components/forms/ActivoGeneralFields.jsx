@@ -22,7 +22,7 @@ export const ActivoGeneralFields = ({ formData, handleChange, isSubmitting, isEd
         value={formData.codigoActivo}
         onChange={handleChange}
         placeholder="ej: 1"
-        disabled={isSubmitting}
+        disabled={isSubmitting || isEditing}
       />
     </div>
   </div>

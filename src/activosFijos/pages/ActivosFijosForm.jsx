@@ -148,7 +148,7 @@ const ActivosFijosForm = ({ activoToEdit, onSubmit, onCancel }) => {
             key={`amb-${formData.codigoAmbiente}-${ambientes.length}`}
             value={formData.codigoAmbiente}
             onValueChange={(value) => handleSelectChange("codigoAmbiente", value)}
-            disabled={isSubmitting || loadingFK}
+            disabled={isSubmitting || loadingFK || isEditing}
           >
             <SelectTrigger className="w-full [&>span]:line-clamp-1 text-left">
               <SelectValue placeholder="Seleccionar ambiente" />
@@ -173,7 +173,7 @@ const ActivosFijosForm = ({ activoToEdit, onSubmit, onCancel }) => {
             }))}
             placeholder="Seleccionar responsable"
             searchPlaceholder="Buscar por carnet o nombre..."
-            disabled={isSubmitting || loadingFK}
+            disabled={isSubmitting || loadingFK || isEditing}
             loading={loadingFK}
             emptyMessage="Sin resultados"
           />
@@ -184,7 +184,7 @@ const ActivosFijosForm = ({ activoToEdit, onSubmit, onCancel }) => {
             key={`tr-${formData.tipoRubroAct}-${tipoRubros.length}`}
             value={formData.tipoRubroAct}
             onValueChange={(value) => handleSelectChange("tipoRubroAct", value)}
-            disabled={isSubmitting || loadingFK}
+            disabled={isSubmitting || loadingFK || isEditing}
           >
             <SelectTrigger className="w-full [&>span]:line-clamp-1 text-left">
               <SelectValue placeholder="Seleccionar tipo rubro" />
