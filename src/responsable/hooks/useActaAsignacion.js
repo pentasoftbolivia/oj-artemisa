@@ -1,10 +1,27 @@
 import { useState, useCallback } from "react";
+import { useDispatch } from "react-redux";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { supabase, fetchAllFromTable } from "@/lib/supabase";
 import { buildDenominacion } from "@/lib/utils";
 import { toCamelCaseArray } from "@/lib/mapFields";
 import { useToast } from "@/hooks/use-toast";
+import { resolveAmbienteCodes } from "../services/responsableUbicacionService";
+import { getNumeroActa } from "../services/responsableActaService";
+import { fetchResponsable } from "@/store/responsable/responsableThunks";
+
+const formatError = (err) => {
+  if (!err) return "Error desconocido";
+  const code = err?.code ? `[${err.code}] ` : "";
+  const message = err?.message || err?.details || err?.hint || err?.error_description;
+  if (message) return `${code}${message}`;
+  try {
+    const str = JSON.stringify(err);
+    return str && str !== "{}" ? `${code}${str}` : `${code}${String(err)}`;
+  } catch {
+    return `${code}${String(err)}`;
+  }
+};
 
 const ASSET_SELECT =
   "codigoactivo, codigoambiente, tiporubroact, descripcionactivo, observaciones, marcamaterial, modelo, serie, ram, procesador, discoduro, numeromotor, numerochasisserial, placamatricula, capacidadcargatraccion, capacidaddimension, fuentealimentacion, accesorios, alcancecobertura, medidas, color, divisionescajonesbandejas, chapa, abatible, deslizable, potencia, horometro, combustibleenergia, funcion, categoria, caracteristicas, estadoconservacion";
@@ -16,21 +33,33 @@ const loadImage = (src) => new Promise((resolve) => {
   img.src = src;
 });
 
-export const loadActaData = async (responsable) => {
-  const { data: rawAssets, error: assetsError } = await supabase
+export const loadActaData = async (responsable, locationFilters = {}) => {
+  const { ciudad, inmueble, nivel, ambiente } = locationFilters || {};
+  const hasLocation = Boolean(ciudad || inmueble || nivel || ambiente);
+
+  let query = supabase
     .from("act_activos")
     .select(ASSET_SELECT)
     .eq("cirun", responsable.cirun)
     .eq("ultimoregistro", 1)
-    .not("estadoinventario", "is", null)
-    .order("codigoactivo", { ascending: true });
+    .not("estadoinventario", "is", null);
+
+  if (hasLocation) {
+    const codes = await resolveAmbienteCodes({ ciudad, inmueble, nivel, ambiente });
+    if (codes.length === 0) {
+      return { assets: [], numeroActa: null, tipoRubroMap: {}, descTipoRubroMap: {}, resolveUbicacion: () => "" };
+    }
+    query = query.in("codigoambiente", codes);
+  }
+
+  const { data: rawAssets, error: assetsError } = await query.order("codigoactivo", { ascending: true });
 
   if (assetsError) throw assetsError;
 
   const assets = toCamelCaseArray(rawAssets || []);
 
   if (assets.length === 0) {
-    return { assets, numeroActa: null, tipoRubroMap: {}, descTipoRubroMap: {}, resolveUbicacion: () => "" };
+    return { assets, tipoRubroMap: {}, descTipoRubroMap: {}, resolveUbicacion: () => "" };
   }
 
   const [trRes, rRes, ambData, nData, iData, cData] = await Promise.all([
@@ -101,44 +130,7 @@ export const loadActaData = async (responsable) => {
     return [ciudad, inmueble, nivel, ambiente].filter(Boolean).join(", ");
   };
 
-  const { data: respRow, error: respError } = await supabase
-    .from("act_responsable")
-    .select("numeroacta")
-    .eq("cirun", responsable.cirun)
-    .maybeSingle();
-
-  if (respError) throw respError;
-
-  const numeroExistente = Number(respRow?.numeroacta) || 0;
-  let numeroActa = numeroExistente;
-
-  if (!numeroExistente) {
-    const { data: contadorRows, error: contadorError } = await supabase
-      .from("act_contadores")
-      .select("id, numeroacta")
-      .order("numeroacta", { ascending: false })
-      .limit(1);
-
-    if (contadorError) throw contadorError;
-
-    numeroActa = (Number(contadorRows && contadorRows[0]?.numeroacta) || 0) + 1;
-
-    if (contadorRows && contadorRows[0]?.id != null) {
-      const { error: updateError } = await supabase
-        .from("act_contadores")
-        .update({ numeroacta: numeroActa })
-        .eq("id", contadorRows[0].id);
-      if (updateError) throw updateError;
-    }
-
-    const { error: respUpdateError } = await supabase
-      .from("act_responsable")
-      .update({ numeroacta: numeroActa })
-      .eq("cirun", responsable.cirun);
-    if (respUpdateError) throw respUpdateError;
-  }
-
-  return { assets, numeroActa, tipoRubroMap, descTipoRubroMap, resolveUbicacion };
+  return { assets, tipoRubroMap, descTipoRubroMap, resolveUbicacion };
 };
 
 const DISCLAIMER =
@@ -268,17 +260,22 @@ const drawPageNumbers = (doc) => {
 
 export const useActaAsignacion = () => {
   const { toast } = useToast();
+  const dispatch = useDispatch();
   const [isPrinting, setIsPrinting] = useState(false);
   const [printingId, setPrintingId] = useState(null);
 
-  const printActaAsignacion = useCallback(async (responsable) => {
+  const refreshResponsables = useCallback(() => {
+    dispatch(fetchResponsable());
+  }, [dispatch]);
+
+  const printActaAsignacion = useCallback(async (responsable, locationFilters = {}) => {
     if (!responsable?.cirun) return;
 
     setIsPrinting(true);
     setPrintingId(responsable.cirun);
 
     try {
-      const { assets, numeroActa, tipoRubroMap, descTipoRubroMap, resolveUbicacion } = await loadActaData(responsable);
+      const { assets, tipoRubroMap, descTipoRubroMap, resolveUbicacion } = await loadActaData(responsable, locationFilters);
 
       if (assets.length === 0) {
         toast({
@@ -288,6 +285,8 @@ export const useActaAsignacion = () => {
         });
         return;
       }
+
+      const numeroActa = await getNumeroActa(responsable, locationFilters);
 
       const doc = new jsPDF({
         orientation: "landscape",
@@ -367,10 +366,11 @@ export const useActaAsignacion = () => {
         title: "Acta generada",
         description: `Se descargó el acta de asignación para ${responsable.cirun}`,
       });
+      refreshResponsables();
 
     } catch (err) {
       console.error("Error al generar acta:", err);
-      const errorMsg = err?.message || err?.details || err?.error_description || JSON.stringify(err);
+      const errorMsg = formatError(err);
       toast({
         title: "Error",
         description: `Hubo un problema al generar el acta: ${errorMsg}`,
@@ -380,16 +380,16 @@ export const useActaAsignacion = () => {
       setIsPrinting(false);
       setPrintingId(null);
     }
-  }, [toast]);
+  }, [toast, refreshResponsables]);
 
-  const printActaListado = useCallback(async (responsable) => {
+  const printActaListado = useCallback(async (responsable, locationFilters = {}) => {
     if (!responsable?.cirun) return;
 
     setIsPrinting(true);
     setPrintingId(`${responsable.cirun}:listado`);
 
     try {
-      const { assets, numeroActa, tipoRubroMap, descTipoRubroMap, resolveUbicacion } = await loadActaData(responsable);
+      const { assets, tipoRubroMap, descTipoRubroMap, resolveUbicacion } = await loadActaData(responsable, locationFilters);
 
       if (assets.length === 0) {
         toast({
@@ -399,6 +399,8 @@ export const useActaAsignacion = () => {
         });
         return;
       }
+
+      const numeroActa = await getNumeroActa(responsable, locationFilters);
 
       const doc = new jsPDF({
         orientation: "landscape",
@@ -451,10 +453,11 @@ export const useActaAsignacion = () => {
         title: "Listado generado",
         description: `Se descargó el listado de activos para ${responsable.cirun}`,
       });
+      refreshResponsables();
 
     } catch (err) {
       console.error("Error al generar listado:", err);
-      const errorMsg = err?.message || err?.details || err?.error_description || JSON.stringify(err);
+      const errorMsg = formatError(err);
       toast({
         title: "Error",
         description: `Hubo un problema al generar el listado: ${errorMsg}`,
@@ -464,7 +467,7 @@ export const useActaAsignacion = () => {
       setIsPrinting(false);
       setPrintingId(null);
     }
-  }, [toast]);
+  }, [toast, refreshResponsables]);
 
   return {
     printActaAsignacion,

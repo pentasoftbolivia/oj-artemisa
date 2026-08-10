@@ -19,7 +19,7 @@ import LoadingSpinner from "@/components/ui/loading-spinner";
 import { loadActaData } from "../hooks/useActaAsignacion";
 import { buildDenominacion } from "@/lib/utils";
 
-const ActaPreviewModal = ({ isOpen, onClose, onAccept, responsable, type }) => {
+const ActaPreviewModal = ({ isOpen, onClose, onAccept, responsable, type, locationFilters }) => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -30,7 +30,7 @@ const ActaPreviewModal = ({ isOpen, onClose, onAccept, responsable, type }) => {
         setLoading(true);
         setError(null);
         try {
-          const result = await loadActaData(responsable);
+          const result = await loadActaData(responsable, locationFilters || {});
           setData(result);
         } catch (err) {
           console.error("Error al cargar datos del acta", err);
@@ -44,7 +44,7 @@ const ActaPreviewModal = ({ isOpen, onClose, onAccept, responsable, type }) => {
       setData(null);
       setError(null);
     }
-  }, [isOpen, responsable]);
+  }, [isOpen, responsable, locationFilters]);
 
   const title = type === "asignacion" 
     ? "Vista Previa: Acta de Asignación" 
@@ -85,6 +85,28 @@ const ActaPreviewModal = ({ isOpen, onClose, onAccept, responsable, type }) => {
                   Total de activos: {data.assets.length}
                 </div>
               </div>
+
+              {locationFilters &&
+                (locationFilters.ciudad ||
+                  locationFilters.inmueble ||
+                  locationFilters.nivel ||
+                  locationFilters.ambiente) ? (
+                <div className="shrink-0 flex flex-wrap items-center gap-2 text-xs">
+                  <span className="font-semibold text-muted-foreground">
+                    Ubicación seleccionada:
+                  </span>
+                  {Object.entries(locationFilters)
+                    .filter(([, v]) => Boolean(v))
+                    .map(([key, value]) => (
+                      <span
+                        key={key}
+                        className="bg-blue-100 text-blue-700 px-2 py-1 rounded-md font-medium capitalize"
+                      >
+                        {key}: {value}
+                      </span>
+                    ))}
+                </div>
+              ) : null}
 
               {data.assets.length > 0 ? (
                 <div className="flex-1 min-h-0 rounded-md border shadow-sm flex flex-col overflow-hidden">

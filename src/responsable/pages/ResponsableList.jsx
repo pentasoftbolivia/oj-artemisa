@@ -34,11 +34,18 @@ import {
   selectResponsableLoading,
   selectResponsableError,
 } from "@/store/responsable/responsableSlice";
+import { useResponsableUbicacion } from "../hooks/useResponsableUbicacion";
+import { fetchMatchingCiruns, resolveAmbienteCodes } from "../services/responsableUbicacionService";
 import ResponsableForm from "./ResponsableForm";
 
 const INITIAL_FILTERS = {
   search: "",
+  carnet: "",
   cargo: "",
+  ciudad: "",
+  inmueble: "",
+  nivel: "",
+  ambiente: "",
 };
 
 const MESSAGES = {
@@ -61,7 +68,8 @@ const MESSAGES = {
     adjustFilters: "Intenta ajustar los filtros de búsqueda",
   },
   placeholders: {
-    search: "Buscar por CI, nombre, apellido o cargo...",
+    search: "Buscar por nombre, apellido o cargo...",
+    carnet: "Buscar por CI...",
     cargo: "Todos los cargos",
   },
 };
@@ -80,7 +88,19 @@ const ResponsableList = () => {
   const [editingResponsable, setEditingResponsable] = useState(null);
   const [responsableToDelete, setResponsableToDelete] = useState(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [filters, setFilters] = useState({ ...INITIAL_FILTERS });
+  const [draftFilters, setDraftFilters] = useState({ ...INITIAL_FILTERS });
+  const [appliedFilters, setAppliedFilters] = useState({ ...INITIAL_FILTERS });
+  const [matchingCiruns, setMatchingCiruns] = useState(null);
+  const [appliedAmbienteCodes, setAppliedAmbienteCodes] = useState(null);
+  const [isLocationSearching, setIsLocationSearching] = useState(false);
+
+  const {
+    ciudadOptions,
+    inmuebleOptionsByCiudad,
+    nivelOptionsByInmueble,
+    ambienteOptionsByNivel,
+    isLoading: isLoadingCatalogos,
+  } = useResponsableUbicacion(draftFilters);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
@@ -131,25 +151,99 @@ const ResponsableList = () => {
   }, []);
 
   const handleFilterChange = useCallback((filterType, value) => {
-    setFilters((prev) => ({ ...prev, [filterType]: value }));
+    setDraftFilters((prev) => {
+      const next = { ...prev, [filterType]: value };
+      if (filterType === "ciudad") {
+        next.inmueble = "";
+        next.nivel = "";
+        next.ambiente = "";
+      }
+      if (filterType === "inmueble") {
+        next.nivel = "";
+        next.ambiente = "";
+      }
+      if (filterType === "nivel") {
+        next.ambiente = "";
+      }
+      return next;
+    });
   }, []);
 
+  const handleSearch = useCallback(async () => {
+    if (!draftFilters.ambiente) {
+      toast({
+        title: "Seleccione un ambiente",
+        description: "Debe seleccionar un ambiente para poder buscar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const { ciudad, inmueble, nivel, ambiente } = draftFilters;
+    const hasLocation = Boolean(ciudad || inmueble || nivel || ambiente);
+
+    let newMatching = null;
+    let newAmbienteCodes = null;
+    if (hasLocation) {
+      setIsLocationSearching(true);
+      try {
+        newMatching = await fetchMatchingCiruns({ ciudad, inmueble, nivel, ambiente });
+        newAmbienteCodes = await resolveAmbienteCodes({ ciudad, inmueble, nivel, ambiente });
+      } catch (error) {
+        const errMsg =
+          error?.message || error?.details || error?.hint ||
+          (error?.code ? `Código ${error.code}` : "") ||
+          (() => { try { const s = JSON.stringify(error); return s && s !== "{}" ? s : String(error); } catch { return String(error); } })();
+        console.error("Error buscando por ubicación:", error);
+        toast({
+          title: "Error",
+          description: `No se pudo buscar por ubicación: ${errMsg}`,
+          variant: "destructive",
+        });
+        newMatching = new Set();
+        newAmbienteCodes = [];
+      } finally {
+        setIsLocationSearching(false);
+      }
+    }
+
+    setMatchingCiruns(newMatching);
+    setAppliedAmbienteCodes(newAmbienteCodes);
+    setAppliedFilters({ ...draftFilters });
+    setCurrentPage(1);
+  }, [draftFilters, toast]);
+
   const filteredResponsables = useMemo(
-    () =>
-      responsables.filter((r) => {
+    () => {
+      const hasLocation = Boolean(
+        appliedFilters.ciudad ||
+        appliedFilters.inmueble ||
+        appliedFilters.nivel ||
+        appliedFilters.ambiente,
+      );
+      return responsables.filter((r) => {
         const searchStr =
           `${r.cirun || ""} ${r.nombre1 || ""} ${r.nombre2 || ""} ${r.paterno || ""} ${r.materno || ""} ${r.cargo || ""}`.toLowerCase();
         const searchMatch =
-          !filters.search || searchStr.includes(filters.search.toLowerCase());
+          !appliedFilters.search || searchStr.includes(appliedFilters.search.toLowerCase());
+
+        const carnetNum = (r.cirun || "").replace(/\D/g, "");
+        const carnetQuery = (draftFilters.carnet || "").replace(/\D/g, "");
+        const carnetMatch =
+          !draftFilters.carnet || carnetNum.includes(carnetQuery);
 
         const cargoMatch =
-          !filters.cargo ||
-          filters.cargo === "all" ||
-          (r.cargo || "").trim().toLowerCase() === filters.cargo.toLowerCase();
+          !draftFilters.cargo ||
+          draftFilters.cargo === "all" ||
+          (r.cargo || "").trim().toLowerCase() === draftFilters.cargo.toLowerCase();
 
-        return searchMatch && cargoMatch;
-      }),
-    [responsables, filters],
+        const locationMatch =
+          !hasLocation || matchingCiruns?.has(String(r.cirun).trim());
+
+        return searchMatch && carnetMatch && cargoMatch && locationMatch;
+      });
+    },
+    [responsables, draftFilters, appliedFilters, matchingCiruns],
   );
 
   const totalPages = useMemo(
@@ -179,13 +273,19 @@ const ResponsableList = () => {
   }, []);
 
   const clearFilters = useCallback(() => {
-    setFilters({ ...INITIAL_FILTERS });
+    setDraftFilters({ ...INITIAL_FILTERS });
+    setAppliedFilters({ ...INITIAL_FILTERS });
+    setMatchingCiruns(null);
+    setAppliedAmbienteCodes(null);
     setCurrentPage(1);
   }, []);
 
   const hasActiveFilters = useMemo(
-    () => filters.search !== "" || filters.cargo !== "",
-    [filters],
+    () =>
+      Object.entries(appliedFilters).some(
+        ([key, value]) => Boolean(value) && !(key === "cargo" && value === "all"),
+      ),
+    [appliedFilters],
   );
 
   const handleSubmit = useCallback(
@@ -279,12 +379,19 @@ const ResponsableList = () => {
       </div>
 
       <ResponsableFilters
-        filters={filters}
+        filters={draftFilters}
         hasActiveFilters={hasActiveFilters}
         cargos={[...new Set(responsables.map(r => r.cargo?.trim()).filter(Boolean))].sort()}
         onFilterChange={handleFilterChange}
+        onSearch={handleSearch}
         onClearFilters={clearFilters}
         messages={MESSAGES}
+        ciudadOptions={ciudadOptions}
+        inmuebleOptionsByCiudad={inmuebleOptionsByCiudad}
+        nivelOptionsByInmueble={nivelOptionsByInmueble}
+        ambienteOptionsByNivel={ambienteOptionsByNivel}
+        isSearching={isLocationSearching}
+        isLoadingCatalogos={isLoadingCatalogos}
       />
 
       <Card>
@@ -304,6 +411,13 @@ const ResponsableList = () => {
             onEdit={handleEdit}
             onDelete={handleDelete}
             messages={MESSAGES}
+            locationFilters={{
+              ciudad: appliedFilters.ciudad,
+              inmueble: appliedFilters.inmueble,
+              nivel: appliedFilters.nivel,
+              ambiente: appliedFilters.ambiente,
+            }}
+            ambienteCodes={appliedAmbienteCodes}
           />
 
           {filteredResponsables.length > 0 && (

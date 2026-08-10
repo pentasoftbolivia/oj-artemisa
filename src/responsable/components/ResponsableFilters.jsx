@@ -10,15 +10,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Filter, X } from "lucide-react";
+import ComboboxField from "@/components/ui/combobox-field";
+import { Filter, X, Search, Loader2 } from "lucide-react";
 
 const ResponsableFilters = memo(({
   filters,
   hasActiveFilters,
   cargos,
   onFilterChange,
+  onSearch,
   onClearFilters,
-  messages
+  messages,
+  ciudadOptions,
+  inmuebleOptionsByCiudad,
+  nivelOptionsByInmueble,
+  ambienteOptionsByNivel,
+  isSearching,
+  isLoadingCatalogos
 }) => {
   return (
     <Card>
@@ -27,49 +35,115 @@ const ResponsableFilters = memo(({
           <Filter className="h-4 w-4" />
           Filtros
         </CardTitle>
-        {hasActiveFilters ? (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onClearFilters}
-            title="Limpiar filtros"
-            className="h-8"
-          >
-            <X className="h-4 w-4 mr-2" />
-            Limpiar
-          </Button>
-        ) : null}
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="search">Buscar</Label>
-            <Input
-              id="search"
-              placeholder={messages.placeholders.search}
-              value={filters.search}
-              onChange={(e) => onFilterChange("search", e.target.value)}
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="search">Buscar</Label>
+              <Input
+                id="search"
+                placeholder={messages.placeholders.search}
+                value={filters.search}
+                onChange={(e) => onFilterChange("search", e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="carnet">Carnet</Label>
+              <Input
+                id="carnet"
+                placeholder={messages.placeholders.carnet}
+                value={filters.carnet}
+                onChange={(e) => onFilterChange("carnet", e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="cargo">Cargo</Label>
+              <Select
+                value={filters.cargo}
+                onValueChange={(value) => onFilterChange("cargo", value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={messages.placeholders.cargo} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">
+                    {messages.placeholders.cargo}
+                  </SelectItem>
+                  {cargos.map((c) => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <ComboboxField
+              label="Ciudad"
+              value={filters.ciudad}
+              onValueChange={(val) => onFilterChange("ciudad", val)}
+              options={ciudadOptions}
+              placeholder="Seleccionar ciudad..."
+              searchPlaceholder="Buscar ciudad..."
+              emptyMessage="Sin resultados"
+              loading={isLoadingCatalogos}
+              disabled={isSearching}
+            />
+            <ComboboxField
+              label="Inmueble"
+              value={filters.inmueble}
+              onValueChange={(val) => onFilterChange("inmueble", val)}
+              options={inmuebleOptionsByCiudad}
+              placeholder="Seleccionar inmueble..."
+              searchPlaceholder="Buscar inmueble..."
+              emptyMessage="Sin resultados"
+              loading={isLoadingCatalogos}
+              disabled={isSearching}
+            />
+            <ComboboxField
+              label="Nivel"
+              value={filters.nivel}
+              onValueChange={(val) => onFilterChange("nivel", val)}
+              options={nivelOptionsByInmueble}
+              placeholder="Seleccionar nivel..."
+              searchPlaceholder="Buscar nivel..."
+              emptyMessage="Sin resultados"
+              loading={isLoadingCatalogos}
+              disabled={isSearching}
+            />
+            <ComboboxField
+              label="Ambiente"
+              value={filters.ambiente}
+              onValueChange={(val) => onFilterChange("ambiente", val)}
+              options={ambienteOptionsByNivel}
+              placeholder="Seleccionar ambiente..."
+              searchPlaceholder="Buscar ambiente..."
+              emptyMessage="Sin resultados"
+              loading={isLoadingCatalogos}
+              disabled={isSearching}
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="cargo">Cargo</Label>
-            <Select
-              value={filters.cargo}
-              onValueChange={(value) => onFilterChange("cargo", value)}
+          <div className="flex items-center gap-2 pt-2 border-t">
+            <Button onClick={onSearch} disabled={isSearching}>
+              {isSearching ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Search className="h-4 w-4 mr-2" />
+              )}
+              Buscar
+            </Button>
+            <Button
+              variant="outline"
+              onClick={onClearFilters}
+              disabled={!hasActiveFilters && !filters.search && !filters.carnet && !filters.cargo}
             >
-              <SelectTrigger>
-                <SelectValue placeholder={messages.placeholders.cargo} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">
-                  {messages.placeholders.cargo}
-                </SelectItem>
-                {cargos.map((c) => (
-                  <SelectItem key={c} value={c}>{c}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <X className="h-4 w-4 mr-2" />
+              Limpiar
+            </Button>
           </div>
         </div>
       </CardContent>

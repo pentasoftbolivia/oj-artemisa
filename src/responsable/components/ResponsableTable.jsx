@@ -11,33 +11,58 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Users, Edit, Trash2, Printer, FileText, Loader2 } from "lucide-react";
 import { useActaAsignacion } from "../hooks/useActaAsignacion";
+import { useToast } from "@/hooks/use-toast";
 import ActaPreviewModal from "./ActaPreviewModal";
 
 const ESTADO_MAP = { 0: "Inactivo", 1: "Activo" };
+
+const getNumeroActa = (r, ambienteCodes) => {
+  const codes = Array.isArray(ambienteCodes) && ambienteCodes.length > 0
+    ? new Set(ambienteCodes.map(String))
+    : null;
+  if (codes) {
+    const found = (r.actas || []).find((a) =>
+      a.codigoambiente && codes.has(String(a.codigoambiente)),
+    );
+    return found ? found.numeroacta : "—";
+  }
+  return r.numeroacta ?? "—";
+};
 
 const ResponsableTable = memo(({
   responsables,
   hasActiveFilters,
   onEdit,
   onDelete,
-  messages
+  messages,
+  locationFilters,
+  ambienteCodes
 }) => {
   const { printActaAsignacion, printActaListado, isPrinting, printingId } = useActaAsignacion();
+  const { toast } = useToast();
   const [printModalOpen, setPrintModalOpen] = useState(false);
   const [selectedPrintData, setSelectedPrintData] = useState(null);
 
   const handlePrintClick = (r, type) => {
-    setSelectedPrintData({ responsable: r, type });
+    if (!locationFilters?.ambiente) {
+      toast({
+        title: "Seleccione un ambiente",
+        description: "Debe seleccionar un ambiente para imprimir el acta de asignación.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setSelectedPrintData({ responsable: r, type, locationFilters: locationFilters || {} });
     setPrintModalOpen(true);
   };
 
   const confirmPrint = () => {
     if (!selectedPrintData) return;
-    const { responsable, type } = selectedPrintData;
+    const { responsable, type, locationFilters } = selectedPrintData;
     if (type === "asignacion") {
-      printActaAsignacion(responsable);
+      printActaAsignacion(responsable, locationFilters);
     } else if (type === "listado") {
-      printActaListado(responsable);
+      printActaListado(responsable, locationFilters);
     }
     setPrintModalOpen(false);
     setSelectedPrintData(null);
@@ -86,24 +111,26 @@ const ResponsableTable = memo(({
                   </Badge>
                 </TableCell>
                 <TableCell className="text-center font-mono text-xs">
-                  {r.numeroacta ?? "—"}
+                  {getNumeroActa(r, ambienteCodes)}
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex space-x-1 justify-end">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handlePrintClick(r, "asignacion")}
-                      title="Imprimir Acta de Asignación"
-                      className="text-blue-500 hover:text-blue-700"
-                      disabled={isPrinting && printingId === r.cirun}
-                    >
-                      {isPrinting && printingId === r.cirun ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Printer className="h-4 w-4" />
-                      )}
-                    </Button>
+                    {locationFilters?.ambiente ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handlePrintClick(r, "asignacion")}
+                        title="Imprimir Acta de Asignación"
+                        className="text-blue-500 hover:text-blue-700"
+                        disabled={isPrinting && printingId === r.cirun}
+                      >
+                        {isPrinting && printingId === r.cirun ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Printer className="h-4 w-4" />
+                        )}
+                      </Button>
+                    ) : null}
                     <Button
                       variant="ghost"
                       size="sm"
@@ -169,6 +196,7 @@ const ResponsableTable = memo(({
         onAccept={confirmPrint}
         responsable={selectedPrintData?.responsable}
         type={selectedPrintData?.type}
+        locationFilters={selectedPrintData?.locationFilters}
       />
     </div>
   );
