@@ -118,9 +118,20 @@ export const useBarcodeQR = ({ rubroMap, tipoRubroMap, activosFijos = [] }) => {
 
   const handlePrintQRs = useCallback(async () => {
     if (!activosFijos.length) return;
+    const revisados = activosFijos.filter(
+      (a) => String(a.estadoinventario ?? "").toUpperCase() === "REVISADO",
+    );
+    if (revisados.length === 0) {
+      toast({
+        title: "Sin activos",
+        description: "No hay activos en estado REVISADO para generar QRs.",
+        variant: "destructive",
+      });
+      return;
+    }
     setIsGeneratingQrs(true);
     try {
-      const labels = await generateBulkQRLabels(activosFijos);
+      const labels = await generateBulkQRLabels(revisados);
       setQrLabels(labels);
       setIsQrPrintOpen(true);
     } catch (err) {

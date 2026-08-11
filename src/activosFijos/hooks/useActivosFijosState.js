@@ -1,38 +1,12 @@
-import { useState, useCallback, useRef, useEffect } from "react";
-import { useDispatch } from "react-redux";
+import { useState, useCallback } from "react";
 
 const INITIAL_FILTERS = { search: "", rubro: "", carnet: "", ciudad: "", ambiente: "", inmueble: "", nivel: "" };
-const DEBOUNCE_MS = 300;
 
 export function useActivosFijosState() {
-  const dispatch = useDispatch();
-
   const [filters, setFilters] = useState({ ...INITIAL_FILTERS });
+  const [appliedFilters, setAppliedFilters] = useState({ ...INITIAL_FILTERS });
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [debouncedCarnet, setDebouncedCarnet] = useState("");
-  
-  const isFirstRender = useRef(true);
-  const debounceTimer = useRef(null);
-
-  useEffect(() => {
-    if (debounceTimer.current) clearTimeout(debounceTimer.current);
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      setDebouncedSearch(filters.search);
-      setDebouncedCarnet(filters.carnet);
-      return;
-    }
-    debounceTimer.current = setTimeout(() => {
-      setDebouncedSearch(filters.search);
-      setDebouncedCarnet(filters.carnet);
-      setCurrentPage(1);
-    }, DEBOUNCE_MS);
-    return () => {
-      if (debounceTimer.current) clearTimeout(debounceTimer.current);
-    };
-  }, [filters.search, filters.carnet]);
 
   const handlePageChange = useCallback((page) => setCurrentPage(page), []);
   const handlePageSizeChange = useCallback((newSize) => {
@@ -57,23 +31,26 @@ export function useActivosFijosState() {
     });
   }, []);
 
+  const handleSearch = useCallback(() => {
+    setAppliedFilters({ ...filters });
+    setCurrentPage(1);
+  }, [filters]);
+
   const clearFilters = useCallback(() => {
     setFilters({ ...INITIAL_FILTERS });
-    setDebouncedSearch("");
-    setDebouncedCarnet("");
+    setAppliedFilters({ ...INITIAL_FILTERS });
     setCurrentPage(1);
-    isFirstRender.current = true;
   }, []);
 
   return {
     filters,
+    appliedFilters,
     currentPage,
     pageSize,
-    debouncedSearch,
-    debouncedCarnet,
     handlePageChange,
     handlePageSizeChange,
     handleFilterChange,
+    handleSearch,
     clearFilters
   };
 }

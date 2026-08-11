@@ -4,11 +4,12 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import ComboboxField from "@/components/ui/combobox-field";
-import { Filter, X } from "lucide-react";
+import { Filter, X, Search } from "lucide-react";
 
 const ActivosFijosFilters = memo(({
   filters,
   onFilterChange,
+  onSearch,
   onClearFilters,
   rubroOptions,
   ciudadOptions,
@@ -126,6 +127,19 @@ const ActivosFijosFilters = memo(({
                 emptyMessage="Sin resultados"
               />
             </div>
+          </div>
+
+          <div className="flex items-center gap-2 pt-2 border-t">
+            <Button onClick={onSearch}>
+              <Search className="h-4 w-4 mr-2" />
+              Buscar
+            </Button>
+            {isFilterActive ? (
+              <Button variant="outline" onClick={onClearFilters}>
+                <X className="h-4 w-4 mr-2" />
+                Limpiar
+              </Button>
+            ) : null}
           </div>
         </div>
       </CardContent>

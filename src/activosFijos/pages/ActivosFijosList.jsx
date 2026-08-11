@@ -86,11 +86,13 @@ const ActivosFijosList = () => {
 
   const {
     filters,
+    appliedFilters,
     currentPage,
     pageSize,
     handlePageChange,
     handlePageSizeChange,
     handleFilterChange,
+    handleSearch,
     clearFilters
   } = useActivosFijosState({ rubroToTipoIds: {} }); // We will update rubroToTipoIds below
 
@@ -144,26 +146,20 @@ const ActivosFijosList = () => {
         page: currentPage,
         pageSize,
         filters: {
-          search: filters.search, // or debouncedSearch if we return it
-          carnet: filters.carnet,
-          rubro: filters.rubro ? rubroToTipoIds[filters.rubro] || [] : undefined,
-          ambiente: filters.ambiente || undefined,
-          nivel: filters.nivel || undefined,
-          inmueble: filters.inmueble || undefined,
-          ciudad: filters.ciudad || undefined,
+          search: appliedFilters.search,
+          carnet: appliedFilters.carnet,
+          rubro: appliedFilters.rubro ? rubroToTipoIds[appliedFilters.rubro] || [] : undefined,
+          ambiente: appliedFilters.ambiente || undefined,
+          nivel: appliedFilters.nivel || undefined,
+          inmueble: appliedFilters.inmueble || undefined,
+          ciudad: appliedFilters.ciudad || undefined,
         },
       })
     );
   }, [
     currentPage,
     pageSize,
-    filters.search,
-    filters.carnet,
-    filters.rubro,
-    filters.ambiente,
-    filters.nivel,
-    filters.inmueble,
-    filters.ciudad,
+    appliedFilters,
     dispatch,
     rubroToTipoIds,
   ]);
@@ -255,6 +251,7 @@ const ActivosFijosList = () => {
       <ActivosFijosFilters
         filters={filters}
         onFilterChange={handleFilterChange}
+        onSearch={handleSearch}
         onClearFilters={clearFilters}
         rubroOptions={rubroOptions}
         ciudadOptions={ciudadOptions}
