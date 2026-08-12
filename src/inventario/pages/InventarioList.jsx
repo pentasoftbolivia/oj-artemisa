@@ -44,9 +44,12 @@ import LoadingSpinner from "@/components/ui/loading-spinner";
 
 import InventarioFilters from "../components/InventarioFilters";
 import InventarioTable from "../components/InventarioTable";
+import UbicacionFilters from "../components/UbicacionFilters";
 import DataPagination from "@/components/ui/data-pagination";
 
 import { useInventarioData } from "../hooks/useInventarioData";
+import { useUbicacionOptions } from "@/hooks/useUbicacionOptions";
+import { useUserDisplayNames } from "@/hooks/useUserDisplayNames";
 import {
   getRubroFields,
   normalizeCi,
@@ -65,6 +68,7 @@ const TOTAL_ACTIVOS = 43310;
 const InventarioList = () => {
   const { toast } = useToast();
   const currentUser = useSelector(selectUser);
+  const { getDisplayName } = useUserDisplayNames();
 
   const {
     isLoading,
@@ -85,6 +89,9 @@ const InventarioList = () => {
     inventariadorStats,
     ambienteMap,
     responsableMap,
+    ciudades,
+    inmuebles,
+    niveles,
     loadActivos,
     loadInitialData,
   } = useInventarioData();
@@ -94,6 +101,27 @@ const InventarioList = () => {
   const [filtroInventariador, setFiltroInventariador] = useState("");
   const [filtroCarnet, setFiltroCarnet] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("all");
+  const [filtroCiudad, setFiltroCiudad] = useState("");
+  const [filtroInmueble, setFiltroInmueble] = useState("");
+  const [filtroNivel, setFiltroNivel] = useState("");
+  const [filtroAmbiente, setFiltroAmbiente] = useState("");
+
+  const {
+    ciudadOptions,
+    inmuebleOptionsByCiudad,
+    nivelOptionsByInmueble,
+    ambienteOptionsByNivel,
+  } = useUbicacionOptions({
+    ciudades,
+    inmuebles,
+    niveles,
+    ambientes,
+    filters: {
+      ciudad: filtroCiudad,
+      inmueble: filtroInmueble,
+      nivel: filtroNivel,
+    },
+  });
 
   const [searchCarnet, setSearchCarnet] = useState("");
   const [searchNombre, setSearchNombre] = useState("");
@@ -121,12 +149,20 @@ const InventarioList = () => {
     }
   }, [rubros, tipoRubros, loadActivos]);
 
+  const getUbicacionFilters = () => ({
+    ciudad: filtroCiudad,
+    inmueble: filtroInmueble,
+    nivel: filtroNivel,
+    ambiente: filtroAmbiente,
+  });
+
   const handleFilter = () => {
     setCurrentPage(1);
     loadActivos({
       codigoActivo: filtroCodigoActivo,
       inventariador: filtroInventariador,
       carnet: filtroCarnet,
+      ...getUbicacionFilters(),
     });
   };
 
@@ -136,18 +172,31 @@ const InventarioList = () => {
     setFiltroInventariador("");
     setFiltroCarnet("");
     setFiltroEstado("all");
+    setFiltroCiudad("");
+    setFiltroInmueble("");
+    setFiltroNivel("");
+    setFiltroAmbiente("");
     loadActivos({});
   };
 
   const handleSearch = () => {
     setCurrentPage(1);
-    loadActivos({ carnet: searchCarnet, nombre: searchNombre, all: true });
+    loadActivos({
+      carnet: searchCarnet,
+      nombre: searchNombre,
+      all: true,
+      ...getUbicacionFilters(),
+    });
   };
 
   const clearSearch = () => {
     setCurrentPage(1);
     setSearchCarnet("");
     setSearchNombre("");
+    setFiltroCiudad("");
+    setFiltroInmueble("");
+    setFiltroNivel("");
+    setFiltroAmbiente("");
     loadActivos({});
   };
 
@@ -250,6 +299,7 @@ const InventarioList = () => {
         codigoActivo: filtroCodigoActivo,
         inventariador: filtroInventariador,
         carnet: filtroCarnet,
+        ...getUbicacionFilters(),
       });
     } catch (err) {
       toast({
@@ -318,7 +368,12 @@ const InventarioList = () => {
       });
       setIsEditOpen(false);
       setEditActivo(null);
-      loadActivos({ carnet: searchCarnet, nombre: searchNombre, all: true });
+      loadActivos({
+        carnet: searchCarnet,
+        nombre: searchNombre,
+        all: true,
+        ...getUbicacionFilters(),
+      });
     } catch (err) {
       toast({
         title: "Error",
@@ -691,13 +746,36 @@ const InventarioList = () => {
                 <Button
                   variant="outline"
                   onClick={clearSearch}
-                  disabled={!searchCarnet && !searchNombre}
+                  disabled={
+                    !searchCarnet &&
+                    !searchNombre &&
+                    !filtroCiudad &&
+                    !filtroInmueble &&
+                    !filtroNivel &&
+                    !filtroAmbiente
+                  }
                 >
                   <X className="h-4 w-4 mr-2" />
                   Limpiar
                 </Button>
               </div>
             </div>
+
+            <UbicacionFilters
+              ciudad={filtroCiudad}
+              setCiudad={setFiltroCiudad}
+              inmueble={filtroInmueble}
+              setInmueble={setFiltroInmueble}
+              nivel={filtroNivel}
+              setNivel={setFiltroNivel}
+              ambiente={filtroAmbiente}
+              setAmbiente={setFiltroAmbiente}
+              ciudadOptions={ciudadOptions}
+              inmuebleOptionsByCiudad={inmuebleOptionsByCiudad}
+              nivelOptionsByInmueble={nivelOptionsByInmueble}
+              ambienteOptionsByNivel={ambienteOptionsByNivel}
+              className="mt-4"
+            />
           </CardContent>
         </Card>
 
@@ -1329,7 +1407,7 @@ const InventarioList = () => {
                     className="text-xs font-semibold truncate text-muted-foreground"
                     title={stat.email}
                   >
-                    {stat.email}
+                    {getDisplayName(stat.email)}
                   </div>
                   <div className="flex gap-2">
                     <div className="flex-1 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-900 rounded p-2 text-center">
@@ -1367,6 +1445,18 @@ const InventarioList = () => {
         setFiltroEstado={setFiltroEstado}
         onFilter={handleFilter}
         onClearFilters={clearFilters}
+        filtroCiudad={filtroCiudad}
+        setFiltroCiudad={setFiltroCiudad}
+        filtroInmueble={filtroInmueble}
+        setFiltroInmueble={setFiltroInmueble}
+        filtroNivel={filtroNivel}
+        setFiltroNivel={setFiltroNivel}
+        filtroAmbiente={filtroAmbiente}
+        setFiltroAmbiente={setFiltroAmbiente}
+        ciudadOptions={ciudadOptions}
+        inmuebleOptionsByCiudad={inmuebleOptionsByCiudad}
+        nivelOptionsByInmueble={nivelOptionsByInmueble}
+        ambienteOptionsByNivel={ambienteOptionsByNivel}
       />
 
       <Card>
@@ -1382,6 +1472,7 @@ const InventarioList = () => {
             isLoading={isLoading}
             getAmbienteName={getAmbienteName}
             getResponsableName={getResponsableName}
+            getInventariadorName={getDisplayName}
             onEdit={handleEdit}
             onOpenImages={handleOpenImages}
             onToggleAprobado={handleToggleAprobado}

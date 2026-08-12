@@ -17,6 +17,7 @@ const InventarioTable = memo(
     isLoading,
     getAmbienteName,
     getResponsableName,
+    getInventariadorName,
     onEdit,
     onOpenImages,
     onToggleAprobado,
@@ -45,8 +46,10 @@ const InventarioTable = memo(
             {data.length > 0 ? (
               data.map((a) => {
                 const isReviewed = a.estadoinventario === "REVISADO";
-                const displayInventariador = a.usuarioinventario || "—";
-                const displayRevisor = a.aprobadorinventario || "—";
+                const displayInventariador =
+                  getInventariadorName(a.usuarioinventario) || "—";
+                const displayRevisor =
+                  getInventariadorName(a.aprobadorinventario) || "—";
                 return (
                   <TableRow
                     key={a.codigoActivoInterno}

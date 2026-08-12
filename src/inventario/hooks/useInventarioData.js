@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useMemo } from "react";
 import { supabase, fetchAllFromTable } from "@/lib/supabase";
 import { toCamelCaseArray } from "@/lib/mapFields";
+import { resolveAmbienteCodes } from "@/lib/ubicacionFilters";
 import { useToast } from "@/hooks/use-toast";
 import { normalizeCi, normalizeCiLoose, getCiPrefix } from "../constants/inventarioConstants";
 
@@ -13,6 +14,9 @@ export const useInventarioData = () => {
   const [tipoRubros, setTipoRubros] = useState([]);
   const [ambientes, setAmbientes] = useState([]);
   const [responsables, setResponsables] = useState([]);
+  const [ciudades, setCiudades] = useState([]);
+  const [inmuebles, setInmuebles] = useState([]);
+  const [niveles, setNiveles] = useState([]);
 
   const [directAmbMap, setDirectAmbMap] = useState({});
   const [directRespMap, setDirectRespMap] = useState({});
@@ -105,21 +109,37 @@ export const useInventarioData = () => {
     else console.error("Error loading tipoRubros:", tipoRes.error);
 
     try {
-      const [ambData, respData] = await Promise.all([
+      const [ambData, respData, ciudadData, inmuebleData, nivelData] = await Promise.all([
         fetchAllFromTable("act_ambiente", "*", { orderColumn: "ambiente", ascending: true }),
         fetchAllFromTable("act_responsable", "*", { orderColumn: "cirun", ascending: true }),
+        supabase.from("act_ciudad").select("codigociudad, descripcion").order("descripcion", { ascending: true }),
+        supabase.from("act_inmueble").select("codigoinmueble, inmueble, codigociudad").order("inmueble", { ascending: true }),
+        supabase.from("act_nivel").select("codigonivel, nivel, codigoinmueble").order("nivel", { ascending: true }),
       ]);
       setAmbientes(ambData || []);
       ambientesRef.current = ambData || [];
       setResponsables(respData || []);
       responsablesRef.current = respData || [];
+      setCiudades(ciudadData?.data || []);
+      setInmuebles(inmuebleData?.data || []);
+      setNiveles(nivelData?.data || []);
     } catch (err) {
       console.error("Error loading catalogos:", err);
     }
   }, []);
 
   const loadActivos = useCallback(async (filters = {}) => {
-    const { codigoActivo = "", inventariador = "", carnet = "", nombre = "", all = false } = filters;
+    const {
+      codigoActivo = "",
+      inventariador = "",
+      carnet = "",
+      nombre = "",
+      all = false,
+      ciudad = "",
+      inmueble = "",
+      nivel = "",
+      ambiente = "",
+    } = filters;
     setIsLoading(true);
     try {
       let ciFilter = [];
@@ -143,6 +163,13 @@ export const useInventarioData = () => {
         ciFilter = matchingResp.map(r => normalizeCi(r.cirun));
       }
 
+      let ambienteCodes = null;
+      if (ambiente.trim()) {
+        ambienteCodes = [ambiente.trim()];
+      } else if (ciudad.trim() || inmueble.trim() || nivel.trim()) {
+        ambienteCodes = await resolveAmbienteCodes({ ciudad, inmueble, nivel });
+      }
+
       const BATCH_SIZE = 1000;
       let allData = [];
       let lastCodigoActivo = null;
@@ -161,6 +188,10 @@ export const useInventarioData = () => {
 
         if (lastCodigoActivo != null) {
           batchQuery = batchQuery.gt("codigoactivointerno", lastCodigoActivo);
+        }
+
+        if (ambienteCodes != null) {
+          batchQuery = batchQuery.in("codigoambiente", ambienteCodes);
         }
 
         if (codigoActivo.trim()) {
@@ -257,6 +288,9 @@ export const useInventarioData = () => {
     tipoRubros,
     ambientes,
     responsables,
+    ciudades,
+    inmuebles,
+    niveles,
     directAmbMap,
     directRespMap,
     ambientesRef,

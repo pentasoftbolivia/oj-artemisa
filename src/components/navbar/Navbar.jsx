@@ -135,8 +135,7 @@ export const Navbar = () => {
           <div className="hidden md:flex items-center space-x-2">
             <Button variant="ghost" asChild>
               <a href="#!" onClick={onLogout}>
-                {/* {user?.displayName ? `Salir (${user.displayName})` : "Salir"} */}
-                {user?.email ? `Salir (${user.email})` : "Salir"}
+                {user?.displayName ? `Salir (${user.displayName})` : "Salir"}
               </a>
             </Button>
           </div>
