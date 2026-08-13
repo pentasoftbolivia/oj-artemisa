@@ -22,6 +22,8 @@ const ActivosFijosRoutes = lazyWithRetry(() => import("@/activosFijos/routes/Act
 const AsignacionesRoutes = lazyWithRetry(() => import("@/asignaciones/routes/AsignacionesRoutes").then(m => ({ default: m.AsignacionesRoutes })));
 
 const ResponsableRoutes = lazyWithRetry(() => import("@/responsable/routes/ResponsableRoutes").then(m => ({ default: m.ResponsableRoutes })));
+const ConfigResponsableRoutes = lazyWithRetry(() => import("@/configResponsable/routes/ConfigResponsableRoutes").then(m => ({ default: m.ConfigResponsableRoutes })));
+const ConfigTransferenciaRoutes = lazyWithRetry(() => import("@/configTransferencias/routes/ConfigTransferenciaRoutes").then(m => ({ default: m.ConfigTransferenciaRoutes })));
 const InventarioRoutes = lazyWithRetry(() => import("@/inventario/routes/InventarioRoutes").then(m => ({ default: m.InventarioRoutes })));
 
 export const AppRouter = () => {
@@ -154,6 +156,30 @@ export const AppRouter = () => {
               <AdminRoute>
                 <Navbar />
                 <ResponsableRoutes />
+              </AdminRoute>
+            </PrivateRoute>
+          }
+        />
+
+        <Route
+          path="/responsables-config/*"
+          element={
+            <PrivateRoute>
+              <AdminRoute>
+                <Navbar />
+                <ConfigResponsableRoutes />
+              </AdminRoute>
+            </PrivateRoute>
+          }
+        />
+
+        <Route
+          path="/actualizacion-transferencias/*"
+          element={
+            <PrivateRoute>
+              <AdminRoute>
+                <Navbar />
+                <ConfigTransferenciaRoutes />
               </AdminRoute>
             </PrivateRoute>
           }

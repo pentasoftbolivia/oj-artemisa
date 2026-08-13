@@ -10,6 +10,8 @@ export const DEFAULT_NAV_ITEMS = [
       { title: "Niveles", href: "/niveles" },
       { title: "Rubros", href: "/rubros" },
       { title: "Tipos de Rubro", href: "/tiporubro" },
+      { title: "Responsables", href: "/responsables-config" },
+      { title: "Actualización Transferencias", href: "/actualizacion-transferencias" },
     ],
   },
   { title: "Activos fijos", href: "/activos", adminOnly: true },

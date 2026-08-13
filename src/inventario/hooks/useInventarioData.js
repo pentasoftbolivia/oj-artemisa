@@ -176,6 +176,7 @@ export const useInventarioData = () => {
 
       const applyFilters = (query, withEstado) => {
         let q = query.eq("ultimoregistro", 1);
+        q = q.neq("estadoinventario", "EN PROCESO");
         if (!all && !carnet && !nombre) {
           q = q.gte("codigoactivointerno", 335774);
         }
