@@ -4,7 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import ComboboxField from "@/components/ui/combobox-field";
-import { Filter, X, Search } from "lucide-react";
+import { Filter, X, Search, Loader2 } from "lucide-react";
 
 const ActivosFijosFilters = memo(({
   filters,
@@ -15,7 +15,8 @@ const ActivosFijosFilters = memo(({
   ciudadOptions,
   inmuebleOptionsByCiudad,
   nivelOptionsByInmueble,
-  ambienteOptionsByNivel
+  ambienteOptionsByNivel,
+  isLoading
 }) => {
   const isFilterActive =
     filters.search ||
@@ -130,8 +131,12 @@ const ActivosFijosFilters = memo(({
           </div>
 
           <div className="flex items-center gap-2 pt-2 border-t">
-            <Button onClick={onSearch}>
-              <Search className="h-4 w-4 mr-2" />
+            <Button onClick={onSearch} disabled={isLoading}>
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Search className="h-4 w-4 mr-2" />
+              )}
               Buscar
             </Button>
             {isFilterActive ? (

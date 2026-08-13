@@ -13,7 +13,13 @@ const responsableSlice = createSlice({
     status: 'idle',
     error: null,
   },
-  reducers: {},
+  reducers: {
+    resetResponsable: (state) => {
+      state.data = [];
+      state.status = 'idle';
+      state.error = null;
+    },
+  },
   extraReducers: (builder) => {
     builder
       .addCase(fetchResponsable.pending, (state) => {
@@ -101,5 +107,7 @@ export const selectResponsableByCirun = createSelector(
     return responsables.find(r => r.cirun === cirun);
   }
 );
+
+export const { resetResponsable } = responsableSlice.actions;
 
 export default responsableSlice.reducer;

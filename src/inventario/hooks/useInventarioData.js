@@ -1,9 +1,14 @@
 import { useState, useCallback, useRef, useMemo } from "react";
-import { supabase, fetchAllFromTable } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 import { toCamelCaseArray } from "@/lib/mapFields";
+import { getCachedCatalog } from "@/lib/catalogCache";
+import { ACTIVO_COLUMNS } from "@/lib/activoColumns";
 import { resolveAmbienteCodes } from "@/lib/ubicacionFilters";
 import { useToast } from "@/hooks/use-toast";
 import { normalizeCi, normalizeCiLoose, getCiPrefix } from "../constants/inventarioConstants";
+
+const DEFAULT_PAGE_SIZE = 50;
+const MIN_LOADING_MS = 400;
 
 export const useInventarioData = () => {
   const { toast } = useToast();
@@ -24,6 +29,16 @@ export const useInventarioData = () => {
   const responsablesRef = useRef([]);
   const directAmbRef = useRef({});
   const directRespRef = useRef({});
+
+  const [page, setPageState] = useState(1);
+  const [pageSize, setPageSizeState] = useState(DEFAULT_PAGE_SIZE);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalStats, setTotalStats] = useState({ total: 0, revisados: 0, noRevisados: 0 });
+  const [inventariadorStats, setInventariadorStats] = useState([]);
+
+  const pageRef = useRef(1);
+  const pageSizeRef = useRef(DEFAULT_PAGE_SIZE);
+  const filtersRef = useRef({});
 
   const rubroDescMap = useMemo(() => {
     const map = {};
@@ -52,28 +67,6 @@ export const useInventarioData = () => {
     return map;
   }, [tipoRubros]);
 
-  const inventariadorStats = useMemo(() => {
-    const stats = {};
-    (activos || []).forEach(a => {
-      const email = a.usuarioinventario;
-      if (!email) return;
-
-      if (!stats[email]) {
-        stats[email] = { revisado: 0, pendiente: 0 };
-      }
-
-      if (a.estadoinventario === "REVISADO") {
-        stats[email].revisado++;
-      } else {
-        stats[email].pendiente++;
-      }
-    });
-    return Object.entries(stats).map(([email, count]) => ({
-      email,
-      ...count
-    }));
-  }, [activos]);
-
   const ambienteMap = useMemo(() => {
     const map = {};
     (ambientes.length > 0 ? ambientes : ambientesRef.current).forEach(a => {
@@ -99,36 +92,38 @@ export const useInventarioData = () => {
   }, [responsables]);
 
   const loadCatalogos = useCallback(async () => {
-    const [rubroRes, tipoRes] = await Promise.all([
-      supabase.from("act_rubro").select("*").order("descripcionrubroact", { ascending: true }),
-      supabase.from("act_tiporubro").select("*").order("descripciontiporubroact", { ascending: true }),
-    ]);
-    if (!rubroRes.error) setRubros(rubroRes.data || []);
-    else console.error("Error loading rubros:", rubroRes.error);
-    if (!tipoRes.error) setTipoRubros(tipoRes.data || []);
-    else console.error("Error loading tipoRubros:", tipoRes.error);
+    const safeGet = async (table) => {
+      try {
+        return await getCachedCatalog(table);
+      } catch (err) {
+        console.error(`Error loading ${table}:`, err);
+        return [];
+      }
+    };
 
-    try {
-      const [ambData, respData, ciudadData, inmuebleData, nivelData] = await Promise.all([
-        fetchAllFromTable("act_ambiente", "*", { orderColumn: "ambiente", ascending: true }),
-        fetchAllFromTable("act_responsable", "*", { orderColumn: "cirun", ascending: true }),
-        supabase.from("act_ciudad").select("codigociudad, descripcion").order("descripcion", { ascending: true }),
-        supabase.from("act_inmueble").select("codigoinmueble, inmueble, codigociudad").order("inmueble", { ascending: true }),
-        supabase.from("act_nivel").select("codigonivel, nivel, codigoinmueble").order("nivel", { ascending: true }),
+    const [rubros, tipoRubros, ambientes, responsables, ciudades, inmuebles, niveles] =
+      await Promise.all([
+        safeGet("act_rubro"),
+        safeGet("act_tiporubro"),
+        safeGet("act_ambiente"),
+        safeGet("act_responsable"),
+        safeGet("act_ciudad"),
+        safeGet("act_inmueble"),
+        safeGet("act_nivel"),
       ]);
-      setAmbientes(ambData || []);
-      ambientesRef.current = ambData || [];
-      setResponsables(respData || []);
-      responsablesRef.current = respData || [];
-      setCiudades(ciudadData?.data || []);
-      setInmuebles(inmuebleData?.data || []);
-      setNiveles(nivelData?.data || []);
-    } catch (err) {
-      console.error("Error loading catalogos:", err);
-    }
+
+    setRubros(rubros || []);
+    setTipoRubros(tipoRubros || []);
+    setAmbientes(ambientes || []);
+    ambientesRef.current = ambientes || [];
+    setResponsables(responsables || []);
+    responsablesRef.current = responsables || [];
+    setCiudades(ciudades || []);
+    setInmuebles(inmuebles || []);
+    setNiveles(niveles || []);
   }, []);
 
-  const loadActivos = useCallback(async (filters = {}) => {
+  const fetchData = useCallback(async (filters, p, ps) => {
     const {
       codigoActivo = "",
       inventariador = "",
@@ -139,8 +134,11 @@ export const useInventarioData = () => {
       inmueble = "",
       nivel = "",
       ambiente = "",
+      estado = "all",
     } = filters;
+
     setIsLoading(true);
+    const startedAt = Date.now();
     try {
       let ciFilter = [];
 
@@ -157,7 +155,13 @@ export const useInventarioData = () => {
 
         if (!matchingResp || matchingResp.length === 0) {
           setActivos([]);
-          setIsLoading(false);
+          setTotalCount(0);
+          setTotalStats({ total: 0, revisados: 0, noRevisados: 0 });
+          setInventariadorStats([]);
+          setDirectAmbMap({});
+          directAmbRef.current = {};
+          setDirectRespMap({});
+          directRespRef.current = {};
           return;
         }
         ciFilter = matchingResp.map(r => normalizeCi(r.cirun));
@@ -170,115 +174,221 @@ export const useInventarioData = () => {
         ambienteCodes = await resolveAmbienteCodes({ ciudad, inmueble, nivel });
       }
 
-      const BATCH_SIZE = 1000;
-      let allData = [];
-      let lastCodigoActivo = null;
-
-      for (let i = 0; ; i++) {
-        let batchQuery = supabase
-          .from("act_activos")
-          .select("*", { count: i === 0 ? "exact" : undefined })
-          .eq("ultimoregistro", 1)
-          .order("codigoactivointerno", { ascending: true })
-          .limit(BATCH_SIZE);
-
+      const applyFilters = (query, withEstado) => {
+        let q = query.eq("ultimoregistro", 1);
         if (!all && !carnet && !nombre) {
-          batchQuery = batchQuery.gte("codigoactivointerno", 335774);
+          q = q.gte("codigoactivointerno", 335774);
         }
-
-        if (lastCodigoActivo != null) {
-          batchQuery = batchQuery.gt("codigoactivointerno", lastCodigoActivo);
-        }
-
         if (ambienteCodes != null) {
-          batchQuery = batchQuery.in("codigoambiente", ambienteCodes);
+          q = q.in("codigoambiente", ambienteCodes.length > 0 ? ambienteCodes : [-1]);
         }
-
         if (codigoActivo.trim()) {
           const val = codigoActivo.trim().replace(/%/g, "");
           const numVal = Number(val);
           if (!isNaN(numVal)) {
-            batchQuery = batchQuery.eq("codigoactivo", numVal);
+            q = q.eq("codigoactivo", numVal);
           } else {
-            batchQuery = batchQuery.eq("codigoactivo", -1);
+            q = q.eq("codigoactivo", -1);
           }
         }
-
         if (inventariador.trim()) {
           const val = inventariador.trim().replace(/%/g, "");
-          batchQuery = batchQuery.ilike("usuarioinventario", `%${val}%`);
+          q = q.ilike("usuarioinventario", `%${val}%`);
         }
-
         if (carnet.trim()) {
           const ci = carnet.trim().replace(/%/g, "");
-          batchQuery = batchQuery.ilike("cirun", `%${ci}%`);
+          q = q.ilike("cirun", `%${ci}%`);
         }
-
         if (ciFilter.length > 0) {
-          batchQuery = batchQuery.in("cirun", ciFilter);
+          q = q.in("cirun", ciFilter);
         }
-
-        const { data: batch, error: batchError } = await batchQuery;
-        if (batchError) throw batchError;
-
-        // if (i === 0) totalCount = count || 0; // totalCount is not used
-        if (batch && batch.length > 0) {
-          allData = allData.concat(batch);
-          lastCodigoActivo = batch[batch.length - 1].codigoactivointerno;
-        }
-        if (!batch || batch.length < BATCH_SIZE) break;
-      }
-
-      const data = allData;
-
-      const directAmb = {};
-      if (data) {
-        const uniqueAmbCodes = [...new Set(data.map(a => String(a.codigoambiente ?? "").trim()).filter(Boolean))];
-        if (uniqueAmbCodes.length > 0) {
-          const { data: ambData } = await supabase.from("act_ambiente").select("codigoambiente, ambiente").in("codigoambiente", uniqueAmbCodes);
-          if (ambData) {
-            ambData.forEach(a => { const code = String(a.codigoambiente ?? "").trim(); if (code) directAmb[code] = a.ambiente; });
+        if (withEstado && estado !== "all") {
+          if (estado === "revisado") {
+            q = q.eq("estadoinventario", "REVISADO");
+          } else if (estado === "pendiente") {
+            q = q.or("estadoinventario.is.null,estadoinventario.neq.REVISADO");
           }
         }
+        return q;
+      };
+
+      const { count, error: countError } = await applyFilters(
+        supabase.from("act_activos").select("codigoactivointerno", { count: "exact", head: true }),
+        true,
+      );
+      if (countError) throw countError;
+
+      const from = (p - 1) * ps;
+      const to = from + ps - 1;
+      const { data: batch, error: batchError } = await applyFilters(
+        supabase.from("act_activos").select(ACTIVO_COLUMNS).order("codigoactivointerno", { ascending: false }),
+        true,
+      ).range(from, to);
+      if (batchError) throw batchError;
+
+      let revisados = 0;
+      try {
+        const { data: estadoRows, error: estadoError } = await applyFilters(
+          supabase.from("act_activos").select("estadoinventario"),
+          false,
+        );
+        if (!estadoError) {
+          (estadoRows || []).forEach(r => {
+            if (String(r.estadoinventario || "") === "REVISADO") {
+              revisados += 1;
+            }
+          });
+        }
+      } catch (e) {
+        console.error("Error loading estado stats:", e);
       }
+
+      let perUser = [];
+      try {
+        const { data: userRows, error: userError } = await applyFilters(
+          supabase.from("act_activos").select("usuarioinventario,estadoinventario"),
+          false,
+        );
+        if (!userError) {
+          const acc = {};
+          (userRows || []).forEach(r => {
+            const email = r.usuarioinventario;
+            if (!email) return;
+            if (!acc[email]) acc[email] = { revisado: 0, pendiente: 0 };
+            if (String(r.estadoinventario || "") === "REVISADO") {
+              acc[email].revisado += 1;
+            } else {
+              acc[email].pendiente += 1;
+            }
+          });
+          perUser = Object.entries(acc).map(([email, counts]) => ({ email, ...counts }));
+        }
+      } catch (e) {
+        console.error("Error loading per-user stats:", e);
+      }
+
+      const pageData = toCamelCaseArray(batch || []);
+      setActivos(pageData);
+      setTotalCount(count || 0);
+      setTotalStats({ total: count || 0, revisados, noRevisados: (count || 0) - revisados });
+      setInventariadorStats(perUser);
+
+      const directAmb = {};
+      const ambList = ambientes.length > 0 ? ambientes : ambientesRef.current;
+      pageData.forEach(a => {
+        const code = String(a.codigoambiente ?? "").trim();
+        if (code) {
+          const found = ambList.find(x => String(x.codigoambiente ?? "").trim() === code);
+          if (found) directAmb[code] = found.ambiente;
+        }
+      });
       setDirectAmbMap(directAmb);
       directAmbRef.current = directAmb;
 
       const directResp = {};
-      if (data) {
-        const uniqueCirs = [...new Set(data.map(a => String(a.cirun ?? "").trim()).filter(Boolean))];
-        if (uniqueCirs.length > 0) {
-          const { data: respData } = await supabase.from("act_responsable").select("*").in("cirun", uniqueCirs);
-          if (respData) {
-            respData.forEach(r => {
-              const raw = String(r.cirun ?? "").trim();
-              directResp[raw] = r;
-              const norm = normalizeCi(r.cirun);
-              if (norm !== raw) directResp[norm] = r;
-              const loose = normalizeCiLoose(r.cirun);
-              if (loose !== raw && loose !== norm) directResp[loose] = r;
-              const prefix = getCiPrefix(raw);
-              if (prefix && prefix !== raw && prefix !== norm && prefix !== loose) directResp[prefix] = r;
-            });
-          }
+      const respList = responsables.length > 0 ? responsables : responsablesRef.current;
+      pageData.forEach(a => {
+        const raw = String(a.cirun ?? "").trim();
+        if (!raw) return;
+        const resp = respList.find(r => {
+          const rr = String(r.cirun ?? "").trim();
+          return (
+            rr === raw ||
+            normalizeCi(rr) === raw ||
+            normalizeCiLoose(rr) === raw ||
+            getCiPrefix(rr) === raw
+          );
+        });
+        if (resp) {
+          const rr = String(resp.cirun ?? "").trim();
+          directResp[rr] = resp;
+          directResp[normalizeCi(rr)] = resp;
+          directResp[normalizeCiLoose(rr)] = resp;
+          const prefix = getCiPrefix(rr);
+          if (prefix) directResp[prefix] = resp;
         }
-      }
+      });
       setDirectRespMap(directResp);
       directRespRef.current = directResp;
-
-      setActivos(toCamelCaseArray(data || []));
     } catch (err) {
       toast({ title: "Error", description: `Error al cargar activos: ${err.message}`, variant: "destructive" });
     } finally {
+      const elapsed = Date.now() - startedAt;
+      const remaining = Math.max(0, MIN_LOADING_MS - elapsed);
+      if (remaining > 0) {
+        await new Promise((r) => setTimeout(r, remaining));
+      }
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [toast, ambientes, responsables]);
+
+  const loadActivos = useCallback((filters = {}) => {
+    filtersRef.current = filters;
+    pageRef.current = 1;
+    setPageState(1);
+    return fetchData(filters, 1, pageSizeRef.current);
+  }, [fetchData]);
+
+  const setPage = useCallback((p) => {
+    pageRef.current = p;
+    setPageState(p);
+    return fetchData(filtersRef.current, p, pageSizeRef.current);
+  }, [fetchData]);
+
+  const setPageSize = useCallback((s) => {
+    pageSizeRef.current = s;
+    setPageSizeState(s);
+    pageRef.current = 1;
+    setPageState(1);
+    return fetchData(filtersRef.current, 1, s);
+  }, [fetchData]);
+
+  const applyEstado = useCallback((estado) => {
+    const current = filtersRef.current;
+    if ((current.estado || "all") === estado) {
+      return Promise.resolve();
+    }
+    filtersRef.current = { ...current, estado };
+    pageRef.current = 1;
+    setPageState(1);
+    return fetchData(filtersRef.current, 1, pageSizeRef.current);
+  }, [fetchData]);
+
+  const adjustStatsLocal = useCallback((activo, newEstado) => {
+    const wasRevisado = String(activo.estadoinventario ?? "").toUpperCase() === "REVISADO";
+    const isRevisado = String(newEstado ?? "").toUpperCase() === "REVISADO";
+    if (wasRevisado === isRevisado) return;
+
+    setTotalStats((prev) => ({
+      ...prev,
+      revisados: Math.max(0, prev.revisados + (isRevisado ? 1 : -1)),
+      noRevisados: Math.max(0, prev.noRevisados + (isRevisado ? -1 : 1)),
+    }));
+
+    const email = activo.usuarioinventario;
+    if (!email) return;
+    setInventariadorStats((prev) =>
+      prev.map((s) => {
+        if (s.email !== email) return s;
+        return {
+          ...s,
+          revisado: Math.max(0, s.revisado + (isRevisado ? 1 : -1)),
+          pendiente: Math.max(0, s.pendiente + (isRevisado ? -1 : 1)),
+        };
+      }),
+    );
+  }, []);
 
   const loadInitialData = useCallback(async () => {
     setIsLoading(true);
     await loadCatalogos();
     setIsLoading(false);
   }, [loadCatalogos]);
+
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(totalCount / pageSize)),
+    [totalCount, pageSize],
+  );
 
   return {
     isLoading,
@@ -303,6 +413,15 @@ export const useInventarioData = () => {
     inventariadorStats,
     ambienteMap,
     responsableMap,
+    totalStats,
+    page,
+    pageSize,
+    setPage,
+    setPageSize,
+    applyEstado,
+    adjustStatsLocal,
+    totalCount,
+    totalPages,
     loadCatalogos,
     loadActivos,
     loadInitialData,

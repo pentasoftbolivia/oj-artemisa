@@ -27,6 +27,7 @@ import {
   selectActivosFijosTotalCount,
   selectActivosFijosLoading,
   selectActivosFijosError,
+  resetActivosFijos,
 } from "@/store/activosFijos/activosFijosSlice";
 
 import ActivosFijosForm from "./ActivosFijosForm";
@@ -140,7 +141,15 @@ const ActivosFijosList = () => {
     printQRLabels,
     downloadQRsPDF,
   } = useBarcodeQR({ rubroMap, tipoRubroMap, activosFijos });
+  const hasSearchCriteria = Object.values(appliedFilters).some(
+    (v) => String(v ?? "").trim().length > 0
+  );
+
   useEffect(() => {
+    if (!hasSearchCriteria) {
+      dispatch(resetActivosFijos());
+      return;
+    }
     dispatch(
       fetchActivosFijosPaginated({
         page: currentPage,
@@ -160,6 +169,7 @@ const ActivosFijosList = () => {
     currentPage,
     pageSize,
     appliedFilters,
+    hasSearchCriteria,
     dispatch,
     rubroToTipoIds,
   ]);
@@ -195,7 +205,7 @@ const ActivosFijosList = () => {
     [dispatch, editingActivo, toast, handleCancel],
   );
 
-  if ((isActivosLoading || isLoadingCatalogos) && activosFijos.length === 0) return <LoadingSpinner />;
+  if (isLoadingCatalogos && activosFijos.length === 0) return <LoadingSpinner />;
   if (error) return <div className="bg-red-600 text-white text-center p-4 rounded-lg">Error: {error}</div>;
 
   return (
@@ -258,12 +268,13 @@ const ActivosFijosList = () => {
         inmuebleOptionsByCiudad={inmuebleOptionsByCiudad}
         nivelOptionsByInmueble={nivelOptionsByInmueble}
         ambienteOptionsByNivel={ambienteOptionsByNivel}
+        isLoading={isActivosLoading}
       />
 
       <ActivosFijosTable
         activosFijos={activosFijos}
         isLoading={isActivosLoading}
-        filters={filters}
+        hasSearchCriteria={hasSearchCriteria}
         totalCount={totalCount}
         currentPage={currentPage}
         pageSize={pageSize}

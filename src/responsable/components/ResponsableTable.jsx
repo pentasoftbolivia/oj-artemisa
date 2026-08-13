@@ -177,12 +177,12 @@ const ResponsableTable = memo(({
                 <p className="text-lg font-medium">
                   {hasActiveFilters
                     ? messages.empty.filtered
-                    : messages.empty.noData}
+                    : messages.empty.noSearch}
                 </p>
                 <p className="text-sm mt-1">
                   {hasActiveFilters
                     ? messages.empty.adjustFilters
-                    : messages.empty.createFirst}
+                    : messages.empty.startSearch}
                 </p>
               </TableCell>
             </TableRow>

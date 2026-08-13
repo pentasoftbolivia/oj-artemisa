@@ -49,20 +49,26 @@ export const resolveAmbienteCodes = async ({ ciudad, inmueble, nivel, ambiente }
 
 const fetchCirunsForCodes = async (codes) => {
   const allRows = [];
-  let start = 0;
+  let lastKey = null;
   let chunk;
   do {
-    const { data, error } = await supabase
+    let query = supabase
       .from("act_activos")
-      .select("cirun")
+      .select("cirun, codigoactivointerno")
       .eq("ultimoregistro", 1)
       .in("codigoambiente", codes)
-      .order("cirun", { ascending: true })
-      .range(start, start + ROW_CHUNK - 1);
+      .order("codigoactivointerno", { ascending: true })
+      .limit(ROW_CHUNK);
+    if (lastKey != null) {
+      query = query.gt("codigoactivointerno", lastKey);
+    }
+    const { data, error } = await query;
     if (error) throw error;
     chunk = data || [];
     allRows.push(...chunk);
-    start += ROW_CHUNK;
+    if (chunk.length === ROW_CHUNK) {
+      lastKey = chunk[chunk.length - 1].codigoactivointerno;
+    }
   } while (chunk.length === ROW_CHUNK);
   return allRows;
 };

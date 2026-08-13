@@ -1,6 +1,7 @@
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import { supabase } from "@/lib/supabase";
 import { toSnakeCase, toCamelCaseArray } from "@/lib/mapFields";
+import { invalidateCatalog } from "@/lib/catalogCache";
 
 const TABLE = "act_ambiente";
 
@@ -40,6 +41,7 @@ export const addAmbiente = createAsyncThunk(
         .select("*")
         .single();
       if (error) throw error;
+      invalidateCatalog(TABLE);
       return toCamelCaseArray([data])[0];
     } catch (error) {
       return rejectWithValue(error.message);
@@ -58,6 +60,7 @@ export const updateAmbiente = createAsyncThunk(
         .select("*")
         .single();
       if (error) throw error;
+      invalidateCatalog(TABLE);
       return toCamelCaseArray([data])[0];
     } catch (error) {
       return rejectWithValue(error.message);
@@ -71,6 +74,7 @@ export const deleteAmbiente = createAsyncThunk(
     try {
       const { error } = await supabase.from(TABLE).delete().eq("codigoambiente", codigoambiente);
       if (error) throw error;
+      invalidateCatalog(TABLE);
       return codigoambiente;
     } catch (error) {
       return rejectWithValue(error.message);

@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Filter, Search, X } from "lucide-react";
+import { Filter, Search, X, Loader2 } from "lucide-react";
 import UbicacionFilters from "./UbicacionFilters";
 
 const InventarioFilters = memo(
@@ -37,6 +37,7 @@ const InventarioFilters = memo(
     inmuebleOptionsByCiudad,
     nivelOptionsByInmueble,
     ambienteOptionsByNivel,
+    isLoading,
   }) => {
     const isFilterActive =
       !!filtroCodigoActivo ||
@@ -50,27 +51,15 @@ const InventarioFilters = memo(
 
     return (
       <Card>
-        <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
+        <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <Filter className="h-4 w-4" />
             Filtros
           </CardTitle>
-          {isFilterActive ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onClearFilters}
-              title="Limpiar filtros"
-              className="h-8"
-            >
-              <X className="h-4 w-4 mr-2" />
-              Limpiar
-            </Button>
-          ) : null}
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="filtroCodigoActivo">Código Activo</Label>
                 <Input
@@ -116,12 +105,6 @@ const InventarioFilters = memo(
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2 flex items-end">
-                <Button onClick={onFilter} className="w-full">
-                  <Search className="h-4 w-4 mr-2" />
-                  Buscar
-                </Button>
-              </div>
             </div>
 
             <UbicacionFilters
@@ -138,6 +121,23 @@ const InventarioFilters = memo(
               nivelOptionsByInmueble={nivelOptionsByInmueble}
               ambienteOptionsByNivel={ambienteOptionsByNivel}
             />
+
+            <div className="flex items-center gap-2 pt-2 border-t">
+              <Button onClick={onFilter} disabled={isLoading}>
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Search className="h-4 w-4 mr-2" />
+                )}
+                Buscar
+              </Button>
+              {isFilterActive ? (
+                <Button variant="outline" onClick={onClearFilters}>
+                  <X className="h-4 w-4 mr-2" />
+                  Limpiar
+                </Button>
+              ) : null}
+            </div>
           </div>
         </CardContent>
       </Card>

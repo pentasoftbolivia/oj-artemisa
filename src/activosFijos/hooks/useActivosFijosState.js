@@ -6,7 +6,7 @@ export function useActivosFijosState() {
   const [filters, setFilters] = useState({ ...INITIAL_FILTERS });
   const [appliedFilters, setAppliedFilters] = useState({ ...INITIAL_FILTERS });
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(100);
+  const [pageSize, setPageSize] = useState(50);
 
   const handlePageChange = useCallback((page) => setCurrentPage(page), []);
   const handlePageSizeChange = useCallback((newSize) => {

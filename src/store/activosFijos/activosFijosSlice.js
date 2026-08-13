@@ -9,11 +9,20 @@ const activosFijosSlice = createSlice({
     data: [],
     totalCount: 0,
     currentPage: 1,
-    pageSize: 100,
+    pageSize: 50,
     status: 'idle',
     error: null,
   },
-  reducers: {},
+  reducers: {
+    resetActivosFijos: (state) => {
+      state.data = [];
+      state.totalCount = 0;
+      state.currentPage = 1;
+      state.pageSize = 50;
+      state.status = 'idle';
+      state.error = null;
+    },
+  },
   extraReducers: (builder) => {
     builder
       .addCase(fetchActivosFijosPaginated.pending, (state) => {
@@ -71,5 +80,7 @@ export const selectActivosFijosError = createSelector(
   (state) => state.activosFijos?.error,
   (e) => (e == null ? null : String(e))
 );
+
+export const { resetActivosFijos } = activosFijosSlice.actions;
 
 export default activosFijosSlice.reducer;

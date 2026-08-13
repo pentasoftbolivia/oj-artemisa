@@ -22,14 +22,11 @@ export const useCheckAuth = () => {
       }
 
       try {
-        const { data: roleData, error: roleError } = await supabase
+        const { data: roleData } = await supabase
           .from("rol")
           .select("rol")
           .eq("UID", session.user.id)
           .maybeSingle();
-
-        console.log("Checking role for UID:", session.user.id);
-        console.log("Role Data:", roleData, "Role Error:", roleError);
 
         const role = roleData ? roleData.rol || "Administrador" : "Usuario";
 

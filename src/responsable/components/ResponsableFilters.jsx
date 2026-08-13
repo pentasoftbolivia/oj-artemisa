@@ -3,20 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import ComboboxField from "@/components/ui/combobox-field";
 import { Filter, X, Search, Loader2 } from "lucide-react";
 
 const ResponsableFilters = memo(({
   filters,
   hasActiveFilters,
-  cargos,
   onFilterChange,
   onSearch,
   onClearFilters,
@@ -38,7 +30,7 @@ const ResponsableFilters = memo(({
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="search">Buscar</Label>
               <Input
@@ -57,26 +49,6 @@ const ResponsableFilters = memo(({
                 value={filters.carnet}
                 onChange={(e) => onFilterChange("carnet", e.target.value)}
               />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="cargo">Cargo</Label>
-              <Select
-                value={filters.cargo}
-                onValueChange={(value) => onFilterChange("cargo", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={messages.placeholders.cargo} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">
-                    {messages.placeholders.cargo}
-                  </SelectItem>
-                  {cargos.map((c) => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
           </div>
 
@@ -136,14 +108,12 @@ const ResponsableFilters = memo(({
               )}
               Buscar
             </Button>
-            <Button
-              variant="outline"
-              onClick={onClearFilters}
-              disabled={!hasActiveFilters && !filters.search && !filters.carnet && !filters.cargo}
-            >
-              <X className="h-4 w-4 mr-2" />
-              Limpiar
-            </Button>
+            {hasActiveFilters || filters.search || filters.carnet ? (
+              <Button variant="outline" onClick={onClearFilters}>
+                <X className="h-4 w-4 mr-2" />
+                Limpiar
+              </Button>
+            ) : null}
           </div>
         </div>
       </CardContent>

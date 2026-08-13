@@ -1,8 +1,12 @@
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import { supabase, fetchAllFromTable } from "@/lib/supabase";
 import { toSnakeCase, toCamelCaseArray } from "@/lib/mapFields";
+import { invalidateCatalog } from "@/lib/catalogCache";
 
 const TABLE = "act_responsable";
+
+const RESPONSABLE_SELECT =
+  "cirun, codigoambiente, nombre1, nombre2, paterno, materno, estado, autoriza, cargo, login_sid, usuarioregistro, fecharegistro, registroactivo";
 
 export const fetchResponsable = createAsyncThunk(
   "responsable/fetchResponsable",
@@ -15,7 +19,7 @@ export const fetchResponsable = createAsyncThunk(
       do {
         const { data, error } = await supabase
           .from(TABLE)
-          .select("*")
+          .select(RESPONSABLE_SELECT)
           .order("cirun", { ascending: true })
           .range(start, start + CHUNK_SIZE - 1);
         if (error) throw error;
@@ -84,6 +88,7 @@ export const addResponsable = createAsyncThunk(
         .select("*")
         .single();
       if (error) throw error;
+      invalidateCatalog(TABLE);
       return toCamelCaseArray([data])[0];
     } catch (error) {
       return rejectWithValue(error.message);
@@ -102,6 +107,7 @@ export const updateResponsable = createAsyncThunk(
         .select("*")
         .single();
       if (error) throw error;
+      invalidateCatalog(TABLE);
       return toCamelCaseArray([data])[0];
     } catch (error) {
       return rejectWithValue(error.message);
@@ -115,6 +121,7 @@ export const deleteResponsable = createAsyncThunk(
     try {
       const { error } = await supabase.from(TABLE).delete().eq("cirun", cirun);
       if (error) throw error;
+      invalidateCatalog(TABLE);
       return cirun;
     } catch (error) {
       return rejectWithValue(error.message);

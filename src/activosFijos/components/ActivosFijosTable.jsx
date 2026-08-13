@@ -153,7 +153,7 @@ ActivosFijosTableRow.displayName = "ActivosFijosTableRow";
 const ActivosFijosTable = memo(({
   activosFijos,
   isLoading,
-  filters,
+  hasSearchCriteria,
   totalCount,
   currentPage,
   pageSize,
@@ -224,9 +224,9 @@ const ActivosFijosTable = memo(({
                   <p className="text-lg font-medium">
                     {isLoading
                       ? "Cargando..."
-                      : filters.search
+                      : hasSearchCriteria
                         ? "No se encontraron activos fijos"
-                        : "No hay activos fijos registrados"}
+                        : "Realice una búsqueda para ver resultados"}
                   </p>
                 </TableCell>
               </TableRow>

@@ -33,6 +33,7 @@ import {
   selectSortedResponsable,
   selectResponsableLoading,
   selectResponsableError,
+  resetResponsable,
 } from "@/store/responsable/responsableSlice";
 import { useResponsableUbicacion } from "../hooks/useResponsableUbicacion";
 import { fetchMatchingCiruns, resolveAmbienteCodes } from "../services/responsableUbicacionService";
@@ -41,7 +42,6 @@ import ResponsableForm from "./ResponsableForm";
 const INITIAL_FILTERS = {
   search: "",
   carnet: "",
-  cargo: "",
   ciudad: "",
   inmueble: "",
   nivel: "",
@@ -61,16 +61,14 @@ const MESSAGES = {
     unknown: "Error desconocido",
   },
   empty: {
-    noData: "No hay responsables registrados",
+    noSearch: "Realice una búsqueda para ver resultados",
+    startSearch: "Use los filtros de la sección para buscar responsables",
     filtered: "No se encontraron responsables que coincidan con los filtros",
-    createFirst:
-      'Crea tu primer responsable usando el botón "Nuevo Responsable"',
     adjustFilters: "Intenta ajustar los filtros de búsqueda",
   },
   placeholders: {
     search: "Buscar por nombre, apellido o cargo...",
     carnet: "Buscar por CI...",
-    cargo: "Todos los cargos",
   },
 };
 
@@ -103,11 +101,7 @@ const ResponsableList = () => {
   } = useResponsableUbicacion(draftFilters);
 
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(100);
-
-  useEffect(() => {
-    dispatch(fetchResponsable());
-  }, [dispatch]);
+  const [pageSize, setPageSize] = useState(50);
 
   const handleAdd = useCallback(() => {
     setEditingResponsable(null);
@@ -179,6 +173,22 @@ const ResponsableList = () => {
       return;
     }
 
+    if (responsables.length === 0) {
+      setIsLocationSearching(true);
+      try {
+        await dispatch(fetchResponsable()).unwrap();
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: `${MESSAGES.error.loading}: ${error.message || MESSAGES.error.unknown}`,
+          variant: "destructive",
+        });
+        setIsLocationSearching(false);
+        return;
+      }
+      setIsLocationSearching(false);
+    }
+
     const { ciudad, inmueble, nivel, ambiente } = draftFilters;
     const hasLocation = Boolean(ciudad || inmueble || nivel || ambiente);
 
@@ -211,7 +221,7 @@ const ResponsableList = () => {
     setAppliedAmbienteCodes(newAmbienteCodes);
     setAppliedFilters({ ...draftFilters });
     setCurrentPage(1);
-  }, [draftFilters, toast]);
+  }, [draftFilters, toast, dispatch, responsables.length]);
 
   const filteredResponsables = useMemo(
     () => {
@@ -232,15 +242,10 @@ const ResponsableList = () => {
         const carnetMatch =
           !draftFilters.carnet || carnetNum.includes(carnetQuery);
 
-        const cargoMatch =
-          !draftFilters.cargo ||
-          draftFilters.cargo === "all" ||
-          (r.cargo || "").trim().toLowerCase() === draftFilters.cargo.toLowerCase();
-
         const locationMatch =
           !hasLocation || matchingCiruns?.has(String(r.cirun).trim());
 
-        return searchMatch && carnetMatch && cargoMatch && locationMatch;
+        return searchMatch && carnetMatch && locationMatch;
       });
     },
     [responsables, draftFilters, appliedFilters, matchingCiruns],
@@ -278,13 +283,11 @@ const ResponsableList = () => {
     setMatchingCiruns(null);
     setAppliedAmbienteCodes(null);
     setCurrentPage(1);
-  }, []);
+    dispatch(resetResponsable());
+  }, [dispatch]);
 
   const hasActiveFilters = useMemo(
-    () =>
-      Object.entries(appliedFilters).some(
-        ([key, value]) => Boolean(value) && !(key === "cargo" && value === "all"),
-      ),
+    () => Object.values(appliedFilters).some((value) => Boolean(value)),
     [appliedFilters],
   );
 
@@ -320,7 +323,7 @@ const ResponsableList = () => {
     [dispatch, editingResponsable, toast, handleCancel],
   );
 
-  if (isLoading && responsables.length === 0) {
+  if (isLoading && hasActiveFilters && responsables.length === 0) {
     return <LoadingSpinner />;
   }
 
@@ -381,7 +384,6 @@ const ResponsableList = () => {
       <ResponsableFilters
         filters={draftFilters}
         hasActiveFilters={hasActiveFilters}
-        cargos={[...new Set(responsables.map(r => r.cargo?.trim()).filter(Boolean))].sort()}
         onFilterChange={handleFilterChange}
         onSearch={handleSearch}
         onClearFilters={clearFilters}
@@ -406,7 +408,7 @@ const ResponsableList = () => {
         </CardHeader>
         <CardContent>
           <ResponsableTable
-            responsables={paginatedResponsables}
+            responsables={hasActiveFilters ? paginatedResponsables : []}
             hasActiveFilters={hasActiveFilters}
             onEdit={handleEdit}
             onDelete={handleDelete}
@@ -420,7 +422,7 @@ const ResponsableList = () => {
             ambienteCodes={appliedAmbienteCodes}
           />
 
-          {filteredResponsables.length > 0 && (
+          {hasActiveFilters && filteredResponsables.length > 0 && (
             <DataPagination
               currentPage={safeCurrentPage}
               totalPages={totalPages}

@@ -1,6 +1,7 @@
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import { supabase } from "@/lib/supabase";
 import { toSnakeCase, toCamelCaseArray } from "@/lib/mapFields";
+import { invalidateCatalog } from "@/lib/catalogCache";
 
 const TABLE = "act_inmueble";
 
@@ -40,6 +41,7 @@ export const addInmueble = createAsyncThunk(
         .select("*")
         .single();
       if (error) throw error;
+      invalidateCatalog(TABLE);
       return toCamelCaseArray([data])[0];
     } catch (error) {
       return rejectWithValue(error.message);
@@ -58,6 +60,7 @@ export const updateInmueble = createAsyncThunk(
         .select("*")
         .single();
       if (error) throw error;
+      invalidateCatalog(TABLE);
       return toCamelCaseArray([data])[0];
     } catch (error) {
       return rejectWithValue(error.message);
@@ -71,6 +74,7 @@ export const deleteInmueble = createAsyncThunk(
     try {
       const { error } = await supabase.from(TABLE).delete().eq("codigoinmueble", codigoinmueble);
       if (error) throw error;
+      invalidateCatalog(TABLE);
       return codigoinmueble;
     } catch (error) {
       return rejectWithValue(error.message);

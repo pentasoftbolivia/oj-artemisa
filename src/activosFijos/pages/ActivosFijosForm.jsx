@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { supabase, fetchAllFromTable } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
+import { getCachedCatalog } from "@/lib/catalogCache";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,13 +37,16 @@ const ActivosFijosForm = ({ activoToEdit, onSubmit, onCancel }) => {
   useEffect(() => {
     setLoadingFK(true);
     Promise.all([
-      supabase.from("act_ambiente").select("codigoambiente, ambiente").order("ambiente", { ascending: true }),
-      fetchAllFromTable("act_responsable", "cirun, nombre1, nombre2, paterno, materno", { orderColumn: "cirun", ascending: true }),
-      supabase.from("act_tiporubro").select("tiporubroact, descripciontiporubroact").order("descripciontiporubroact", { ascending: true }),
+      getCachedCatalog("act_ambiente"),
+      getCachedCatalog("act_responsable"),
+      getCachedCatalog("act_tiporubro"),
     ]).then(([amb, res, tr]) => {
-      if (!amb.error) setAmbientes(amb.data || []);
-      if (!res.error) setResponsables(res || []);
-      if (!tr.error) setTipoRubros(tr.data || []);
+      setAmbientes(amb || []);
+      setResponsables(res || []);
+      setTipoRubros(tr || []);
+      setLoadingFK(false);
+    }).catch((err) => {
+      console.error("Error loading FK options:", err);
       setLoadingFK(false);
     });
   }, []);

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useSelector } from "react-redux";
 import {
   ArrowLeft,
@@ -9,6 +9,7 @@ import {
   X,
   Plus,
   Users,
+  Loader2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { selectUser } from "@/store/auth/authSlice";
@@ -17,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Table,
@@ -55,14 +57,12 @@ import {
   normalizeCi,
   normalizeCiLoose,
   getCiPrefix,
-  BASE_EDIT_FIELDS,
 } from "../constants/inventarioConstants";
 import {
   InventarioEditModal,
   InventarioImagesModal,
 } from "../components/InventarioModals";
 
-const PAGE_SIZE = 100;
 const TOTAL_ACTIVOS = 43310;
 
 const InventarioList = () => {
@@ -92,6 +92,15 @@ const InventarioList = () => {
     ciudades,
     inmuebles,
     niveles,
+    totalStats: rawTotalStats,
+    page,
+    pageSize,
+    setPage,
+    setPageSize,
+    applyEstado,
+    adjustStatsLocal,
+    totalCount,
+    totalPages,
     loadActivos,
     loadInitialData,
   } = useInventarioData();
@@ -126,8 +135,7 @@ const InventarioList = () => {
   const [searchCarnet, setSearchCarnet] = useState("");
   const [searchNombre, setSearchNombre] = useState("");
 
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(PAGE_SIZE);
+  const firstEstadoRef = useRef(true);
 
   const [editActivo, setEditActivo] = useState(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -157,17 +165,16 @@ const InventarioList = () => {
   });
 
   const handleFilter = () => {
-    setCurrentPage(1);
     loadActivos({
       codigoActivo: filtroCodigoActivo,
       inventariador: filtroInventariador,
       carnet: filtroCarnet,
+      estado: filtroEstado,
       ...getUbicacionFilters(),
     });
   };
 
   const clearFilters = () => {
-    setCurrentPage(1);
     setFiltroCodigoActivo("");
     setFiltroInventariador("");
     setFiltroCarnet("");
@@ -180,7 +187,6 @@ const InventarioList = () => {
   };
 
   const handleSearch = () => {
-    setCurrentPage(1);
     loadActivos({
       carnet: searchCarnet,
       nombre: searchNombre,
@@ -190,7 +196,6 @@ const InventarioList = () => {
   };
 
   const clearSearch = () => {
-    setCurrentPage(1);
     setSearchCarnet("");
     setSearchNombre("");
     setFiltroCiudad("");
@@ -199,6 +204,15 @@ const InventarioList = () => {
     setFiltroAmbiente("");
     loadActivos({});
   };
+
+  useEffect(() => {
+    if (firstEstadoRef.current) {
+      firstEstadoRef.current = false;
+      return;
+    }
+    applyEstado(filtroEstado);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtroEstado]);
 
   const getConservacion = (a) => {
     const val =
@@ -220,6 +234,7 @@ const InventarioList = () => {
       rubro: rubroDesc,
       tipoRubro: tipoDesc,
       descripcionActivo: (activo.descripcionActivo || "").trim(),
+      observaciones: (activo.observaciones || "").trim(),
       codigoAmbiente: String(activo.codigoAmbiente ?? "").trim(),
       estadoConservacion: consVal,
       marcamaterial:
@@ -264,6 +279,7 @@ const InventarioList = () => {
       const rubroDesc = rubroFromTipo[editActivo.tipoRubroAct] || "";
       const fieldsToUpdate = {};
       fieldsToUpdate.descripcionactivo = editForm.descripcionActivo;
+      fieldsToUpdate.observaciones = editForm.observaciones || null;
       const ambValue = editForm.codigoAmbiente;
       if (ambValue) fieldsToUpdate.codigoambiente = ambValue;
       const rubroFields = getEditFieldsForRubro(rubroDesc);
@@ -299,6 +315,7 @@ const InventarioList = () => {
         codigoActivo: filtroCodigoActivo,
         inventariador: filtroInventariador,
         carnet: filtroCarnet,
+        estado: filtroEstado,
         ...getUbicacionFilters(),
       });
     } catch (err) {
@@ -342,7 +359,7 @@ const InventarioList = () => {
         serie: editActivo.serie,
         marcamaterial: editActivo.marcaMaterial,
         estado: editActivo.estado,
-        observaciones: editActivo.observaciones,
+        observaciones: editForm.observaciones || editActivo.observaciones,
         valoractual: editActivo.valorActual,
         ultimoregistro: 1,
         estadoconservacion:
@@ -416,6 +433,7 @@ const InventarioList = () => {
             : a,
         ),
       );
+      adjustStatsLocal(activo, updateData.estadoinventario);
     } catch (err) {
       toast({
         title: "Error",
@@ -442,6 +460,7 @@ const InventarioList = () => {
             : a,
         ),
       );
+      adjustStatsLocal(activo, "ENVIADO");
     } catch (err) {
       toast({
         title: "Error",
@@ -480,13 +499,14 @@ const InventarioList = () => {
     const fields = getEditFieldsForRubro(rubroDesc);
 
     return fields.map((f) => (
-      <div key={f.key} className="space-y-2">
+      <div key={f.key} className="space-y-2 min-w-0">
         <Label htmlFor={f.key}>{f.label}</Label>
         <Input
           id={f.key}
           value={editForm[f.key] || ""}
           onChange={handleEditChange}
           disabled={isSaving}
+          className="break-words"
         />
       </div>
     ));
@@ -618,43 +638,19 @@ const InventarioList = () => {
     directRespMap,
   ]);
 
-  const filteredActivos = useMemo(() => {
-    if (filtroEstado === "all") return resolvedActivos;
-    return resolvedActivos.filter((a) => {
-      if (filtroEstado === "revisado")
-        return a.estadoinventario === "REVISADO";
-      if (filtroEstado === "pendiente")
-        return a.estadoinventario !== "REVISADO";
-      return true;
-    });
-  }, [resolvedActivos, filtroEstado]);
-
-  const totalPages = useMemo(
-    () => Math.max(1, Math.ceil(filteredActivos.length / pageSize)),
-    [filteredActivos.length, pageSize],
-  );
+  const paginatedData = resolvedActivos;
   const safeCurrentPage = useMemo(
-    () => Math.min(currentPage, totalPages),
-    [currentPage, totalPages],
+    () => Math.min(page, totalPages),
+    [page, totalPages],
   );
-  const paginatedData = useMemo(() => {
-    const start = (safeCurrentPage - 1) * pageSize;
-    return filteredActivos.slice(start, start + pageSize);
-  }, [filteredActivos, safeCurrentPage, pageSize]);
 
-  const totalStats = useMemo(() => {
-    let revisados = 0;
-    activos.forEach((a) => {
-      const est = String(a.estadoinventario || "").toUpperCase();
-      if (est === "REVISADO") revisados++;
-    });
-    return {
-      total: activos.length,
-      revisados,
-      noRevisados: activos.length - revisados,
-      progreso: (activos.length / TOTAL_ACTIVOS) * 100,
-    };
-  }, [activos]);
+  const totalStats = useMemo(
+    () => ({
+      ...rawTotalStats,
+      progreso: (rawTotalStats.total / TOTAL_ACTIVOS) * 100,
+    }),
+    [rawTotalStats],
+  );
 
   const progressLevel = useMemo(() => {
     if (totalStats.progreso >= 80) return "high";
@@ -662,33 +658,11 @@ const InventarioList = () => {
     return "low";
   }, [totalStats.progreso]);
 
-  const progressStyles = {
-    low: {
-      background:
-        "linear-gradient(180deg, #ef4444 0%, #dc2626 45%, #b91c1c 100%)",
-      borderColor: "#991b1b",
-      textColor: "#fff",
-      textShadow: "2px 2px 4px rgba(0, 0, 0, 0.4)",
-      titleShadow: "0 2px 0 #7f1d1d, 0 4px 6px rgba(0, 0, 0, 0.5)",
-    },
-    mid: {
-      background:
-        "linear-gradient(180deg, #fde047 0%, #facc15 45%, #ca8a04 100%)",
-      borderColor: "#a16207",
-      textColor: "#000",
-      textShadow: "1px 1px 2px rgba(0, 0, 0, 0.25)",
-      titleShadow: "0 2px 0 #a16207, 0 4px 6px rgba(0, 0, 0, 0.35)",
-    },
-    high: {
-      background:
-        "linear-gradient(180deg, #4ade80 0%, #22c55e 45%, #15803d 100%)",
-      borderColor: "#166534",
-      textColor: "#fff",
-      textShadow: "2px 2px 4px rgba(0, 0, 0, 0.4)",
-      titleShadow: "0 2px 0 #14532d, 0 4px 6px rgba(0, 0, 0, 0.5)",
-    },
+  const progressTextColors = {
+    low: "#dc2626",
+    mid: "#ca8a04",
+    high: "#16a34a",
   };
-  const progressStyle = progressStyles[progressLevel];
 
   if (isLoading && activos.length === 0 && rubros.length === 0) {
     return <LoadingSpinner />;
@@ -739,9 +713,13 @@ const InventarioList = () => {
                 />
               </div>
               <div className="space-y-2 flex items-end gap-2">
-                <Button onClick={handleSearch}>
-                  <Search className="h-4 w-4 mr-2" />
-                  Buscar
+                <Button onClick={handleSearch} disabled={isLoading}>
+                  {isLoading ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Search className="h-4 w-4 mr-2" />
+                  )}
+                  {isLoading ? "Buscando" : "Buscar"}
                 </Button>
                 <Button
                   variant="outline"
@@ -886,13 +864,10 @@ const InventarioList = () => {
               <DataPagination
                 currentPage={safeCurrentPage}
                 totalPages={totalPages}
-                totalCount={resolvedActivos.length}
+                totalCount={totalCount}
                 pageSize={pageSize}
-                onPageChange={setCurrentPage}
-                onPageSizeChange={(newSize) => {
-                  setPageSize(newSize);
-                  setCurrentPage(1);
-                }}
+                onPageChange={setPage}
+                onPageSizeChange={setPageSize}
               />
             )}
           </CardContent>
@@ -917,49 +892,90 @@ const InventarioList = () => {
                 Modifica los datos del activo fijo
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
-              {BASE_EDIT_FIELDS.map((f) => {
-                if (f.type === "select") {
-                  return (
-                    <div key={f.key} className="space-y-2">
-                      <Label htmlFor={f.key}>{f.label}</Label>
-                      <Select
-                        value={editForm.codigoAmbiente}
-                        onValueChange={(v) =>
-                          handleEditSelectChange("codigoAmbiente", v)
-                        }
-                        disabled={isSaving}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Seleccionar ambiente" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {ambientes.map((a) => (
-                            <SelectItem
-                              key={a.codigoambiente}
-                              value={String(a.codigoambiente).trim()}
-                            >
-                              {`${a.codigoambiente} - ${a.ambiente}`}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  );
-                }
-                return (
-                  <div key={f.key} className="space-y-2">
-                    <Label htmlFor={f.key}>{f.label}</Label>
-                    <Input
-                      id={f.key}
-                      value={editForm[f.key] || ""}
-                      onChange={f.readonly ? undefined : handleEditChange}
-                      disabled={isSaving || f.readonly}
-                      readOnly={f.readonly}
-                    />
-                  </div>
-                );
-              })}
+            <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto overflow-x-hidden">
+              <div className="space-y-4 min-w-0">
+                <div className="space-y-2">
+                  <Label htmlFor="codigoActivo">Código Activo</Label>
+                  <Input
+                    id="codigoActivo"
+                    value={editForm.codigoActivo || ""}
+                    onChange={undefined}
+                    disabled={isSaving}
+                    readOnly
+                    className="break-words"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="codigoAmbiente">Ambiente</Label>
+                  <Select
+                    value={editForm.codigoAmbiente}
+                    onValueChange={(v) =>
+                      handleEditSelectChange("codigoAmbiente", v)
+                    }
+                    disabled={isSaving}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Seleccionar ambiente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ambientes.map((a) => (
+                        <SelectItem
+                          key={a.codigoambiente}
+                          value={String(a.codigoambiente).trim()}
+                        >
+                          {`${a.codigoambiente} - ${a.ambiente}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="rubro">Rubro</Label>
+                  <Input
+                    id="rubro"
+                    value={editForm.rubro || ""}
+                    onChange={undefined}
+                    disabled={isSaving}
+                    readOnly
+                    className="break-words"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tipoRubro">Tipo Rubro</Label>
+                  <Input
+                    id="tipoRubro"
+                    value={editForm.tipoRubro || ""}
+                    onChange={undefined}
+                    disabled={isSaving}
+                    readOnly
+                    className="break-words"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="descripcionActivo">Descripción del Activo</Label>
+                <Textarea
+                  id="descripcionActivo"
+                  value={editForm.descripcionActivo || ""}
+                  onChange={handleEditChange}
+                  disabled={isSaving}
+                  rows={3}
+                  className="w-full break-words"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="observaciones">Observaciones</Label>
+                <Textarea
+                  id="observaciones"
+                  value={editForm.observaciones || ""}
+                  onChange={handleEditChange}
+                  disabled={isSaving}
+                  rows={2}
+                  className="w-full break-words"
+                />
+              </div>
 
               <div className="border-t pt-4 mt-2">
                 <h3 className="text-sm font-semibold text-muted-foreground mb-3">
@@ -987,7 +1003,7 @@ const InventarioList = () => {
                 <h3 className="text-sm font-semibold text-muted-foreground mb-3">
                   Características
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 min-w-0">
                   <div className="space-y-2">
                     <Label htmlFor="marcamaterial">Marca Material</Label>
                     <Input
@@ -995,6 +1011,7 @@ const InventarioList = () => {
                       value={editForm.marcamaterial || ""}
                       onChange={handleEditChange}
                       disabled={isSaving}
+                      className="break-words"
                     />
                   </div>
                   <div className="space-y-2">
@@ -1004,6 +1021,7 @@ const InventarioList = () => {
                       value={editForm.modelo || ""}
                       onChange={handleEditChange}
                       disabled={isSaving}
+                      className="break-words"
                     />
                   </div>
                   <div className="space-y-2">
@@ -1013,6 +1031,7 @@ const InventarioList = () => {
                       value={editForm.serie || ""}
                       onChange={handleEditChange}
                       disabled={isSaving}
+                      className="break-words"
                     />
                   </div>
                 </div>
@@ -1020,10 +1039,10 @@ const InventarioList = () => {
 
               {editActivo && rubroFromTipo[editActivo.tipoRubroAct] && (
                 <div className="border-t pt-4 mt-2">
-                  <h3 className="text-sm font-semibold text-muted-foreground mb-3">
+                  <h3 className="text-sm font-semibold text-muted-foreground mb-3 break-words">
                     Campos específicos: {rubroFromTipo[editActivo.tipoRubroAct]}
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 min-w-0">
                     {renderEditFields()}
                   </div>
                 </div>
@@ -1075,85 +1094,34 @@ const InventarioList = () => {
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle
-            className="text-lg font-bold flex items-center gap-2 tracking-wide"
-            style={{ textShadow: "1px 1px 2px rgba(0, 0, 0, 0.35)" }}
-          >
-            <Package className="h-4 w-4" />
-            RESUMEN DE TOTALES
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="rounded-lg border border-blue-200 dark:border-blue-900 border-b-4 border-b-blue-400 dark:border-b-blue-700 p-4 bg-blue-50 dark:bg-blue-950/20 text-center shadow-lg shadow-blue-200/60 dark:shadow-blue-950/40">
-              <div
-                className="text-base font-bold text-blue-600 dark:text-blue-400 tracking-wide"
-                style={{ textShadow: "1px 1px 2px rgba(37, 99, 235, 0.35)" }}
-              >
-                TOTAL ACTIVOS INVENTARIADOS
-              </div>
-              <div className="text-3xl font-bold text-blue-700 dark:text-blue-300">
-                {totalStats.total}
-              </div>
-            </div>
-            <div className="rounded-lg border border-red-200 dark:border-red-900 border-b-4 border-b-red-400 dark:border-b-red-700 p-4 bg-red-50 dark:bg-red-950/20 text-center shadow-lg shadow-red-200/60 dark:shadow-red-950/40">
-              <div
-                className="text-base font-bold text-red-600 dark:text-red-400 tracking-wide"
-                style={{ textShadow: "1px 1px 2px rgba(220, 38, 38, 0.35)" }}
-              >
-                NO REVISADOS
-              </div>
-              <div className="text-3xl font-bold text-red-700 dark:text-red-300">
-                {totalStats.noRevisados}
-              </div>
-            </div>
-            <div className="rounded-lg border border-yellow-200 dark:border-yellow-900 border-b-4 border-b-yellow-400 dark:border-b-yellow-700 p-4 bg-yellow-50 dark:bg-yellow-950/20 text-center shadow-lg shadow-yellow-200/60 dark:shadow-yellow-950/40">
-              <div
-                className="text-base font-bold text-yellow-600 dark:text-yellow-400 tracking-wide"
-                style={{ textShadow: "1px 1px 2px rgba(202, 138, 4, 0.35)" }}
-              >
-                REVISADOS
-              </div>
-              <div className="text-3xl font-bold text-yellow-700 dark:text-yellow-300">
-                {totalStats.revisados}
-              </div>
-            </div>
-          </div>
-
-          <div
-            className="mt-6 rounded-xl border-2 p-6 text-center"
-            style={{
-              background: progressStyle.background,
-              borderColor: progressStyle.borderColor,
-              boxShadow:
-                "inset 0 3px 0 rgba(255,255,255,0.3), inset 0 -7px 0 rgba(0,0,0,0.2), 0 14px 28px rgba(0,0,0,0.35)",
-            }}
-          >
-            <div
-              className="text-3xl font-black tracking-widest"
-              style={{
-                color: progressStyle.textColor,
-                textShadow: progressStyle.titleShadow,
-              }}
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <CardTitle
+              className="text-lg font-bold flex items-center gap-2 tracking-wide"
+              style={{ textShadow: "1px 1px 2px rgba(0, 0, 0, 0.35)" }}
             >
-              PROGRESO
-            </div>
-            <div
-              className="text-5xl font-extrabold mt-2 animate-flash"
-              style={{
-                color: progressStyle.textColor,
-                textShadow: progressStyle.textShadow,
-              }}
-            >
-              {totalStats.progreso.toFixed(2)}%
-            </div>
-            {progressLevel === "low" && (
-              <div className="mt-3" title="No has llegado al 50%">
+              <Package className="h-4 w-4" />
+              RESUMEN DE TOTALES
+            </CardTitle>
+            <div className="flex items-center gap-3 text-right">
+              <span
+                className="text-base font-bold tracking-wide"
+                style={{ color: progressTextColors[progressLevel] }}
+              >
+                PROGRESO
+              </span>
+              <span
+                className="text-xl font-extrabold animate-flash"
+                style={{ color: progressTextColors[progressLevel] }}
+              >
+                {totalStats.progreso.toFixed(2)}%
+              </span>
+              {progressLevel === "low" && (
                 <svg
-                  width="80"
-                  height="80"
+                  width="28"
+                  height="28"
                   viewBox="0 0 100 100"
                   className="inline-block"
+                  title="No has llegado al 50%"
                 >
                   <defs>
                     <radialGradient id="faceGrad" cx="40%" cy="30%" r="80%">
@@ -1219,15 +1187,14 @@ const InventarioList = () => {
                     fill="#7c2d12"
                   />
                 </svg>
-              </div>
-            )}
-            {progressLevel === "mid" && (
-              <div className="mt-3" title="Has llegado al 50%">
+              )}
+              {progressLevel === "mid" && (
                 <svg
-                  width="80"
-                  height="80"
+                  width="28"
+                  height="28"
                   viewBox="0 0 100 100"
                   className="inline-block"
+                  title="Has llegado al 50%"
                 >
                   <defs>
                     <radialGradient id="faceGrad" cx="40%" cy="30%" r="80%">
@@ -1296,15 +1263,14 @@ const InventarioList = () => {
                     fill="none"
                   />
                 </svg>
-              </div>
-            )}
-            {progressLevel === "high" && (
-              <div className="mt-3" title="Has llegado al 80%">
+              )}
+              {progressLevel === "high" && (
                 <svg
-                  width="80"
-                  height="80"
+                  width="28"
+                  height="28"
                   viewBox="0 0 100 100"
                   className="inline-block"
+                  title="Has llegado al 80%"
                 >
                   <defs>
                     <radialGradient id="faceGrad" cx="40%" cy="30%" r="80%">
@@ -1382,9 +1348,47 @@ const InventarioList = () => {
                     fill="#7c2d12"
                   />
                 </svg>
-              </div>
-            )}
+              )}
+            </div>
           </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="rounded-lg border border-blue-200 dark:border-blue-900 border-b-4 border-b-blue-400 dark:border-b-blue-700 p-4 bg-blue-50 dark:bg-blue-950/20 text-center shadow-lg shadow-blue-200/60 dark:shadow-blue-950/40">
+              <div
+                className="text-base font-bold text-blue-600 dark:text-blue-400 tracking-wide"
+                style={{ textShadow: "1px 1px 2px rgba(37, 99, 235, 0.35)" }}
+              >
+                TOTAL ACTIVOS INVENTARIADOS
+              </div>
+              <div className="text-3xl font-bold text-blue-700 dark:text-blue-300">
+                {totalStats.total}
+              </div>
+            </div>
+            <div className="rounded-lg border border-red-200 dark:border-red-900 border-b-4 border-b-red-400 dark:border-b-red-700 p-4 bg-red-50 dark:bg-red-950/20 text-center shadow-lg shadow-red-200/60 dark:shadow-red-950/40">
+              <div
+                className="text-base font-bold text-red-600 dark:text-red-400 tracking-wide"
+                style={{ textShadow: "1px 1px 2px rgba(220, 38, 38, 0.35)" }}
+              >
+                NO REVISADOS
+              </div>
+              <div className="text-3xl font-bold text-red-700 dark:text-red-300">
+                {totalStats.noRevisados}
+              </div>
+            </div>
+            <div className="rounded-lg border border-yellow-200 dark:border-yellow-900 border-b-4 border-b-yellow-400 dark:border-b-yellow-700 p-4 bg-yellow-50 dark:bg-yellow-950/20 text-center shadow-lg shadow-yellow-200/60 dark:shadow-yellow-950/40">
+              <div
+                className="text-base font-bold text-yellow-600 dark:text-yellow-400 tracking-wide"
+                style={{ textShadow: "1px 1px 2px rgba(202, 138, 4, 0.35)" }}
+              >
+                REVISADOS
+              </div>
+              <div className="text-3xl font-bold text-yellow-700 dark:text-yellow-300">
+                {totalStats.revisados}
+              </div>
+            </div>
+          </div>
+
         </CardContent>
       </Card>
 
@@ -1457,6 +1461,7 @@ const InventarioList = () => {
         inmuebleOptionsByCiudad={inmuebleOptionsByCiudad}
         nivelOptionsByInmueble={nivelOptionsByInmueble}
         ambienteOptionsByNivel={ambienteOptionsByNivel}
+        isLoading={isLoading}
       />
 
       <Card>
@@ -1483,13 +1488,10 @@ const InventarioList = () => {
             <DataPagination
               currentPage={safeCurrentPage}
               totalPages={totalPages}
-              totalCount={filteredActivos.length}
+              totalCount={totalCount}
               pageSize={pageSize}
-              onPageChange={setCurrentPage}
-              onPageSizeChange={(newSize) => {
-                setPageSize(newSize);
-                setCurrentPage(1);
-              }}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
             />
           )}
         </CardContent>

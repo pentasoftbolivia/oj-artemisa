@@ -2,7 +2,8 @@ import { useState, useCallback } from "react";
 import { useDispatch } from "react-redux";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import { supabase, fetchAllFromTable } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
+import { getCachedCatalog } from "@/lib/catalogCache";
 import { buildDenominacion } from "@/lib/utils";
 import { toCamelCaseArray } from "@/lib/mapFields";
 import { useToast } from "@/hooks/use-toast";
@@ -62,28 +63,24 @@ export const loadActaData = async (responsable, locationFilters = {}) => {
     return { assets, tipoRubroMap: {}, descTipoRubroMap: {}, resolveUbicacion: () => "" };
   }
 
-  const [trRes, rRes, ambData, nData, iData, cData] = await Promise.all([
-    supabase.from("act_tiporubro").select("tiporubroact, codigorubroact, descripciontiporubroact"),
-    supabase.from("act_rubro").select("codigorubroact, descripcionrubroact"),
-    fetchAllFromTable("act_ambiente", "codigoambiente, ambiente, codigonivel", { orderColumn: "codigoambiente" }),
-    fetchAllFromTable("act_nivel", "codigonivel, nivel, codigoinmueble", { orderColumn: "codigonivel" }),
-    fetchAllFromTable("act_inmueble", "codigoinmueble, inmueble, codigociudad", { orderColumn: "codigoinmueble" }),
-    fetchAllFromTable("act_ciudad", "codigociudad, descripcion", { orderColumn: "codigociudad" })
+  const [tipoRubros, rubros, ambData, nData, iData, cData] = await Promise.all([
+    getCachedCatalog("act_tiporubro"),
+    getCachedCatalog("act_rubro"),
+    getCachedCatalog("act_ambiente"),
+    getCachedCatalog("act_nivel"),
+    getCachedCatalog("act_inmueble"),
+    getCachedCatalog("act_ciudad")
   ]);
 
   const rubroMap = {};
-  if (!rRes.error) {
-    rRes.data.forEach(r => rubroMap[r.codigorubroact] = r.descripcionrubroact);
-  }
+  (rubros || []).forEach(r => rubroMap[r.codigorubroact] = r.descripcionrubroact);
 
   const tipoRubroMap = {};
   const descTipoRubroMap = {};
-  if (!trRes.error) {
-    trRes.data.forEach(tr => {
-      tipoRubroMap[tr.tiporubroact] = rubroMap[tr.codigorubroact];
-      descTipoRubroMap[tr.tiporubroact] = tr.descripciontiporubroact;
-    });
-  }
+  (tipoRubros || []).forEach(tr => {
+    tipoRubroMap[tr.tiporubroact] = rubroMap[tr.codigorubroact];
+    descTipoRubroMap[tr.tiporubroact] = tr.descripciontiporubroact;
+  });
 
   const ambienteMap = {};
   const ambienteNivelMap = {};
