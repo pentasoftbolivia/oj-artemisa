@@ -12,6 +12,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { buildDenominacion } from "@/lib/utils";
 import { selectUser } from "@/store/auth/authSlice";
 import { useToast } from "@/hooks/use-toast";
 
@@ -795,7 +796,7 @@ const InventarioList = () => {
                           {a._tipoRubro}
                         </TableCell>
                         <TableCell className="whitespace-normal break-words max-w-[250px]">
-                          {a.descripcionActivo}
+                          {buildDenominacion(a, a._rubro)}
                         </TableCell>
                         <TableCell className="font-mono text-xs whitespace-normal break-words max-w-[200px]">
                           {getAmbienteName(a._ambienteKey)}

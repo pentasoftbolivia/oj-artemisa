@@ -63,6 +63,10 @@ export const RUBRO_FIELDS_RAW = {
     { key: "potencia", label: "Potencia" },
     { key: "funcion", label: "Función" },
   ],
+  "OTRA MAQUINARIA Y EQUIPO": [
+    { key: "potencia", label: "Potencia" },
+    { key: "funcion", label: "Función" },
+  ],
   "OTROS ACTIVOS FIJOS": [
     { key: "categoria", label: "Categoría" },
     { key: "caracteristicas", label: "Características" },

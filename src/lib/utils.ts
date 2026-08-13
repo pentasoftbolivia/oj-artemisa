@@ -64,6 +64,8 @@ export const buildDenominacion = (activo: any, rubroName: string): string => {
     add("medidas", "MEDIDAS: "); add("color", "COLOR: "); add("divisionescajonesbandejas", "DIVISIONES: "); add("chapa", "CHAPA: "); add("abatible", "ABATIBLE: "); add("deslizable", "DESLIZABLE: ");
   } else if (rn.includes("EQUIPO DE COMPUTAC") || rn.includes("EQUIPOS DE COMPUTAC")) {
     add("marcaMaterial", "MARCA: "); add("modelo", "MOD: "); add("serie", "S/N: "); add("ram", "RAM: "); add("procesador", "CPU: "); add("discoduro", "HDD/SSD: ");
+  } else if (rn.includes("OTRA MAQUINARIA Y EQUIPO")) {
+    add("marcaMaterial", "MARCA: "); add("modelo", "MOD: "); add("serie", "S/N: "); add("potencia", "POTENCIA: "); add("funcion", "FUNCIÓN: ");
   } else if (rn === "MAQUINARIA Y EQUIPO" || rn.includes("MAQUINARIA Y EQUIPO")) {
     if (rn.includes("OTROS EQUIPOS")) {
       add("potencia", "POTENCIA: "); add("funcion", "FUNCIÓN: ");
