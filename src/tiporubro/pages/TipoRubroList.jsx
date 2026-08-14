@@ -21,11 +21,14 @@ import {
 } from "@/components/ui/dialog";
 import LoadingSpinner from "@/components/ui/loading-spinner";
 import DataPagination from "@/components/ui/data-pagination";
+
 import { Plus, Building2 } from "lucide-react";
 
 import TipoRubroFilters from "../components/TipoRubroFilters";
 import TipoRubroTable from "../components/TipoRubroTable";
 import { useToast } from "@/hooks/use-toast";
+import { useCrudModal } from "@/hooks/useCrudModal";
+import { useCatalogState } from "@/hooks/useCatalogState";
 
 import {
   fetchTipoRubros,
@@ -38,6 +41,8 @@ import {
   selectTipoRubrosLoading,
   selectTipoRubrosError,
 } from "@/store/tiporubro/tiporubroSlice";
+import { fetchRubros } from "@/store/rubro/rubroThunks";
+import { selectRubros } from "@/store/rubro/rubroSlice";
 import TipoRubroForm from "./TipoRubroForm";
 
 const INITIAL_FILTERS = { search: "" };
@@ -46,63 +51,61 @@ const ESTADO_MAP = { 1: "Activo", 0: "Inactivo" };
 const TipoRubroList = () => {
   const dispatch = useDispatch();
   const { toast } = useToast();
-  const tipoRubros = useSelector(selectTipoRubros);
+  const tiporubros = useSelector(selectTipoRubros);
+  const rubros = useSelector(selectRubros);
   const isLoading = useSelector(selectTipoRubrosLoading);
   const error = useSelector(selectTipoRubrosError);
 
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingTipoRubro, setEditingTipoRubro] = useState(null);
-  const [tipoRubroToDelete, setTipoRubroToDelete] = useState(null);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [filters, setFilters] = useState({ ...INITIAL_FILTERS });
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(100);
+  const {
+    isFormOpen,
+    setIsFormOpen,
+    editingItem: editingTipoRubro,
+    handleAdd,
+    handleEdit,
+    handleCancelForm: handleCancel,
+    itemToDelete: tiporubroToDelete,
+    isDeleteDialogOpen,
+    setIsDeleteDialogOpen,
+    handleDelete,
+  } = useCrudModal();
 
-  const [rubrosMap, setRubrosMap] = useState({});
-
-  useEffect(() => { dispatch(fetchTipoRubros()); }, [dispatch]);
+  const {
+    filters,
+    currentPage,
+    pageSize,
+    setPageSize,
+    setCurrentPage,
+    handleFilterChange,
+    clearFilters,
+    filteredData: filtered,
+    paginatedData,
+    totalPages,
+    safeCurrentPage,
+  } = useCatalogState({
+    data: tiporubros,
+    searchFields: ["descripciontiporubroact","tiporubroact","codigorubroact"],
+    sortField: "descripciontiporubroact"
+  });
 
   useEffect(() => {
-    import("@/lib/supabase").then(({ supabase }) => {
-      supabase
-        .from("act_rubro")
-        .select("codigorubroact, descripcionrubroact")
-        .then(({ data }) => {
-          if (data) {
-            const map = {};
-            data.forEach(r => { map[r.codigorubroact] = r.descripcionrubroact; });
-            setRubrosMap(map);
-          }
-        });
-    });
-  }, []);
+    dispatch(fetchTipoRubros());
+    dispatch(fetchRubros());
+  }, [dispatch]);
 
-  const handleAdd = useCallback(() => { setEditingTipoRubro(null); setIsFormOpen(true); }, []);
-  const handleEdit = useCallback((a) => { setEditingTipoRubro(a); setIsFormOpen(true); }, []);
-  const handleDelete = useCallback((a) => { setTipoRubroToDelete(a); setIsDeleteDialogOpen(true); }, []);
+  const rubrosMap = useMemo(() => {
+    return rubros.reduce((acc, r) => {
+      acc[r.codigorubroact] = r.descripcionrubroact;
+      return acc;
+    }, {});
+  }, [rubros]);
 
   const confirmDelete = useCallback(() => {
-    if (tipoRubroToDelete) {
-      dispatch(deleteTipoRubro(tipoRubroToDelete.tiporubroact));
+    if (tiporubroToDelete) {
+      dispatch(deleteTipoRubro(tiporubroToDelete.tiporubroact));
       setIsDeleteDialogOpen(false);
-      setTipoRubroToDelete(null);
-      toast({ title: "¡Éxito!", description: "El tipo de rubro se ha eliminado correctamente." });
+      toast({ title: "¡Éxito!", description: "Se ha eliminado correctamente." });
     }
-  }, [tipoRubroToDelete, dispatch, toast]);
-
-  const handleCancel = useCallback(() => { setIsFormOpen(false); setEditingTipoRubro(null); }, []);
-  const handleFilterChange = useCallback((type, value) => { setFilters(p => ({ ...p, [type]: value })); setCurrentPage(1); }, []);
-  const clearFilters = useCallback(() => { setFilters({ ...INITIAL_FILTERS }); setCurrentPage(1); }, []);
-
-  const filtered = useMemo(() =>
-    tipoRubros.filter(a => {
-      const s = `${a.descripciontiporubroact || ""} ${a.tiporubroact || ""}`.toLowerCase();
-      return !filters.search || s.includes(filters.search.toLowerCase());
-    }).sort((a, b) => (a.descripciontiporubroact || "").localeCompare(b.descripciontiporubroact || "")), [tipoRubros, filters]);
-
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(filtered.length / pageSize)), [filtered.length, pageSize]);
-  const safeCurrentPage = useMemo(() => Math.min(currentPage, totalPages), [currentPage, totalPages]);
-  const paginatedData = useMemo(() => { const start = (safeCurrentPage - 1) * pageSize; return filtered.slice(start, start + pageSize); }, [filtered, safeCurrentPage, pageSize]);
+  }, [tiporubroToDelete, dispatch, toast, setIsDeleteDialogOpen]);
 
   const handleSubmit = useCallback(async (data) => {
     const action = editingTipoRubro
@@ -110,7 +113,7 @@ const TipoRubroList = () => {
       : addTipoRubro(data);
     try {
       await dispatch(action).unwrap();
-      toast({ title: "¡Éxito!", description: `El tipo de rubro se ha ${editingTipoRubro ? "actualizado" : "guardado"} correctamente.` });
+      toast({ title: "¡Éxito!", description: `Se ha ${editingTipoRubro ? "actualizado" : "guardado"} correctamente.` });
       handleCancel();
       return true;
     } catch (err) {
@@ -119,7 +122,7 @@ const TipoRubroList = () => {
     }
   }, [dispatch, editingTipoRubro, toast, handleCancel]);
 
-  if (isLoading && tipoRubros.length === 0) return <LoadingSpinner />;
+  if (isLoading && tiporubros.length === 0) return <LoadingSpinner />;
   if (error) return <div className="bg-red-600 text-white text-center p-4 rounded-lg">Error: {error}</div>;
 
   return (
@@ -178,7 +181,7 @@ const TipoRubroList = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>¿Está seguro de eliminar este tipo de rubro?</DialogTitle>
-            <DialogDescription>Esta acción no se puede deshacer. El tipo de rubro "{tipoRubroToDelete?.descripciontiporubroact}" será eliminado permanentemente.</DialogDescription>
+            <DialogDescription>Esta acción no se puede deshacer. El tipo de rubro "{tiporubroToDelete?.descripciontiporubroact}" será eliminado permanentemente.</DialogDescription>
           </DialogHeader>
           <div className="flex justify-end space-x-2 pt-4">
             <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>Cancelar</Button>

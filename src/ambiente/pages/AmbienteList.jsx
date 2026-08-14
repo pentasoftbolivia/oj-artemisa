@@ -26,6 +26,8 @@ import { Plus, Building2 } from "lucide-react";
 import AmbienteFilters from "../components/AmbienteFilters";
 import AmbienteTable from "../components/AmbienteTable";
 import { useToast } from "@/hooks/use-toast";
+import { useCrudModal } from "@/hooks/useCrudModal";
+import { useCatalogState } from "@/hooks/useCatalogState";
 
 import {
   fetchAmbientes,
@@ -51,44 +53,48 @@ const AmbienteList = () => {
   const isLoading = useSelector(selectAmbientesLoading);
   const error = useSelector(selectAmbientesError);
 
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingAmbiente, setEditingAmbiente] = useState(null);
-  const [ambienteToDelete, setAmbienteToDelete] = useState(null);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [filters, setFilters] = useState({ ...INITIAL_FILTERS });
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(100);
+  const {
+    isFormOpen,
+    setIsFormOpen,
+    editingItem: editingAmbiente,
+    handleAdd,
+    handleEdit,
+    handleCancelForm: handleCancel,
+    itemToDelete: ambienteToDelete,
+    isDeleteDialogOpen,
+    setIsDeleteDialogOpen,
+    handleDelete,
+  } = useCrudModal();
+
+  const {
+    filters,
+    currentPage,
+    pageSize,
+    setPageSize,
+    setCurrentPage,
+    handleFilterChange,
+    clearFilters,
+    filteredData: filtered,
+    paginatedData,
+    totalPages,
+    safeCurrentPage,
+  } = useCatalogState({
+    data: ambientes,
+    searchFields: ["ambiente","codigoambiente","codigonivel"],
+    sortField: "ambiente"
+  });
 
   useEffect(() => {
     dispatch(fetchAmbientes());
   }, [dispatch]);
 
-  const handleAdd = useCallback(() => { setEditingAmbiente(null); setIsFormOpen(true); }, []);
-  const handleEdit = useCallback((a) => { setEditingAmbiente(a); setIsFormOpen(true); }, []);
-  const handleDelete = useCallback((a) => { setAmbienteToDelete(a); setIsDeleteDialogOpen(true); }, []);
-
   const confirmDelete = useCallback(() => {
     if (ambienteToDelete) {
       dispatch(deleteAmbiente(ambienteToDelete.codigoambiente));
       setIsDeleteDialogOpen(false);
-      setAmbienteToDelete(null);
-      toast({ title: "¡Éxito!", description: "El ambiente se ha eliminado correctamente." });
+      toast({ title: "¡Éxito!", description: "Se ha eliminado correctamente." });
     }
-  }, [ambienteToDelete, dispatch, toast]);
-
-  const handleCancel = useCallback(() => { setIsFormOpen(false); setEditingAmbiente(null); }, []);
-  const handleFilterChange = useCallback((type, value) => { setFilters(p => ({ ...p, [type]: value })); setCurrentPage(1); }, []);
-  const clearFilters = useCallback(() => { setFilters({ ...INITIAL_FILTERS }); setCurrentPage(1); }, []);
-
-  const filtered = useMemo(() =>
-    ambientes.filter(a => {
-      const s = `${a.ambiente || ""} ${a.codigoambiente || ""} ${a.codigonivel || ""}`.toLowerCase();
-      return !filters.search || s.includes(filters.search.toLowerCase());
-    }).sort((a, b) => (a.ambiente || "").localeCompare(b.ambiente || "")), [ambientes, filters]);
-
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(filtered.length / pageSize)), [filtered.length, pageSize]);
-  const safeCurrentPage = useMemo(() => Math.min(currentPage, totalPages), [currentPage, totalPages]);
-  const paginatedData = useMemo(() => { const start = (safeCurrentPage - 1) * pageSize; return filtered.slice(start, start + pageSize); }, [filtered, safeCurrentPage, pageSize]);
+  }, [ambienteToDelete, dispatch, toast, setIsDeleteDialogOpen]);
 
   const handleSubmit = useCallback(async (data) => {
     const action = editingAmbiente
@@ -96,7 +102,7 @@ const AmbienteList = () => {
       : addAmbiente(data);
     try {
       await dispatch(action).unwrap();
-      toast({ title: "¡Éxito!", description: `El ambiente se ha ${editingAmbiente ? "actualizado" : "guardado"} correctamente.` });
+      toast({ title: "¡Éxito!", description: `Se ha ${editingAmbiente ? "actualizado" : "guardado"} correctamente.` });
       handleCancel();
       return true;
     } catch (err) {

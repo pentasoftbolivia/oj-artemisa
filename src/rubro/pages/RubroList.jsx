@@ -26,6 +26,8 @@ import { Plus, Building2 } from "lucide-react";
 import RubroFilters from "../components/RubroFilters";
 import RubroTable from "../components/RubroTable";
 import { useToast } from "@/hooks/use-toast";
+import { useCrudModal } from "@/hooks/useCrudModal";
+import { useCatalogState } from "@/hooks/useCatalogState";
 
 import {
   fetchRubros,
@@ -49,42 +51,48 @@ const RubroList = () => {
   const isLoading = useSelector(selectRubrosLoading);
   const error = useSelector(selectRubrosError);
 
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingRubro, setEditingRubro] = useState(null);
-  const [rubroToDelete, setRubroToDelete] = useState(null);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [filters, setFilters] = useState({ ...INITIAL_FILTERS });
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(100);
+  const {
+    isFormOpen,
+    setIsFormOpen,
+    editingItem: editingRubro,
+    handleAdd,
+    handleEdit,
+    handleCancelForm: handleCancel,
+    itemToDelete: rubroToDelete,
+    isDeleteDialogOpen,
+    setIsDeleteDialogOpen,
+    handleDelete,
+  } = useCrudModal();
 
-  useEffect(() => { dispatch(fetchRubros()); }, [dispatch]);
+  const {
+    filters,
+    currentPage,
+    pageSize,
+    setPageSize,
+    setCurrentPage,
+    handleFilterChange,
+    clearFilters,
+    filteredData: filtered,
+    paginatedData,
+    totalPages,
+    safeCurrentPage,
+  } = useCatalogState({
+    data: rubros,
+    searchFields: ["descripcionrubroact","codigorubroact"],
+    sortField: "descripcionrubroact"
+  });
 
-  const handleAdd = useCallback(() => { setEditingRubro(null); setIsFormOpen(true); }, []);
-  const handleEdit = useCallback((a) => { setEditingRubro(a); setIsFormOpen(true); }, []);
-  const handleDelete = useCallback((a) => { setRubroToDelete(a); setIsDeleteDialogOpen(true); }, []);
+  useEffect(() => {
+    dispatch(fetchRubros());
+  }, [dispatch]);
 
   const confirmDelete = useCallback(() => {
     if (rubroToDelete) {
       dispatch(deleteRubro(rubroToDelete.codigorubroact));
       setIsDeleteDialogOpen(false);
-      setRubroToDelete(null);
-      toast({ title: "¡Éxito!", description: "El rubro se ha eliminado correctamente." });
+      toast({ title: "¡Éxito!", description: "Se ha eliminado correctamente." });
     }
-  }, [rubroToDelete, dispatch, toast]);
-
-  const handleCancel = useCallback(() => { setIsFormOpen(false); setEditingRubro(null); }, []);
-  const handleFilterChange = useCallback((type, value) => { setFilters(p => ({ ...p, [type]: value })); setCurrentPage(1); }, []);
-  const clearFilters = useCallback(() => { setFilters({ ...INITIAL_FILTERS }); setCurrentPage(1); }, []);
-
-  const filtered = useMemo(() =>
-    rubros.filter(a => {
-      const s = `${a.descripcionrubroact || ""} ${a.codigorubroact || ""} ${a.tipo || ""}`.toLowerCase();
-      return !filters.search || s.includes(filters.search.toLowerCase());
-    }).sort((a, b) => (a.descripcionrubroact || "").localeCompare(b.descripcionrubroact || "")), [rubros, filters]);
-
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(filtered.length / pageSize)), [filtered.length, pageSize]);
-  const safeCurrentPage = useMemo(() => Math.min(currentPage, totalPages), [currentPage, totalPages]);
-  const paginatedData = useMemo(() => { const start = (safeCurrentPage - 1) * pageSize; return filtered.slice(start, start + pageSize); }, [filtered, safeCurrentPage, pageSize]);
+  }, [rubroToDelete, dispatch, toast, setIsDeleteDialogOpen]);
 
   const handleSubmit = useCallback(async (data) => {
     const action = editingRubro
@@ -92,7 +100,7 @@ const RubroList = () => {
       : addRubro(data);
     try {
       await dispatch(action).unwrap();
-      toast({ title: "¡Éxito!", description: `El rubro se ha ${editingRubro ? "actualizado" : "guardado"} correctamente.` });
+      toast({ title: "¡Éxito!", description: `Se ha ${editingRubro ? "actualizado" : "guardado"} correctamente.` });
       handleCancel();
       return true;
     } catch (err) {

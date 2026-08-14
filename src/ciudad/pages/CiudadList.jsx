@@ -26,6 +26,8 @@ import { Plus, Building2 } from "lucide-react";
 import CiudadFilters from "../components/CiudadFilters";
 import CiudadTable from "../components/CiudadTable";
 import { useToast } from "@/hooks/use-toast";
+import { useCrudModal } from "@/hooks/useCrudModal";
+import { useCatalogState } from "@/hooks/useCatalogState";
 
 import {
   fetchCiudades,
@@ -47,48 +49,52 @@ const ESTADO_MAP = { 1: "Activo", 0: "Inactivo" };
 const CiudadList = () => {
   const dispatch = useDispatch();
   const { toast } = useToast();
-  const ciudades = useSelector(selectCiudades);
+  const ciudads = useSelector(selectCiudades);
   const isLoading = useSelector(selectCiudadesLoading);
   const error = useSelector(selectCiudadesError);
 
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingCiudad, setEditingCiudad] = useState(null);
-  const [ciudadToDelete, setCiudadToDelete] = useState(null);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [filters, setFilters] = useState({ ...INITIAL_FILTERS });
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(100);
+  const {
+    isFormOpen,
+    setIsFormOpen,
+    editingItem: editingCiudad,
+    handleAdd,
+    handleEdit,
+    handleCancelForm: handleCancel,
+    itemToDelete: ciudadToDelete,
+    isDeleteDialogOpen,
+    setIsDeleteDialogOpen,
+    handleDelete,
+  } = useCrudModal();
+
+  const {
+    filters,
+    currentPage,
+    pageSize,
+    setPageSize,
+    setCurrentPage,
+    handleFilterChange,
+    clearFilters,
+    filteredData: filtered,
+    paginatedData,
+    totalPages,
+    safeCurrentPage,
+  } = useCatalogState({
+    data: ciudads,
+    searchFields: ["descripcion","codigociudad"],
+    sortField: "descripcion"
+  });
 
   useEffect(() => {
     dispatch(fetchCiudades());
   }, [dispatch]);
 
-  const handleAdd = useCallback(() => { setEditingCiudad(null); setIsFormOpen(true); }, []);
-  const handleEdit = useCallback((c) => { setEditingCiudad(c); setIsFormOpen(true); }, []);
-  const handleDelete = useCallback((c) => { setCiudadToDelete(c); setIsDeleteDialogOpen(true); }, []);
-
   const confirmDelete = useCallback(() => {
     if (ciudadToDelete) {
       dispatch(deleteCiudad(ciudadToDelete.codigociudad));
       setIsDeleteDialogOpen(false);
-      setCiudadToDelete(null);
-      toast({ title: "¡Éxito!", description: "La ciudad se ha eliminado correctamente." });
+      toast({ title: "¡Éxito!", description: "Se ha eliminado correctamente." });
     }
-  }, [ciudadToDelete, dispatch, toast]);
-
-  const handleCancel = useCallback(() => { setIsFormOpen(false); setEditingCiudad(null); }, []);
-  const handleFilterChange = useCallback((type, value) => { setFilters(p => ({ ...p, [type]: value })); setCurrentPage(1); }, []);
-  const clearFilters = useCallback(() => { setFilters({ ...INITIAL_FILTERS }); setCurrentPage(1); }, []);
-
-  const filtered = useMemo(() =>
-    ciudades.filter(c => {
-      const s = `${c.descripcion || ""} ${c.codigociudad || ""}`.toLowerCase();
-      return !filters.search || s.includes(filters.search.toLowerCase());
-    }).sort((a, b) => (a.descripcion || "").localeCompare(b.descripcion || "")), [ciudades, filters]);
-
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(filtered.length / pageSize)), [filtered.length, pageSize]);
-  const safeCurrentPage = useMemo(() => Math.min(currentPage, totalPages), [currentPage, totalPages]);
-  const paginatedData = useMemo(() => { const start = (safeCurrentPage - 1) * pageSize; return filtered.slice(start, start + pageSize); }, [filtered, safeCurrentPage, pageSize]);
+  }, [ciudadToDelete, dispatch, toast, setIsDeleteDialogOpen]);
 
   const handleSubmit = useCallback(async (data) => {
     const action = editingCiudad
@@ -96,7 +102,7 @@ const CiudadList = () => {
       : addCiudad(data);
     try {
       await dispatch(action).unwrap();
-      toast({ title: "¡Éxito!", description: `La ciudad se ha ${editingCiudad ? "actualizado" : "guardado"} correctamente.` });
+      toast({ title: "¡Éxito!", description: `Se ha ${editingCiudad ? "actualizado" : "guardado"} correctamente.` });
       handleCancel();
       return true;
     } catch (err) {
@@ -105,7 +111,7 @@ const CiudadList = () => {
     }
   }, [dispatch, editingCiudad, toast, handleCancel]);
 
-  if (isLoading && ciudades.length === 0) return <LoadingSpinner />;
+  if (isLoading && ciudads.length === 0) return <LoadingSpinner />;
   if (error) return <div className="bg-red-600 text-white text-center p-4 rounded-lg">Error: {error}</div>;
 
   return (

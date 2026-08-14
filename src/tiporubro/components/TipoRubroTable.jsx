@@ -28,8 +28,8 @@ const TipoRubroTable = memo(({ tipoRubros, rubrosMap, hasActiveFilters, onEdit, 
         </TableHeader>
         <TableBody>
           {tipoRubros.length > 0 ? (
-            tipoRubros.map((a) => (
-              <TableRow key={a.tiporubroact}>
+            tipoRubros.map((a, idx) => (
+              <TableRow key={`${a.tiporubroact}-${idx}`}>
                 <TableCell className="font-medium">
                   {a.tiporubroact}
                 </TableCell>

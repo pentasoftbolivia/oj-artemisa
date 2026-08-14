@@ -1,94 +1,41 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { useSelector, useDispatch } from "react-redux";
+import { useCallback } from "react";
+import { useSelector } from "react-redux";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import LoadingSpinner from "@/components/ui/loading-spinner";
 import DataPagination from "@/components/ui/data-pagination";
 import { ClipboardList } from "lucide-react";
-import { supabase } from "@/lib/supabase";
 
 import AsignacionesFilters from "../components/AsignacionesFilters";
 import AsignacionesTable from "../components/AsignacionesTable";
 
-import { fetchAsignaciones } from "@/store/asignaciones/asignacionesThunks";
 import {
-  resetAsignaciones,
   selectAsignacionesData,
   selectAsignacionesTotalCount,
   selectAsignacionesLoading,
   selectAsignacionesError,
 } from "@/store/asignaciones/asignacionesSlice";
+import { useAsignacionesState } from "../hooks/useAsignacionesState";
 
 const ESTADOS = ["Activo", "Baja"];
 
-const INITIAL_FILTERS = {
-  searchFuncionario: "",
-  searchActivo: "",
-  searchGrupo: "",
-  estado: "",
-};
-
-const EMPTY_ARRAY = [];
-
 const AsignacionesList = () => {
-  const dispatch = useDispatch();
-
   const asignaciones = useSelector(selectAsignacionesData);
   const totalCount = useSelector(selectAsignacionesTotalCount);
   const isLoading = useSelector(selectAsignacionesLoading);
   const error = useSelector(selectAsignacionesError);
 
-  const [rubros, setRubros] = useState(EMPTY_ARRAY);
-  useEffect(() => {
-    supabase
-      .from("act_rubro")
-      .select("descripcionrubroact")
-      .order("descripcionrubroact", { ascending: true })
-      .then(({ data, error }) => {
-        if (!error && data) setRubros(data);
-      });
-  }, []);
-
-  const [filters, setFilters] = useState({ ...INITIAL_FILTERS });
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
-
-  const hasActiveFilters =
-    filters.searchFuncionario ||
-    filters.searchActivo ||
-    filters.searchGrupo ||
-    filters.estado;
-
-  const debounceRef = useRef(null);
-
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-
-    debounceRef.current = setTimeout(() => {
-      if (!hasActiveFilters) {
-        dispatch(resetAsignaciones());
-        return;
-      }
-      dispatch(fetchAsignaciones({ page: currentPage, pageSize, filters }));
-    }, 400);
-
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [dispatch, hasActiveFilters, currentPage, pageSize, filters]);
-
-  const handleFilterChange = useCallback((filterType, value) => {
-    setFilters((prev) => ({
-      ...prev,
-      [filterType]: value === "__todos__" ? "" : value,
-    }));
-    setCurrentPage(1);
-  }, []);
-
-  const clearFilters = useCallback(() => {
-    setFilters({ ...INITIAL_FILTERS });
-    setCurrentPage(1);
-  }, []);
+  const {
+    rubros,
+    filters,
+    currentPage,
+    pageSize,
+    hasActiveFilters,
+    setPageSize,
+    setCurrentPage,
+    handleFilterChange,
+    clearFilters,
+  } = useAsignacionesState();
 
   const getNombreCompleto = useCallback((a) => {
     const partes = [a.nombre1, a.nombre2, a.paterno, a.materno].filter(Boolean);

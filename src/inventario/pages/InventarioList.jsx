@@ -51,6 +51,7 @@ import UbicacionFilters from "../components/UbicacionFilters";
 import DataPagination from "@/components/ui/data-pagination";
 
 import { useInventarioData } from "../hooks/useInventarioData";
+import { useInventarioState } from "../hooks/useInventarioState";
 import { useUbicacionOptions } from "@/hooks/useUbicacionOptions";
 import { useUserDisplayNames } from "@/hooks/useUserDisplayNames";
 import {
@@ -106,15 +107,38 @@ const InventarioList = () => {
     loadInitialData,
   } = useInventarioData();
 
-  const [showSearch, setShowSearch] = useState(false);
-  const [filtroCodigoActivo, setFiltroCodigoActivo] = useState("");
-  const [filtroInventariador, setFiltroInventariador] = useState("");
-  const [filtroCarnet, setFiltroCarnet] = useState("");
-  const [filtroEstado, setFiltroEstado] = useState("all");
-  const [filtroCiudad, setFiltroCiudad] = useState("");
-  const [filtroInmueble, setFiltroInmueble] = useState("");
-  const [filtroNivel, setFiltroNivel] = useState("");
-  const [filtroAmbiente, setFiltroAmbiente] = useState("");
+  const {
+    filtros: {
+      filtroCodigoActivo, setFiltroCodigoActivo,
+      filtroInventariador, setFiltroInventariador,
+      filtroCarnet, setFiltroCarnet,
+      filtroEstado, setFiltroEstado,
+      filtroCiudad, setFiltroCiudad,
+      filtroInmueble, setFiltroInmueble,
+      filtroNivel, setFiltroNivel,
+      filtroAmbiente, setFiltroAmbiente,
+      getUbicacionFilters,
+      handleFilter,
+      clearFilters,
+    },
+    busqueda: {
+      showSearch, setShowSearch,
+      searchCarnet, setSearchCarnet,
+      searchNombre, setSearchNombre,
+      handleSearch,
+      clearSearch,
+    },
+    modales: {
+      editActivo, setEditActivo,
+      isEditOpen, setIsEditOpen,
+      editForm, setEditForm,
+      isSaving, setIsSaving,
+      isImageModalOpen, setIsImageModalOpen,
+      selectedActivoImages, setSelectedActivoImages,
+      imageFiles, setImageFiles,
+      isLoadingImages, setIsLoadingImages,
+    }
+  } = useInventarioState(loadActivos);
 
   const {
     ciudadOptions,
@@ -133,20 +157,7 @@ const InventarioList = () => {
     },
   });
 
-  const [searchCarnet, setSearchCarnet] = useState("");
-  const [searchNombre, setSearchNombre] = useState("");
-
   const firstEstadoRef = useRef(true);
-
-  const [editActivo, setEditActivo] = useState(null);
-  const [isEditOpen, setIsEditOpen] = useState(false);
-  const [editForm, setEditForm] = useState({});
-  const [isSaving, setIsSaving] = useState(false);
-
-  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
-  const [selectedActivoImages, setSelectedActivoImages] = useState(null);
-  const [imageFiles, setImageFiles] = useState([]);
-  const [isLoadingImages, setIsLoadingImages] = useState(false);
 
   useEffect(() => {
     loadInitialData();
@@ -157,54 +168,6 @@ const InventarioList = () => {
       loadActivos({});
     }
   }, [rubros, tipoRubros, loadActivos]);
-
-  const getUbicacionFilters = () => ({
-    ciudad: filtroCiudad,
-    inmueble: filtroInmueble,
-    nivel: filtroNivel,
-    ambiente: filtroAmbiente,
-  });
-
-  const handleFilter = () => {
-    loadActivos({
-      codigoActivo: filtroCodigoActivo,
-      inventariador: filtroInventariador,
-      carnet: filtroCarnet,
-      estado: filtroEstado,
-      ...getUbicacionFilters(),
-    });
-  };
-
-  const clearFilters = () => {
-    setFiltroCodigoActivo("");
-    setFiltroInventariador("");
-    setFiltroCarnet("");
-    setFiltroEstado("all");
-    setFiltroCiudad("");
-    setFiltroInmueble("");
-    setFiltroNivel("");
-    setFiltroAmbiente("");
-    loadActivos({});
-  };
-
-  const handleSearch = () => {
-    loadActivos({
-      carnet: searchCarnet,
-      nombre: searchNombre,
-      all: true,
-      ...getUbicacionFilters(),
-    });
-  };
-
-  const clearSearch = () => {
-    setSearchCarnet("");
-    setSearchNombre("");
-    setFiltroCiudad("");
-    setFiltroInmueble("");
-    setFiltroNivel("");
-    setFiltroAmbiente("");
-    loadActivos({});
-  };
 
   useEffect(() => {
     if (firstEstadoRef.current) {

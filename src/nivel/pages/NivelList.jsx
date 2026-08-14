@@ -26,6 +26,8 @@ import { Plus, Building2 } from "lucide-react";
 import NivelFilters from "../components/NivelFilters";
 import NivelTable from "../components/NivelTable";
 import { useToast } from "@/hooks/use-toast";
+import { useCrudModal } from "@/hooks/useCrudModal";
+import { useCatalogState } from "@/hooks/useCatalogState";
 
 import {
   fetchNiveles,
@@ -46,46 +48,52 @@ const ESTADO_MAP = { 1: "Activo", 0: "Inactivo" };
 const NivelList = () => {
   const dispatch = useDispatch();
   const { toast } = useToast();
-  const niveles = useSelector(selectNiveles);
+  const nivels = useSelector(selectNiveles);
   const isLoading = useSelector(selectNivelesLoading);
   const error = useSelector(selectNivelesError);
 
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingNivel, setEditingNivel] = useState(null);
-  const [nivelToDelete, setNivelToDelete] = useState(null);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [filters, setFilters] = useState({ ...INITIAL_FILTERS });
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(100);
+  const {
+    isFormOpen,
+    setIsFormOpen,
+    editingItem: editingNivel,
+    handleAdd,
+    handleEdit,
+    handleCancelForm: handleCancel,
+    itemToDelete: nivelToDelete,
+    isDeleteDialogOpen,
+    setIsDeleteDialogOpen,
+    handleDelete,
+  } = useCrudModal();
 
-  useEffect(() => { dispatch(fetchNiveles()); }, [dispatch]);
+  const {
+    filters,
+    currentPage,
+    pageSize,
+    setPageSize,
+    setCurrentPage,
+    handleFilterChange,
+    clearFilters,
+    filteredData: filtered,
+    paginatedData,
+    totalPages,
+    safeCurrentPage,
+  } = useCatalogState({
+    data: nivels,
+    searchFields: ["descripcion","codigonivel"],
+    sortField: "descripcion"
+  });
 
-  const handleAdd = useCallback(() => { setEditingNivel(null); setIsFormOpen(true); }, []);
-  const handleEdit = useCallback((a) => { setEditingNivel(a); setIsFormOpen(true); }, []);
-  const handleDelete = useCallback((a) => { setNivelToDelete(a); setIsDeleteDialogOpen(true); }, []);
+  useEffect(() => {
+    dispatch(fetchNiveles());
+  }, [dispatch]);
 
   const confirmDelete = useCallback(() => {
     if (nivelToDelete) {
       dispatch(deleteNivel(nivelToDelete.codigonivel));
       setIsDeleteDialogOpen(false);
-      setNivelToDelete(null);
-      toast({ title: "¡Éxito!", description: "El nivel se ha eliminado correctamente." });
+      toast({ title: "¡Éxito!", description: "Se ha eliminado correctamente." });
     }
-  }, [nivelToDelete, dispatch, toast]);
-
-  const handleCancel = useCallback(() => { setIsFormOpen(false); setEditingNivel(null); }, []);
-  const handleFilterChange = useCallback((type, value) => { setFilters(p => ({ ...p, [type]: value })); setCurrentPage(1); }, []);
-  const clearFilters = useCallback(() => { setFilters({ ...INITIAL_FILTERS }); setCurrentPage(1); }, []);
-
-  const filtered = useMemo(() =>
-    niveles.filter(a => {
-      const s = `${a.nivel || ""} ${a.codigonivel || ""}`.toLowerCase();
-      return !filters.search || s.includes(filters.search.toLowerCase());
-    }).sort((a, b) => (a.nivel || "").localeCompare(b.nivel || "")), [niveles, filters]);
-
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(filtered.length / pageSize)), [filtered.length, pageSize]);
-  const safeCurrentPage = useMemo(() => Math.min(currentPage, totalPages), [currentPage, totalPages]);
-  const paginatedData = useMemo(() => { const start = (safeCurrentPage - 1) * pageSize; return filtered.slice(start, start + pageSize); }, [filtered, safeCurrentPage, pageSize]);
+  }, [nivelToDelete, dispatch, toast, setIsDeleteDialogOpen]);
 
   const handleSubmit = useCallback(async (data) => {
     const action = editingNivel
@@ -93,7 +101,7 @@ const NivelList = () => {
       : addNivel(data);
     try {
       await dispatch(action).unwrap();
-      toast({ title: "¡Éxito!", description: `El nivel se ha ${editingNivel ? "actualizado" : "guardado"} correctamente.` });
+      toast({ title: "¡Éxito!", description: `Se ha ${editingNivel ? "actualizado" : "guardado"} correctamente.` });
       handleCancel();
       return true;
     } catch (err) {
@@ -102,7 +110,7 @@ const NivelList = () => {
     }
   }, [dispatch, editingNivel, toast, handleCancel]);
 
-  if (isLoading && niveles.length === 0) return <LoadingSpinner />;
+  if (isLoading && nivels.length === 0) return <LoadingSpinner />;
   if (error) return <div className="bg-red-600 text-white text-center p-4 rounded-lg">Error: {error}</div>;
 
   return (

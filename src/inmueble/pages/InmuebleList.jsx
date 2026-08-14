@@ -26,6 +26,8 @@ import { Plus, Building2 } from "lucide-react";
 import InmuebleFilters from "../components/InmuebleFilters";
 import InmuebleTable from "../components/InmuebleTable";
 import { useToast } from "@/hooks/use-toast";
+import { useCrudModal } from "@/hooks/useCrudModal";
+import { useCatalogState } from "@/hooks/useCatalogState";
 
 import {
   fetchInmuebles,
@@ -50,42 +52,48 @@ const InmuebleList = () => {
   const isLoading = useSelector(selectInmueblesLoading);
   const error = useSelector(selectInmueblesError);
 
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingInmueble, setEditingInmueble] = useState(null);
-  const [inmuebleToDelete, setInmuebleToDelete] = useState(null);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [filters, setFilters] = useState({ ...INITIAL_FILTERS });
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(100);
+  const {
+    isFormOpen,
+    setIsFormOpen,
+    editingItem: editingInmueble,
+    handleAdd,
+    handleEdit,
+    handleCancelForm: handleCancel,
+    itemToDelete: inmuebleToDelete,
+    isDeleteDialogOpen,
+    setIsDeleteDialogOpen,
+    handleDelete,
+  } = useCrudModal();
 
-  useEffect(() => { dispatch(fetchInmuebles()); }, [dispatch]);
+  const {
+    filters,
+    currentPage,
+    pageSize,
+    setPageSize,
+    setCurrentPage,
+    handleFilterChange,
+    clearFilters,
+    filteredData: filtered,
+    paginatedData,
+    totalPages,
+    safeCurrentPage,
+  } = useCatalogState({
+    data: inmuebles,
+    searchFields: ["descripcion","codigoinmueble"],
+    sortField: "descripcion"
+  });
 
-  const handleAdd = useCallback(() => { setEditingInmueble(null); setIsFormOpen(true); }, []);
-  const handleEdit = useCallback((a) => { setEditingInmueble(a); setIsFormOpen(true); }, []);
-  const handleDelete = useCallback((a) => { setInmuebleToDelete(a); setIsDeleteDialogOpen(true); }, []);
+  useEffect(() => {
+    dispatch(fetchInmuebles());
+  }, [dispatch]);
 
   const confirmDelete = useCallback(() => {
     if (inmuebleToDelete) {
       dispatch(deleteInmueble(inmuebleToDelete.codigoinmueble));
       setIsDeleteDialogOpen(false);
-      setInmuebleToDelete(null);
-      toast({ title: "¡Éxito!", description: "El inmueble se ha eliminado correctamente." });
+      toast({ title: "¡Éxito!", description: "Se ha eliminado correctamente." });
     }
-  }, [inmuebleToDelete, dispatch, toast]);
-
-  const handleCancel = useCallback(() => { setIsFormOpen(false); setEditingInmueble(null); }, []);
-  const handleFilterChange = useCallback((type, value) => { setFilters(p => ({ ...p, [type]: value })); setCurrentPage(1); }, []);
-  const clearFilters = useCallback(() => { setFilters({ ...INITIAL_FILTERS }); setCurrentPage(1); }, []);
-
-  const filtered = useMemo(() =>
-    inmuebles.filter(a => {
-      const s = `${a.inmueble || ""} ${a.codigoinmueble || ""}`.toLowerCase();
-      return !filters.search || s.includes(filters.search.toLowerCase());
-    }).sort((a, b) => (a.inmueble || "").localeCompare(b.inmueble || "")), [inmuebles, filters]);
-
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(filtered.length / pageSize)), [filtered.length, pageSize]);
-  const safeCurrentPage = useMemo(() => Math.min(currentPage, totalPages), [currentPage, totalPages]);
-  const paginatedData = useMemo(() => { const start = (safeCurrentPage - 1) * pageSize; return filtered.slice(start, start + pageSize); }, [filtered, safeCurrentPage, pageSize]);
+  }, [inmuebleToDelete, dispatch, toast, setIsDeleteDialogOpen]);
 
   const handleSubmit = useCallback(async (data) => {
     const action = editingInmueble
@@ -93,7 +101,7 @@ const InmuebleList = () => {
       : addInmueble(data);
     try {
       await dispatch(action).unwrap();
-      toast({ title: "¡Éxito!", description: `El inmueble se ha ${editingInmueble ? "actualizado" : "guardado"} correctamente.` });
+      toast({ title: "¡Éxito!", description: `Se ha ${editingInmueble ? "actualizado" : "guardado"} correctamente.` });
       handleCancel();
       return true;
     } catch (err) {
