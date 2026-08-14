@@ -14,7 +14,7 @@ export const loginUserWithEmailPassword = async ({ email, password }) => {
     const { user } = data;
 
     // Verificar si el usuario es administrador en la tabla "rol"
-    const { data: roleData, error: roleError } = await supabase
+    const { data: roleData } = await supabase
       .from("rol")
       .select("rol")
       .eq("UID", user.id)

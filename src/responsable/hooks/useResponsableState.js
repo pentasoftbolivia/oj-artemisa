@@ -111,7 +111,7 @@ export const useResponsableState = (responsables) => {
     setCurrentPage(1);
   }, []);
 
-  const hasSearchFilters = appliedFilters.search || appliedFilters.carnet;
+  const hasSearchFilters = Object.values(appliedFilters).some((value) => Boolean(value));
 
   const filteredResponsables = useMemo(() => {
     if (!hasSearchFilters && !appliedFilters.ambiente) return [];
@@ -123,12 +123,9 @@ export const useResponsableState = (responsables) => {
 
       if (appliedFilters.search) {
         const searchLower = appliedFilters.search.toLowerCase();
-        const nom = (resp.nombres || "").toLowerCase();
-        const ape = (resp.apellidos || "").toLowerCase();
-        const cargo = (resp.cargo || "").toLowerCase();
-        const fullName = `${nom} ${ape}`;
-
-        if (!nom.includes(searchLower) && !ape.includes(searchLower) && !cargo.includes(searchLower) && !fullName.includes(searchLower)) {
+        const searchStr =
+          `${resp.cirun || ""} ${resp.nombre1 || ""} ${resp.nombre2 || ""} ${resp.paterno || ""} ${resp.materno || ""} ${resp.cargo || ""}`.toLowerCase();
+        if (!searchStr.includes(searchLower)) {
           return false;
         }
       }

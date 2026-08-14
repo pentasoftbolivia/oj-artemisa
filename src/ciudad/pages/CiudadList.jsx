@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useEffect, useCallback } from "react";
 import { useSelector, useDispatch } from "react-redux";
 
 import { Badge } from "@/components/ui/badge";
@@ -68,7 +68,6 @@ const CiudadList = () => {
 
   const {
     filters,
-    currentPage,
     pageSize,
     setPageSize,
     setCurrentPage,

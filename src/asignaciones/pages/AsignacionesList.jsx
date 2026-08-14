@@ -1,4 +1,3 @@
-import { useCallback } from "react";
 import { useSelector } from "react-redux";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,11 +35,6 @@ const AsignacionesList = () => {
     handleFilterChange,
     clearFilters,
   } = useAsignacionesState();
-
-  const getNombreCompleto = useCallback((a) => {
-    const partes = [a.nombre1, a.nombre2, a.paterno, a.materno].filter(Boolean);
-    return partes.join(" ") || "—";
-  }, []);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const safeCurrentPage = Math.min(currentPage, totalPages);

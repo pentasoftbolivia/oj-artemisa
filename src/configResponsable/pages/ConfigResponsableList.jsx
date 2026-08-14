@@ -60,9 +60,7 @@ const ConfigResponsableList = () => {
 
   const {
     draftFilters,
-    appliedFilters,
     searched,
-    currentPage,
     pageSize,
     setPageSize,
     setCurrentPage,

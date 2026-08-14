@@ -86,10 +86,8 @@ const ResponsableList = () => {
   const {
     draftFilters,
     appliedFilters,
-    matchingCiruns,
     appliedAmbienteCodes,
     isLocationSearching,
-    currentPage,
     pageSize,
     setPageSize,
     setCurrentPage,

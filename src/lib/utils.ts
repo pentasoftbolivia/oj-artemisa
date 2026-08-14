@@ -33,11 +33,11 @@ export function createOptionsList<T extends Record<string, unknown>>(
   }))
 }
 
-export const buildDenominacion = (activo: any, rubroName: string): string => {
-  let baseText = activo.descripcionActivo || "";
+export const buildDenominacion = (activo: Record<string, unknown>, rubroName: string): string => {
+  let baseText = (activo.descripcionActivo as string) || "";
   if (!rubroName) return baseText;
 
-  const valid = (val: any) => {
+  const valid = (val: unknown) => {
     if (val === null || val === undefined) return false;
     const str = String(val).trim();
     if (str === "" || str === "0") return false;

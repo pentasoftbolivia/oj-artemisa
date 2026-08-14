@@ -1,7 +1,8 @@
 import { useState, useMemo, useCallback } from "react";
 
+const INITIAL_FILTERS = { search: "" };
+
 export const useCatalogState = ({ data = [], searchFields = [], sortField = "" }) => {
-  const INITIAL_FILTERS = { search: "" };
   const [filters, setFilters] = useState({ ...INITIAL_FILTERS });
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
