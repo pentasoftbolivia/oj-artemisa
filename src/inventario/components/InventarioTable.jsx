@@ -71,7 +71,7 @@ const InventarioTable = memo(
                     <TableCell className="whitespace-normal break-words max-w-[250px]">
                       {buildDenominacion(a, a._rubro)}
                     </TableCell>
-                    <TableCell className="font-mono text-xs whitespace-normal break-words max-w-[200px]">
+                    <TableCell className="font-mono text-xs whitespace-normal break-words max-w-[380px]">
                       {getAmbienteName(a._ambienteKey)}
                     </TableCell>
                     <TableCell className="font-mono text-xs whitespace-normal break-words max-w-[200px]">
@@ -81,13 +81,13 @@ const InventarioTable = memo(
                       {a._carnetResponsable}
                     </TableCell>
                     <TableCell
-                      className="text-xs max-w-[150px] truncate"
+                      className="text-xs max-w-[100px] truncate"
                       title={displayInventariador}
                     >
                       {displayInventariador}
                     </TableCell>
                     <TableCell
-                      className="text-xs max-w-[150px] truncate"
+                      className="text-xs max-w-[100px] truncate"
                       title={displayRevisor}
                     >
                       {displayRevisor}

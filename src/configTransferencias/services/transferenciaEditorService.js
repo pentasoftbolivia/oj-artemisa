@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { invalidateCatalog } from "@/lib/catalogCache";
+import { normalizeCi } from "@/inventario/constants/inventarioConstants";
 
 const findRow = async (table, filters, options = {}) => {
   let query = supabase.from(table).select("*");
@@ -30,8 +31,12 @@ export const findActivo = async (query) => {
   return findRow("act_activos", { codigoactivo: num, ultimoregistro: 1 });
 };
 
-export const updateActivo = (row, payload) =>
-  updateRow("act_activos", "codigoactivointerno", row.codigoactivointerno, payload);
+export const updateActivo = (row, payload) => {
+  if (payload.cirun != null) {
+    payload = { ...payload, cirun: normalizeCi(payload.cirun) };
+  }
+  return updateRow("act_activos", "codigoactivointerno", row.codigoactivointerno, payload);
+};
 
 export const findResponsable = async (query) => {
   const carnet = String(query || "").trim();

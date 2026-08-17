@@ -1,8 +1,16 @@
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import { supabase } from "@/lib/supabase";
 import { toSnakeCase, toCamelCaseArray } from "@/lib/mapFields";
+import { normalizeCi } from "@/inventario/constants/inventarioConstants";
 
 const TABLE = "act_activos";
+
+const normalizePayload = (payload) => {
+  if (payload.cirun != null) {
+    return { ...payload, cirun: normalizeCi(payload.cirun) };
+  }
+  return payload;
+};
 
 export const fetchActivosFijosPaginated = createAsyncThunk(
   "activosFijos/fetchActivosFijosPaginated",
@@ -136,7 +144,7 @@ export const addActivoFijo = createAsyncThunk(
     try {
       const { data, error } = await supabase
         .from(TABLE)
-        .insert(toSnakeCase(newActivoFijo))
+        .insert(toSnakeCase(normalizePayload(newActivoFijo)))
         .select("*")
         .single();
       if (error) throw error;
@@ -153,7 +161,7 @@ export const updateActivoFijo = createAsyncThunk(
     try {
       const { data, error } = await supabase
         .from(TABLE)
-        .update(toSnakeCase(updatedActivoFijo))
+        .update(toSnakeCase(normalizePayload(updatedActivoFijo)))
         .eq("codigoactivointerno", codigoActivoInterno)
         .select("*")
         .single();

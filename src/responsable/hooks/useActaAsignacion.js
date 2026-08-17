@@ -208,7 +208,7 @@ const drawActaHeader = async (doc, { numeroActa, responsable }) => {
   return { tableStartY, pageWidth };
 };
 
-const drawSignatureFooter = (doc, { finalY, cantidad, pageWidth }) => {
+const drawSignatureFooter = (doc, { finalY, cantidad, pageWidth, responsable }) => {
   doc.setFontSize(9);
   doc.setFont("helvetica", "bold");
   doc.text(`Cantidad: ${cantidad}`, 14, finalY + 8);
@@ -231,6 +231,17 @@ const drawSignatureFooter = (doc, { finalY, cantidad, pageWidth }) => {
     sigLabels.forEach(({ x, label }, i) => {
       doc.line(sigLeft + (i * 60), y, sigLeft + (i * 60) + 50, y);
       doc.text(label, x, y + 4, { align: "center" });
+
+      if (i === 2 && responsable) {
+        const fullName = `${responsable.nombre1 || ""} ${responsable.nombre2 || ""} ${responsable.paterno || ""} ${responsable.materno || ""}`.replace(/\s+/g, " ").trim();
+        const nameLines = doc.splitTextToSize(fullName || "—", 50);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8);
+        doc.text(nameLines, x, y + 10, { align: "center" });
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7);
+        doc.text(`C.I.: ${String(responsable.cirun || "—")}`, x, y + 10 + nameLines.length * 3 + 2, { align: "center" });
+      }
     });
   };
 
@@ -354,7 +365,7 @@ export const useActaAsignacion = () => {
       const finalY = doc.lastAutoTable.finalY;
 
       const pageWidth = doc.internal.pageSize.getWidth();
-      drawSignatureFooter(doc, { finalY, cantidad: assets.length, pageWidth });
+      drawSignatureFooter(doc, { finalY, cantidad: assets.length, pageWidth, responsable });
       drawPageNumbers(doc);
 
       doc.save(`Acta_Asignacion_${responsable.cirun}.pdf`);
@@ -441,7 +452,7 @@ export const useActaAsignacion = () => {
         y += blockHeight;
       }
 
-      drawSignatureFooter(doc, { finalY: y, cantidad: assets.length, pageWidth });
+      drawSignatureFooter(doc, { finalY: y, cantidad: assets.length, pageWidth, responsable });
       drawPageNumbers(doc);
 
       doc.save(`Acta_Asignacion_${responsable.cirun}_listado.pdf`);

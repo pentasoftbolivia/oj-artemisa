@@ -1,14 +1,62 @@
-import { Package, Users } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Package, Users, MapPin, Search, X, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import ComboboxField from "@/components/ui/combobox-field";
 import ProgressFace from "./ProgressFace";
 
 const InventarioSummary = ({
   totalStats,
+  inmuebleCount = 0,
+  summaryInmuebleCount = 0,
   progressLevel,
   progressTextColors,
   inventariadorStats,
+  summaryStats = null,
   getDisplayName,
+  ubicacionLabel = "",
+  onBuscar,
+  onLimpiar,
+  isLoadingSummary = false,
+  ciudadOptions = [],
+  inmuebleOptions = [],
+  inmuebleCiudadMap = {},
 }) => {
+  const [ciudad, setCiudad] = useState("");
+  const [inmueble, setInmueble] = useState("");
+
+  const hasSummaryFilter = summaryStats !== null;
+
+  const filteredInmuebleOptions = useMemo(() => {
+    if (!ciudad) return inmuebleOptions;
+    return inmuebleOptions.filter(
+      (o) => inmuebleCiudadMap[String(o.value).trim()] === String(ciudad).trim(),
+    );
+  }, [inmuebleOptions, inmuebleCiudadMap, ciudad]);
+
+  const displayStats = hasSummaryFilter ? summaryStats : inventariadorStats;
+  const displayInmuebleCount = hasSummaryFilter ? summaryInmuebleCount : inmuebleCount;
+
+  const selectedCiudadLabel = useMemo(
+    () => ciudadOptions.find((o) => String(o.value).trim() === String(ciudad).trim())?.label ?? "",
+    [ciudadOptions, ciudad],
+  );
+  const selectedInmuebleLabel = useMemo(
+    () => inmuebleOptions.find((o) => String(o.value).trim() === String(inmueble).trim())?.label ?? "",
+    [inmuebleOptions, inmueble],
+  );
+  const summaryLabel = [selectedCiudadLabel, selectedInmuebleLabel].filter(Boolean).join(" / ");
+
+  const handleBuscar = () => {
+    onBuscar?.({ ciudad, inmueble });
+  };
+
+  const handleLimpiar = () => {
+    setCiudad("");
+    setInmueble("");
+    onLimpiar?.();
+  };
+
   return (
     <>
       <Card>
@@ -21,6 +69,7 @@ const InventarioSummary = ({
               <Package className="h-4 w-4" />
               RESUMEN DE TOTALES
             </CardTitle>
+           
             <div className="flex items-center gap-3 text-right">
               <span
                 className="text-base font-bold tracking-wide"
@@ -77,17 +126,77 @@ const InventarioSummary = ({
         </CardContent>
       </Card>
 
-      {inventariadorStats.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Resumen por Inventariador
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Resumen por Inventariador
+          </CardTitle>
+          {(ubicacionLabel || summaryLabel) && (
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+              <span className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
+                <MapPin className="h-4 w-4" />
+                {hasSummaryFilter ? summaryLabel : ubicacionLabel}
+              </span>
+            </div>
+          )}
+           <div className="flex flex-col items-center text-center">
+              <span
+                className="text-sm font-bold tracking-wide text-muted-foreground"
+                style={{ textShadow: "1px 1px 2px rgba(0, 0, 0, 0.25)" }}
+              >
+                ACTIVOS POR INMUEBLE
+              </span>
+              <span
+                className="text-2xl font-extrabold"
+                style={{ textShadow: "1px 1px 2px rgba(0, 0, 0, 0.35)" }}
+              >
+                {displayInmuebleCount}
+              </span>
+            </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <ComboboxField
+              label="Ciudad"
+              value={ciudad}
+              onValueChange={(val) => {
+                setCiudad(val);
+                setInmueble("");
+              }}
+              options={ciudadOptions}
+              placeholder="Seleccionar ciudad..."
+              searchPlaceholder="Buscar ciudad..."
+              emptyMessage="Sin resultados"
+            />
+            <ComboboxField
+              label="Inmueble"
+              value={inmueble}
+              onValueChange={setInmueble}
+              options={filteredInmuebleOptions}
+              placeholder="Seleccionar inmueble..."
+              searchPlaceholder="Buscar inmueble..."
+              emptyMessage="Sin resultados"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Button onClick={handleBuscar} disabled={isLoadingSummary}>
+              {isLoadingSummary ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Search className="h-4 w-4 mr-2" />
+              )}
+              Buscar
+            </Button>
+            <Button variant="outline" onClick={handleLimpiar} disabled={isLoadingSummary}>
+              <X className="h-4 w-4 mr-2" />
+              Limpiar
+            </Button>
+          </div>
+
+          {displayStats.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {inventariadorStats.map((stat) => (
+              {displayStats.map((stat) => (
                 <div
                   key={stat.email}
                   className="rounded-lg border p-4 bg-muted/20 space-y-2"
@@ -119,9 +228,9 @@ const InventarioSummary = ({
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
     </>
   );
 };

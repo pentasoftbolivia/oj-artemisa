@@ -60,6 +60,11 @@ const InventarioList = () => {
     inmuebles,
     niveles,
     totalStats: rawTotalStats,
+    inmuebleCount,
+    summaryStats,
+    summaryInmuebleCount,
+    loadSummaryByUbicacion,
+    clearSummary,
     page,
     pageSize,
     setPage,
@@ -107,6 +112,8 @@ const InventarioList = () => {
 
   const {
     ciudadOptions,
+    inmuebleOptions,
+    inmuebleCiudadMap,
     inmuebleOptionsByCiudad,
     nivelOptionsByInmueble,
     ambienteOptionsByNivel,
@@ -282,7 +289,7 @@ const InventarioList = () => {
         codigoactivo: editActivo.codigoActivo,
         codigotransaccion: editActivo.codigoTransaccion,
         codigoambiente: editForm.codigoAmbiente || editActivo.codigoAmbiente,
-        cirun: editActivo.cirun,
+        cirun: normalizeCi(editActivo.cirun),
         descripcionactivo: editForm.descripcionActivo,
         tiporubroact: editActivo.tipoRubroAct,
         serie: editActivo.serie,
@@ -436,9 +443,47 @@ const InventarioList = () => {
           return m;
         })();
 
+  const ubicacionJerarquiaMap = useMemo(() => {
+    const nivelMap = {};
+    (niveles || []).forEach((n) => {
+      nivelMap[String(n.codigonivel ?? "").trim()] = n;
+    });
+    const inmuebleMap = {};
+    (inmuebles || []).forEach((i) => {
+      inmuebleMap[String(i.codigoinmueble ?? "").trim()] = i;
+    });
+    const ciudadMap = {};
+    (ciudades || []).forEach((c) => {
+      ciudadMap[String(c.codigociudad ?? "").trim()] = c;
+    });
+    const ambMap = {};
+    (ambientes || []).forEach((a) => {
+      const code = String(a.codigoambiente ?? "").trim();
+      if (!code) return;
+      const nivel = nivelMap[String(a.codigonivel ?? "").trim()];
+      const inmueble = nivel
+        ? inmuebleMap[String(nivel.codigoinmueble ?? "").trim()]
+        : null;
+      const ciudad = inmueble
+        ? ciudadMap[String(inmueble.codigociudad ?? "").trim()]
+        : null;
+      ambMap[code] =
+        [ciudad?.descripcion, inmueble?.inmueble, nivel?.nivel, a.ambiente]
+          .map((s) => (s || "").trim())
+          .filter(Boolean)
+          .join(" / ") || "—";
+    });
+    return ambMap;
+  }, [ambientes, niveles, inmuebles, ciudades]);
+
   const getAmbienteName = (code) => {
     const c = String(code ?? "").trim();
-    return ambMap[c] ?? ambCatMap[c] ?? (c || "—");
+    return (
+      ubicacionJerarquiaMap[c] ??
+      ambMap[c] ??
+      ambCatMap[c] ??
+      (c || "—")
+    );
   };
 
   const respMap =
@@ -574,6 +619,18 @@ const InventarioList = () => {
     high: "#16a34a",
   };
 
+  const ubicacionLabel = useMemo(() => {
+    const ciudad =
+      ciudadOptions.find(
+        (o) => String(o.value).trim() === String(filtroCiudad).trim(),
+      )?.label || "";
+    const inmueble =
+      inmuebleOptionsByCiudad.find(
+        (o) => String(o.value).trim() === String(filtroInmueble).trim(),
+      )?.label || "";
+    return [ciudad, inmueble].filter(Boolean).join(" - ");
+  }, [ciudadOptions, inmuebleOptionsByCiudad, filtroCiudad, filtroInmueble]);
+
   if (isLoading && activos.length === 0 && rubros.length === 0) {
     return <LoadingSpinner />;
   }
@@ -653,10 +710,19 @@ const InventarioList = () => {
 
       <InventarioSummary
         totalStats={totalStats}
+        inmuebleCount={inmuebleCount}
+        summaryInmuebleCount={summaryInmuebleCount}
         progressLevel={progressLevel}
         progressTextColors={progressTextColors}
         inventariadorStats={inventariadorStats}
+        summaryStats={summaryStats}
         getDisplayName={getDisplayName}
+        ubicacionLabel={ubicacionLabel}
+        onBuscar={loadSummaryByUbicacion}
+        onLimpiar={clearSummary}
+        ciudadOptions={ciudadOptions}
+        inmuebleOptions={inmuebleOptions}
+        inmuebleCiudadMap={inmuebleCiudadMap}
       />
 
       <InventarioFilters

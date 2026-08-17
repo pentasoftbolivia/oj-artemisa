@@ -3,12 +3,27 @@ import { supabase } from "@/lib/supabase";
 import { toCamelCaseArray } from "@/lib/mapFields";
 import { getCachedCatalog } from "@/lib/catalogCache";
 import { ACTIVO_COLUMNS } from "@/lib/activoColumns";
-import { resolveAmbienteCodes } from "@/lib/ubicacionFilters";
+import { resolveAmbienteCodes, countActivosByUbicacion } from "@/lib/ubicacionFilters";
 import { useToast } from "@/hooks/use-toast";
 import { normalizeCi, normalizeCiLoose, getCiPrefix } from "../constants/inventarioConstants";
 
 const DEFAULT_PAGE_SIZE = 50;
 const MIN_LOADING_MS = 400;
+
+const aggregatePerUserRows = (userRows) => {
+  const acc = {};
+  userRows.forEach(r => {
+    const email = r.usuarioinventario;
+    if (!email) return;
+    if (!acc[email]) acc[email] = { revisado: 0, pendiente: 0 };
+    if (String(r.estadoinventario || "") === "REVISADO") {
+      acc[email].revisado += 1;
+    } else {
+      acc[email].pendiente += 1;
+    }
+  });
+  return Object.entries(acc).map(([email, counts]) => ({ email, ...counts }));
+};
 
 export const useInventarioData = () => {
   const { toast } = useToast();
@@ -35,6 +50,9 @@ export const useInventarioData = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [totalStats, setTotalStats] = useState({ total: 0, revisados: 0, noRevisados: 0 });
   const [inventariadorStats, setInventariadorStats] = useState([]);
+  const [inmuebleCount, setInmuebleCount] = useState(0);
+  const [summaryStats, setSummaryStats] = useState(null);
+  const [summaryInmuebleCount, setSummaryInmuebleCount] = useState(0);
 
   const pageRef = useRef(1);
   const pageSizeRef = useRef(DEFAULT_PAGE_SIZE);
@@ -158,6 +176,7 @@ export const useInventarioData = () => {
           setTotalCount(0);
           setTotalStats({ total: 0, revisados: 0, noRevisados: 0 });
           setInventariadorStats([]);
+          setInmuebleCount(0);
           setDirectAmbMap({});
           directAmbRef.current = {};
           setDirectRespMap({});
@@ -168,6 +187,7 @@ export const useInventarioData = () => {
       }
 
       let ambienteCodes = null;
+      const inmuebleTotal = await countActivosByUbicacion({ ciudad, inmueble, nivel, ambiente });
       if (ambiente.trim()) {
         ambienteCodes = [ambiente.trim()];
       } else if (ciudad.trim() || inmueble.trim() || nivel.trim()) {
@@ -229,16 +249,12 @@ export const useInventarioData = () => {
 
       let revisados = 0;
       try {
-        const { data: estadoRows, error: estadoError } = await applyFilters(
-          supabase.from("act_activos").select("estadoinventario"),
-          false,
-        );
+        const { count: revisadosCount, error: estadoError } = await applyFilters(
+          supabase.from("act_activos").select("codigoactivointerno", { count: "exact", head: true }),
+          true,
+        ).eq("estadoinventario", "REVISADO");
         if (!estadoError) {
-          (estadoRows || []).forEach(r => {
-            if (String(r.estadoinventario || "") === "REVISADO") {
-              revisados += 1;
-            }
-          });
+          revisados = revisadosCount || 0;
         }
       } catch (e) {
         console.error("Error loading estado stats:", e);
@@ -246,24 +262,20 @@ export const useInventarioData = () => {
 
       let perUser = [];
       try {
-        const { data: userRows, error: userError } = await applyFilters(
-          supabase.from("act_activos").select("usuarioinventario,estadoinventario"),
-          false,
-        );
-        if (!userError) {
-          const acc = {};
-          (userRows || []).forEach(r => {
-            const email = r.usuarioinventario;
-            if (!email) return;
-            if (!acc[email]) acc[email] = { revisado: 0, pendiente: 0 };
-            if (String(r.estadoinventario || "") === "REVISADO") {
-              acc[email].revisado += 1;
-            } else {
-              acc[email].pendiente += 1;
-            }
-          });
-          perUser = Object.entries(acc).map(([email, counts]) => ({ email, ...counts }));
+        const CHUNK = 1000;
+        let userRows = [];
+        let start = 0;
+        for (;;) {
+          const { data, error } = await applyFilters(
+            supabase.from("act_activos").select("usuarioinventario,estadoinventario"),
+            false,
+          ).range(start, start + CHUNK - 1);
+          if (error) throw error;
+          userRows = userRows.concat(data || []);
+          if (!data || data.length < CHUNK) break;
+          start += CHUNK;
         }
+        perUser = aggregatePerUserRows(userRows);
       } catch (e) {
         console.error("Error loading per-user stats:", e);
       }
@@ -271,6 +283,7 @@ export const useInventarioData = () => {
       const pageData = toCamelCaseArray(batch || []);
       setActivos(pageData);
       setTotalCount(count || 0);
+      setInmuebleCount(inmuebleTotal);
       setTotalStats({ total: count || 0, revisados, noRevisados: (count || 0) - revisados });
       setInventariadorStats(perUser);
 
@@ -386,6 +399,48 @@ export const useInventarioData = () => {
     setIsLoading(false);
   }, [loadCatalogos]);
 
+  const loadSummaryByUbicacion = useCallback(async ({ ciudad = "", inmueble = "" } = {}) => {
+    try {
+      let ambienteCodes = null;
+      if (ciudad || inmueble) {
+        ambienteCodes = await resolveAmbienteCodes({ ciudad, inmueble });
+      }
+
+      const inmuebleTotal = await countActivosByUbicacion({ ciudad, inmueble });
+      setSummaryInmuebleCount(inmuebleTotal);
+
+      if (ambienteCodes == null) {
+        setSummaryStats([]);
+        return;
+      }
+
+      const CHUNK = 1000;
+      let userRows = [];
+      let start = 0;
+      for (;;) {
+        const { data, error } = await supabase
+          .from("act_activos")
+          .select("usuarioinventario,estadoinventario")
+          .eq("ultimoregistro", 1)
+          .in("codigoambiente", ambienteCodes.length > 0 ? ambienteCodes : [-1])
+          .range(start, start + CHUNK - 1);
+        if (error) throw error;
+        userRows = userRows.concat(data || []);
+        if (!data || data.length < CHUNK) break;
+        start += CHUNK;
+      }
+      setSummaryStats(aggregatePerUserRows(userRows));
+    } catch (e) {
+      console.error("Error loading summary by ubicacion:", e);
+      setSummaryStats([]);
+    }
+  }, []);
+
+  const clearSummary = useCallback(() => {
+    setSummaryStats(null);
+    setSummaryInmuebleCount(0);
+  }, []);
+
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil(totalCount / pageSize)),
     [totalCount, pageSize],
@@ -415,6 +470,11 @@ export const useInventarioData = () => {
     ambienteMap,
     responsableMap,
     totalStats,
+    inmuebleCount,
+    summaryStats,
+    summaryInmuebleCount,
+    loadSummaryByUbicacion,
+    clearSummary,
     page,
     pageSize,
     setPage,

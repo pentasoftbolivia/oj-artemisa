@@ -82,6 +82,8 @@ export const useUbicacionOptions = ({
 
   return {
     ciudadOptions,
+    inmuebleOptions,
+    inmuebleCiudadMap,
     inmuebleOptionsByCiudad,
     nivelOptionsByInmueble,
     ambienteOptionsByNivel,
