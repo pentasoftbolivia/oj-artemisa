@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useDispatch } from "react-redux";
 
 import { supabase } from "@/lib/supabase";
+import { getRoleForUser } from "@/lib/supabaseAuth";
 import {
   login,
   logout,
@@ -22,13 +23,7 @@ export const useCheckAuth = () => {
       }
 
       try {
-        const { data: roleData } = await supabase
-          .from("rol")
-          .select("rol")
-          .eq("UID", session.user.id)
-          .maybeSingle();
-
-        const role = roleData ? roleData.rol || "Administrador" : "Usuario";
+        const role = await getRoleForUser(session.user.id);
 
         const userInfo = {
           uid: session.user.id,

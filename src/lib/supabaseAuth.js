@@ -1,5 +1,19 @@
 import { supabase } from "./supabase";
 
+export const getRoleForUser = async (uid) => {
+  try {
+    const { data: roleData } = await supabase
+      .from("rol")
+      .select("rol")
+      .eq("UID", uid)
+      .maybeSingle();
+
+    return roleData?.rol || "Usuario";
+  } catch {
+    return "Usuario";
+  }
+};
+
 export const loginUserWithEmailPassword = async ({ email, password }) => {
   try {
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -14,13 +28,7 @@ export const loginUserWithEmailPassword = async ({ email, password }) => {
     const { user } = data;
 
     // Verificar si el usuario es administrador en la tabla "rol"
-    const { data: roleData } = await supabase
-      .from("rol")
-      .select("rol")
-      .eq("UID", user.id)
-      .maybeSingle();
-
-    const role = roleData ? roleData.rol || "Administrador" : "Usuario";
+    const role = await getRoleForUser(user.id);
 
     return {
       ok: true,

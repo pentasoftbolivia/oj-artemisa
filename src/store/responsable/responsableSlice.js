@@ -1,67 +1,25 @@
-import { createSlice, createSelector } from '@reduxjs/toolkit';
+import { createSelector } from "@reduxjs/toolkit";
+import { createCrudSlice } from "@/store/generic/createCrudSlice";
 import {
   fetchResponsable,
   addResponsable,
   updateResponsable,
-  deleteResponsable
-} from './responsableThunks';
+  deleteResponsable,
+} from "./responsableThunks";
 
-const responsableSlice = createSlice({
-  name: 'responsable',
-  initialState: {
-    data: [],
-    status: 'idle',
-    error: null,
-  },
-  reducers: {
-    resetResponsable: (state) => {
-      state.data = [];
-      state.status = 'idle';
-      state.error = null;
-    },
-  },
-  extraReducers: (builder) => {
-    builder
-      .addCase(fetchResponsable.pending, (state) => {
-        state.status = 'loading';
-        state.error = null;
-      })
-      .addCase(fetchResponsable.fulfilled, (state, action) => {
-        state.status = 'succeeded';
-        state.data = action.payload;
-        state.error = null;
-      })
-      .addCase(fetchResponsable.rejected, (state, action) => {
-        state.status = 'failed';
-        state.error = action.payload || action.error.message;
-        state.data = [];
-      })
-      .addCase(addResponsable.fulfilled, (state, action) => {
-        state.data.push(action.payload);
-      })
-      .addCase(addResponsable.rejected, (state, action) => {
-        state.error = action.payload || action.error.message;
-      })
-      .addCase(updateResponsable.fulfilled, (state, action) => {
-        const index = state.data.findIndex(r => r.cirun === action.payload.cirun);
-        if (index !== -1) {
-          state.data[index] = action.payload;
-        }
-      })
-      .addCase(updateResponsable.rejected, (state, action) => {
-        state.error = action.payload || action.error.message;
-      })
-      .addCase(deleteResponsable.fulfilled, (state, action) => {
-        state.data = state.data.filter(r => r.cirun !== action.payload);
-      })
-      .addCase(deleteResponsable.rejected, (state, action) => {
-        state.error = action.payload || action.error.message;
-      });
+const { reducer, selectors } = createCrudSlice({
+  name: "responsable",
+  idColumn: "cirun",
+  thunks: {
+    fetchAll: fetchResponsable,
+    add: addResponsable,
+    update: updateResponsable,
+    remove: deleteResponsable,
   },
 });
 
 export const selectSortedResponsable = createSelector(
-  (state) => state.responsable?.data || [],
+  selectors.selectData,
   (responsables) => {
     if (!Array.isArray(responsables)) return [];
     return [...responsables].sort((a, b) => {
@@ -84,30 +42,13 @@ export const selectSortedResponsable = createSelector(
   }
 );
 
-export const selectResponsableLoading = createSelector(
-  (state) => state.responsable?.status,
-  (status) => Boolean(status === 'loading')
-);
+export const selectResponsableLoading = selectors.selectLoading;
 
-export const selectResponsableError = createSelector(
-  (state) => state.responsable?.error,
-  (error) => (error === null || error === undefined ? null : String(error))
-);
+export const selectResponsableError = selectors.selectError;
 
 export const selectResponsable = createSelector(
-  (state) => state.responsable?.data || [],
+  selectors.selectData,
   (responsables) => (Array.isArray(responsables) ? [...responsables] : [])
 );
 
-export const selectResponsableByCirun = createSelector(
-  (state) => state.responsable?.data,
-  (state, cirun) => cirun,
-  (responsables, cirun) => {
-    if (!Array.isArray(responsables)) return undefined;
-    return responsables.find(r => r.cirun === cirun);
-  }
-);
-
-export const { resetResponsable } = responsableSlice.actions;
-
-export default responsableSlice.reducer;
+export default reducer;

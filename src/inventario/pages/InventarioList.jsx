@@ -1,53 +1,18 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useSelector } from "react-redux";
-import {
-  ArrowLeft,
-  Edit,
-  Filter,
-  Package,
-  Search,
-  X,
-  Plus,
-  Users,
-  Loader2,
-} from "lucide-react";
+import { Package, Plus } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { buildDenominacion } from "@/lib/utils";
 import { selectUser } from "@/store/auth/authSlice";
 import { useToast } from "@/hooks/use-toast";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import LoadingSpinner from "@/components/ui/loading-spinner";
 
 import InventarioFilters from "../components/InventarioFilters";
 import InventarioTable from "../components/InventarioTable";
-import UbicacionFilters from "../components/UbicacionFilters";
+import InventarioBusqueda from "../components/InventarioBusqueda";
+import InventarioSummary from "../components/InventarioSummary";
 import DataPagination from "@/components/ui/data-pagination";
 
 import { useInventarioData } from "../hooks/useInventarioData";
@@ -457,25 +422,6 @@ const InventarioList = () => {
     setIsLoadingImages(false);
   };
 
-  const renderEditFields = () => {
-    if (!editActivo) return null;
-    const rubroDesc = rubroFromTipo[editActivo.tipoRubroAct] || "";
-    const fields = getEditFieldsForRubro(rubroDesc);
-
-    return fields.map((f) => (
-      <div key={f.key} className="space-y-2 min-w-0">
-        <Label htmlFor={f.key}>{f.label}</Label>
-        <Input
-          id={f.key}
-          value={editForm[f.key] || ""}
-          onChange={handleEditChange}
-          disabled={isSaving}
-          className="break-words"
-        />
-      </div>
-    ));
-  };
-
   const ambMap =
     Object.keys(directAmbMap).length > 0 ? directAmbMap : directAmbRef.current;
   const ambCatMap =
@@ -634,402 +580,51 @@ const InventarioList = () => {
 
   if (showSearch) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" onClick={() => setShowSearch(false)}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Volver
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">
-              LISTA DE ACTIVOS POR BUSQUEDA
-            </h1>
-          </div>
-        </div>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Filter className="h-4 w-4" />
-              Filtros
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="searchCarnet">Carnet del Responsable</Label>
-                <Input
-                  id="searchCarnet"
-                  placeholder="Buscar por carnet..."
-                  value={searchCarnet}
-                  onChange={(e) => setSearchCarnet(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="searchNombre">
-                  Nombres o Apellidos del Responsable
-                </Label>
-                <Input
-                  id="searchNombre"
-                  placeholder="Buscar por nombre o apellido..."
-                  value={searchNombre}
-                  onChange={(e) => setSearchNombre(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2 flex items-end gap-2">
-                <Button onClick={handleSearch} disabled={isLoading}>
-                  {isLoading ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Search className="h-4 w-4 mr-2" />
-                  )}
-                  {isLoading ? "Buscando" : "Buscar"}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={clearSearch}
-                  disabled={
-                    !searchCarnet &&
-                    !searchNombre &&
-                    !filtroCiudad &&
-                    !filtroInmueble &&
-                    !filtroNivel &&
-                    !filtroAmbiente
-                  }
-                >
-                  <X className="h-4 w-4 mr-2" />
-                  Limpiar
-                </Button>
-              </div>
-            </div>
-
-            <UbicacionFilters
-              ciudad={filtroCiudad}
-              setCiudad={setFiltroCiudad}
-              inmueble={filtroInmueble}
-              setInmueble={setFiltroInmueble}
-              nivel={filtroNivel}
-              setNivel={setFiltroNivel}
-              ambiente={filtroAmbiente}
-              setAmbiente={setFiltroAmbiente}
-              ciudadOptions={ciudadOptions}
-              inmuebleOptionsByCiudad={inmuebleOptionsByCiudad}
-              nivelOptionsByInmueble={nivelOptionsByInmueble}
-              ambienteOptionsByNivel={ambienteOptionsByNivel}
-              className="mt-4"
-            />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Package className="h-4 w-4" />
-              Resultados de Búsqueda
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Código Activo</TableHead>
-                    <TableHead>Rubro</TableHead>
-                    <TableHead>Tipo Rubro</TableHead>
-                    <TableHead>Descripción del Activo</TableHead>
-                    <TableHead>Ambiente</TableHead>
-                    <TableHead>Responsable</TableHead>
-                    <TableHead>CI</TableHead>
-                    {currentUser?.role !== "Usuario" && (
-                      <TableHead className="text-center">Acciones</TableHead>
-                    )}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginatedData.length > 0 ? (
-                    paginatedData.map((a) => (
-                      <TableRow key={a.codigoActivoInterno}>
-                        <TableCell className="font-mono text-xs">
-                          {a._codigoActivo}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs whitespace-normal break-words max-w-[180px]">
-                          {a._rubro}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {a._tipoRubro}
-                        </TableCell>
-                        <TableCell className="whitespace-normal break-words max-w-[250px]">
-                          {buildDenominacion(a, a._rubro)}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs whitespace-normal break-words max-w-[200px]">
-                          {getAmbienteName(a._ambienteKey)}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs whitespace-normal break-words max-w-[200px]">
-                          {getResponsableName(a._ci)}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {a._carnetResponsable}
-                        </TableCell>
-                        {currentUser?.role !== "Usuario" && (
-                          <TableCell className="text-right">
-                            <div className="flex space-x-1 justify-end">
-                              {a.ultimoregistro !== 0 && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleEdit(a)}
-                                  className="text-yellow-500 hover:text-yellow-700"
-                                >
-                                  <Edit className="h-4 w-4 mr-1" />
-                                  EDITAR
-                                </Button>
-                              )}
-                              <Button
-                                variant="default"
-                                size="sm"
-                                onClick={() => handleEnviar(a)}
-                                className={
-                                  a.ultimoregistro === 0 ||
-                                  a.estadoinventario === "ENVIADO"
-                                    ? "bg-orange-500 hover:bg-orange-600 text-white font-bold"
-                                    : "bg-red-600 hover:bg-red-700 text-white font-bold"
-                                }
-                              >
-                                {a.ultimoregistro === 0 ||
-                                a.estadoinventario === "ENVIADO"
-                                  ? "ENVIADO"
-                                  : "PENDIENTE"}
-                              </Button>
-                            </div>
-                          </TableCell>
-                        )}
-                      </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell
-                        colSpan={8}
-                        className="text-center py-12 text-muted-foreground"
-                      >
-                        <Package className="mx-auto h-12 w-12 opacity-20 mb-2" />
-                        <p className="text-lg font-medium">
-                          {isLoading
-                            ? "Cargando..."
-                            : "No se encontraron activos"}
-                        </p>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-
-            {resolvedActivos.length > 0 && (
-              <DataPagination
-                currentPage={safeCurrentPage}
-                totalPages={totalPages}
-                totalCount={totalCount}
-                pageSize={pageSize}
-                onPageChange={setPage}
-                onPageSizeChange={setPageSize}
-              />
-            )}
-          </CardContent>
-        </Card>
-
-        <Dialog
-          open={isEditOpen}
-          onOpenChange={(open) => {
-            if (!open) {
-              setIsEditOpen(false);
-              setEditActivo(null);
-            }
-          }}
-        >
-          <DialogContent
-            className="sm:max-w-[600px]"
-            onInteractOutside={(e) => e.preventDefault()}
-          >
-            <DialogHeader>
-              <DialogTitle>Editar Activo</DialogTitle>
-              <DialogDescription>
-                Modifica los datos del activo fijo
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto overflow-x-hidden">
-              <div className="space-y-4 min-w-0">
-                <div className="space-y-2">
-                  <Label htmlFor="codigoActivo">Código Activo</Label>
-                  <Input
-                    id="codigoActivo"
-                    value={editForm.codigoActivo || ""}
-                    onChange={undefined}
-                    disabled={isSaving}
-                    readOnly
-                    className="break-words"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="codigoAmbiente">Ambiente</Label>
-                  <Select
-                    value={editForm.codigoAmbiente}
-                    onValueChange={(v) =>
-                      handleEditSelectChange("codigoAmbiente", v)
-                    }
-                    disabled={isSaving}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Seleccionar ambiente" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ambientes.map((a) => (
-                        <SelectItem
-                          key={a.codigoambiente}
-                          value={String(a.codigoambiente).trim()}
-                        >
-                          {`${a.codigoambiente} - ${a.ambiente}`}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="rubro">Rubro</Label>
-                  <Input
-                    id="rubro"
-                    value={editForm.rubro || ""}
-                    onChange={undefined}
-                    disabled={isSaving}
-                    readOnly
-                    className="break-words"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="tipoRubro">Tipo Rubro</Label>
-                  <Input
-                    id="tipoRubro"
-                    value={editForm.tipoRubro || ""}
-                    onChange={undefined}
-                    disabled={isSaving}
-                    readOnly
-                    className="break-words"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="descripcionActivo">Descripción del Activo</Label>
-                <Textarea
-                  id="descripcionActivo"
-                  value={editForm.descripcionActivo || ""}
-                  onChange={handleEditChange}
-                  disabled={isSaving}
-                  rows={3}
-                  className="w-full break-words"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="observaciones">Observaciones</Label>
-                <Textarea
-                  id="observaciones"
-                  value={editForm.observaciones || ""}
-                  onChange={handleEditChange}
-                  disabled={isSaving}
-                  rows={2}
-                  className="w-full break-words"
-                />
-              </div>
-
-              <div className="border-t pt-4 mt-2">
-                <h3 className="text-sm font-semibold text-muted-foreground mb-3">
-                  Estado de Conservación
-                </h3>
-                <Select
-                  value={editForm.estadoConservacion}
-                  onValueChange={(v) =>
-                    handleEditSelectChange("estadoConservacion", v)
-                  }
-                  disabled={isSaving}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Seleccionar estado" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="BUENO">BUENO</SelectItem>
-                    <SelectItem value="REGULAR">REGULAR</SelectItem>
-                    <SelectItem value="MALO">MALO</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="border-t pt-4 mt-2">
-                <h3 className="text-sm font-semibold text-muted-foreground mb-3">
-                  Características
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 min-w-0">
-                  <div className="space-y-2">
-                    <Label htmlFor="marcamaterial">Marca Material</Label>
-                    <Input
-                      id="marcamaterial"
-                      value={editForm.marcamaterial || ""}
-                      onChange={handleEditChange}
-                      disabled={isSaving}
-                      className="break-words"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="modelo">Modelo</Label>
-                    <Input
-                      id="modelo"
-                      value={editForm.modelo || ""}
-                      onChange={handleEditChange}
-                      disabled={isSaving}
-                      className="break-words"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="serie">Serie</Label>
-                    <Input
-                      id="serie"
-                      value={editForm.serie || ""}
-                      onChange={handleEditChange}
-                      disabled={isSaving}
-                      className="break-words"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {editActivo && rubroFromTipo[editActivo.tipoRubroAct] && (
-                <div className="border-t pt-4 mt-2">
-                  <h3 className="text-sm font-semibold text-muted-foreground mb-3 break-words">
-                    Campos específicos: {rubroFromTipo[editActivo.tipoRubroAct]}
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 min-w-0">
-                    {renderEditFields()}
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="flex justify-end space-x-2 pt-4">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setIsEditOpen(false);
-                  setEditActivo(null);
-                }}
-                disabled={isSaving}
-              >
-                Cancelar
-              </Button>
-              <Button onClick={handleRegistrar} disabled={isSaving}>
-                {isSaving ? "Guardando..." : "REGISTRAR"}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      </div>
+      <InventarioBusqueda
+        onBack={() => setShowSearch(false)}
+        searchCarnet={searchCarnet}
+        setSearchCarnet={setSearchCarnet}
+        searchNombre={searchNombre}
+        setSearchNombre={setSearchNombre}
+        onSearch={handleSearch}
+        onClearSearch={clearSearch}
+        isLoading={isLoading}
+        filtroCiudad={filtroCiudad}
+        setFiltroCiudad={setFiltroCiudad}
+        filtroInmueble={filtroInmueble}
+        setFiltroInmueble={setFiltroInmueble}
+        filtroNivel={filtroNivel}
+        setFiltroNivel={setFiltroNivel}
+        filtroAmbiente={filtroAmbiente}
+        setFiltroAmbiente={setFiltroAmbiente}
+        ciudadOptions={ciudadOptions}
+        inmuebleOptionsByCiudad={inmuebleOptionsByCiudad}
+        nivelOptionsByInmueble={nivelOptionsByInmueble}
+        ambienteOptionsByNivel={ambienteOptionsByNivel}
+        rows={resolvedActivos}
+        safeCurrentPage={safeCurrentPage}
+        totalPages={totalPages}
+        totalCount={totalCount}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+        currentUser={currentUser}
+        getAmbienteName={getAmbienteName}
+        getResponsableName={getResponsableName}
+        onEdit={handleEdit}
+        onEnviar={handleEnviar}
+        isEditOpen={isEditOpen}
+        setIsEditOpen={setIsEditOpen}
+        editActivo={editActivo}
+        setEditActivo={setEditActivo}
+        editForm={editForm}
+        onEditChange={handleEditChange}
+        onEditSelectChange={handleEditSelectChange}
+        isSaving={isSaving}
+        onRegistrar={handleRegistrar}
+        ambientes={ambientes}
+        rubroFromTipo={rubroFromTipo}
+      />
     );
   }
 
@@ -1056,351 +651,13 @@ const InventarioList = () => {
         )}
       </div>
 
-      <Card>
-        <CardHeader className="pb-2">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <CardTitle
-              className="text-lg font-bold flex items-center gap-2 tracking-wide"
-              style={{ textShadow: "1px 1px 2px rgba(0, 0, 0, 0.35)" }}
-            >
-              <Package className="h-4 w-4" />
-              RESUMEN DE TOTALES
-            </CardTitle>
-            <div className="flex items-center gap-3 text-right">
-              <span
-                className="text-base font-bold tracking-wide"
-                style={{ color: progressTextColors[progressLevel] }}
-              >
-                PROGRESO
-              </span>
-              <span
-                className="text-xl font-extrabold animate-flash"
-                style={{ color: progressTextColors[progressLevel] }}
-              >
-                {totalStats.progreso.toFixed(2)}%
-              </span>
-              {progressLevel === "low" && (
-                <svg
-                  width="28"
-                  height="28"
-                  viewBox="0 0 100 100"
-                  className="inline-block"
-                  title="No has llegado al 50%"
-                >
-                  <defs>
-                    <radialGradient id="faceGrad" cx="40%" cy="30%" r="80%">
-                      <stop offset="0%" stopColor="#ffe3b3" />
-                      <stop offset="55%" stopColor="#f7b267" />
-                      <stop offset="100%" stopColor="#df8a3c" />
-                    </radialGradient>
-                    <filter
-                      id="faceShadow"
-                      x="-20%"
-                      y="-20%"
-                      width="140%"
-                      height="140%"
-                    >
-                      <feDropShadow
-                        dx="0"
-                        dy="5"
-                        stdDeviation="4"
-                        floodColor="#000"
-                        floodOpacity="0.35"
-                      />
-                    </filter>
-                  </defs>
-                  <g filter="url(#faceShadow)">
-                    <circle cx="50" cy="47" r="40" fill="url(#faceGrad)" />
-                    <circle
-                      cx="50"
-                      cy="47"
-                      r="40"
-                      fill="none"
-                      stroke="#c96f2e"
-                      strokeWidth="2"
-                    />
-                    <ellipse
-                      cx="50"
-                      cy="80"
-                      rx="34"
-                      ry="10"
-                      fill="#000"
-                      opacity="0.12"
-                    />
-                  </g>
-                  <path
-                    d="M 20 32 L 43 42"
-                    stroke="#4a2c14"
-                    strokeWidth="7"
-                    strokeLinecap="round"
-                    fill="none"
-                  />
-                  <path
-                    d="M 80 32 L 57 42"
-                    stroke="#4a2c14"
-                    strokeWidth="7"
-                    strokeLinecap="round"
-                    fill="none"
-                  />
-                  <ellipse cx="33" cy="50" rx="7" ry="9" fill="#fff" />
-                  <circle cx="33" cy="51" r="4" fill="#2b1a0f" />
-                  <ellipse cx="67" cy="50" rx="7" ry="9" fill="#fff" />
-                  <circle cx="67" cy="51" r="4" fill="#2b1a0f" />
-                  <path
-                    d="M 34 70 Q 50 60 66 70 Q 50 75 34 70 Z"
-                    fill="#7c2d12"
-                  />
-                </svg>
-              )}
-              {progressLevel === "mid" && (
-                <svg
-                  width="28"
-                  height="28"
-                  viewBox="0 0 100 100"
-                  className="inline-block"
-                  title="Has llegado al 50%"
-                >
-                  <defs>
-                    <radialGradient id="faceGrad" cx="40%" cy="30%" r="80%">
-                      <stop offset="0%" stopColor="#ffe3b3" />
-                      <stop offset="55%" stopColor="#f7b267" />
-                      <stop offset="100%" stopColor="#df8a3c" />
-                    </radialGradient>
-                    <filter
-                      id="faceShadow"
-                      x="-20%"
-                      y="-20%"
-                      width="140%"
-                      height="140%"
-                    >
-                      <feDropShadow
-                        dx="0"
-                        dy="5"
-                        stdDeviation="4"
-                        floodColor="#000"
-                        floodOpacity="0.35"
-                      />
-                    </filter>
-                  </defs>
-                  <g filter="url(#faceShadow)">
-                    <circle cx="50" cy="47" r="40" fill="url(#faceGrad)" />
-                    <circle
-                      cx="50"
-                      cy="47"
-                      r="40"
-                      fill="none"
-                      stroke="#c96f2e"
-                      strokeWidth="2"
-                    />
-                    <ellipse
-                      cx="50"
-                      cy="80"
-                      rx="34"
-                      ry="10"
-                      fill="#000"
-                      opacity="0.12"
-                    />
-                  </g>
-                  <path
-                    d="M 22 36 L 44 36"
-                    stroke="#4a2c14"
-                    strokeWidth="6"
-                    strokeLinecap="round"
-                    fill="none"
-                  />
-                  <path
-                    d="M 56 36 L 78 36"
-                    stroke="#4a2c14"
-                    strokeWidth="6"
-                    strokeLinecap="round"
-                    fill="none"
-                  />
-                  <ellipse cx="33" cy="50" rx="7" ry="9" fill="#fff" />
-                  <circle cx="33" cy="51" r="4" fill="#2b1a0f" />
-                  <ellipse cx="67" cy="50" rx="7" ry="9" fill="#fff" />
-                  <circle cx="67" cy="51" r="4" fill="#2b1a0f" />
-                  <path
-                    d="M 34 72 L 66 72"
-                    stroke="#7c2d12"
-                    strokeWidth="6"
-                    strokeLinecap="round"
-                    fill="none"
-                  />
-                </svg>
-              )}
-              {progressLevel === "high" && (
-                <svg
-                  width="28"
-                  height="28"
-                  viewBox="0 0 100 100"
-                  className="inline-block"
-                  title="Has llegado al 80%"
-                >
-                  <defs>
-                    <radialGradient id="faceGrad" cx="40%" cy="30%" r="80%">
-                      <stop offset="0%" stopColor="#ffe3b3" />
-                      <stop offset="55%" stopColor="#f7b267" />
-                      <stop offset="100%" stopColor="#df8a3c" />
-                    </radialGradient>
-                    <filter
-                      id="faceShadow"
-                      x="-20%"
-                      y="-20%"
-                      width="140%"
-                      height="140%"
-                    >
-                      <feDropShadow
-                        dx="0"
-                        dy="5"
-                        stdDeviation="4"
-                        floodColor="#000"
-                        floodOpacity="0.35"
-                      />
-                    </filter>
-                  </defs>
-                  <g filter="url(#faceShadow)">
-                    <circle cx="50" cy="47" r="40" fill="url(#faceGrad)" />
-                    <circle
-                      cx="50"
-                      cy="47"
-                      r="40"
-                      fill="none"
-                      stroke="#c96f2e"
-                      strokeWidth="2"
-                    />
-                    <ellipse
-                      cx="50"
-                      cy="80"
-                      rx="34"
-                      ry="10"
-                      fill="#000"
-                      opacity="0.12"
-                    />
-                  </g>
-                  <path
-                    d="M 20 34 Q 30 28 40 33"
-                    stroke="#4a2c14"
-                    strokeWidth="6"
-                    strokeLinecap="round"
-                    fill="none"
-                  />
-                  <path
-                    d="M 60 33 Q 70 28 80 34"
-                    stroke="#4a2c14"
-                    strokeWidth="6"
-                    strokeLinecap="round"
-                    fill="none"
-                  />
-                  <path
-                    d="M 27 48 Q 33 43 39 48"
-                    stroke="#4a2c14"
-                    strokeWidth="5"
-                    strokeLinecap="round"
-                    fill="none"
-                  />
-                  <path
-                    d="M 61 48 Q 67 43 73 48"
-                    stroke="#4a2c14"
-                    strokeWidth="5"
-                    strokeLinecap="round"
-                    fill="none"
-                  />
-                  <ellipse cx="34" cy="62" rx="9" ry="5" fill="#f59e0b" opacity="0.4" />
-                  <ellipse cx="66" cy="62" rx="9" ry="5" fill="#f59e0b" opacity="0.4" />
-                  <path
-                    d="M 32 68 Q 50 88 68 68 Q 58 74 50 74 Q 42 74 32 68 Z"
-                    fill="#7c2d12"
-                  />
-                </svg>
-              )}
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="rounded-lg border border-blue-200 dark:border-blue-900 border-b-4 border-b-blue-400 dark:border-b-blue-700 p-4 bg-blue-50 dark:bg-blue-950/20 text-center shadow-lg shadow-blue-200/60 dark:shadow-blue-950/40">
-              <div
-                className="text-base font-bold text-blue-600 dark:text-blue-400 tracking-wide"
-                style={{ textShadow: "1px 1px 2px rgba(37, 99, 235, 0.35)" }}
-              >
-                TOTAL ACTIVOS INVENTARIADOS
-              </div>
-              <div className="text-3xl font-bold text-blue-700 dark:text-blue-300">
-                {totalStats.total}
-              </div>
-            </div>
-            <div className="rounded-lg border border-red-200 dark:border-red-900 border-b-4 border-b-red-400 dark:border-b-red-700 p-4 bg-red-50 dark:bg-red-950/20 text-center shadow-lg shadow-red-200/60 dark:shadow-red-950/40">
-              <div
-                className="text-base font-bold text-red-600 dark:text-red-400 tracking-wide"
-                style={{ textShadow: "1px 1px 2px rgba(220, 38, 38, 0.35)" }}
-              >
-                NO REVISADOS
-              </div>
-              <div className="text-3xl font-bold text-red-700 dark:text-red-300">
-                {totalStats.noRevisados}
-              </div>
-            </div>
-            <div className="rounded-lg border border-yellow-200 dark:border-yellow-900 border-b-4 border-b-yellow-400 dark:border-b-yellow-700 p-4 bg-yellow-50 dark:bg-yellow-950/20 text-center shadow-lg shadow-yellow-200/60 dark:shadow-yellow-950/40">
-              <div
-                className="text-base font-bold text-yellow-600 dark:text-yellow-400 tracking-wide"
-                style={{ textShadow: "1px 1px 2px rgba(202, 138, 4, 0.35)" }}
-              >
-                REVISADOS
-              </div>
-              <div className="text-3xl font-bold text-yellow-700 dark:text-yellow-300">
-                {totalStats.revisados}
-              </div>
-            </div>
-          </div>
-
-        </CardContent>
-      </Card>
-
-      {inventariadorStats.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Resumen por Inventariador
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {inventariadorStats.map((stat) => (
-                <div
-                  key={stat.email}
-                  className="rounded-lg border p-4 bg-muted/20 space-y-2"
-                >
-                  <div
-                    className="text-xs font-semibold truncate text-muted-foreground"
-                    title={stat.email}
-                  >
-                    {getDisplayName(stat.email)}
-                  </div>
-                  <div className="flex gap-2">
-                    <div className="flex-1 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-900 rounded p-2 text-center">
-                      <div className="text-xs text-orange-600 dark:text-orange-400 font-medium">
-                        Pendientes
-                      </div>
-                      <div className="text-lg font-bold text-orange-700 dark:text-orange-300">
-                        {stat.pendiente}
-                      </div>
-                    </div>
-                    <div className="flex-1 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded p-2 text-center">
-                      <div className="text-xs text-green-600 dark:text-green-400 font-medium">
-                        Revisados
-                      </div>
-                      <div className="text-lg font-bold text-green-700 dark:text-green-300">
-                        {stat.revisado}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <InventarioSummary
+        totalStats={totalStats}
+        progressLevel={progressLevel}
+        progressTextColors={progressTextColors}
+        inventariadorStats={inventariadorStats}
+        getDisplayName={getDisplayName}
+      />
 
       <InventarioFilters
         filtroCodigoActivo={filtroCodigoActivo}

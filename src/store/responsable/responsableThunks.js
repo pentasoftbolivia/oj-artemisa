@@ -1,7 +1,7 @@
 import { createAsyncThunk } from "@reduxjs/toolkit";
-import { supabase, fetchAllFromTable } from "@/lib/supabase";
-import { toSnakeCase, toCamelCaseArray } from "@/lib/mapFields";
-import { invalidateCatalog } from "@/lib/catalogCache";
+import { fetchAllFromTable } from "@/lib/supabase";
+import { toCamelCaseArray } from "@/lib/mapFields";
+import { createCrudThunks } from "@/store/generic/createCrudThunks";
 
 const TABLE = "act_responsable";
 
@@ -12,23 +12,12 @@ export const fetchResponsable = createAsyncThunk(
   "responsable/fetchResponsable",
   async (_, { rejectWithValue }) => {
     try {
-      let allData = [];
-      let start = 0;
-      const CHUNK_SIZE = 1000;
-      let chunk;
-      do {
-        const { data, error } = await supabase
-          .from(TABLE)
-          .select(RESPONSABLE_SELECT)
-          .order("cirun", { ascending: true })
-          .range(start, start + CHUNK_SIZE - 1);
-        if (error) throw error;
-        chunk = data || [];
-        allData = allData.concat(chunk);
-        start += CHUNK_SIZE;
-      } while (chunk.length === CHUNK_SIZE);
+      const rows = await fetchAllFromTable(TABLE, RESPONSABLE_SELECT, {
+        orderColumn: "cirun",
+        ascending: true,
+      });
 
-      const responsables = toCamelCaseArray(allData);
+      const responsables = toCamelCaseArray(rows);
 
       let actaRows = [];
       try {
@@ -78,53 +67,13 @@ export const fetchResponsable = createAsyncThunk(
   }
 );
 
-export const addResponsable = createAsyncThunk(
-  "responsable/addResponsable",
-  async (newResponsable, { rejectWithValue }) => {
-    try {
-      const { data, error } = await supabase
-        .from(TABLE)
-        .insert(toSnakeCase(newResponsable))
-        .select("*")
-        .single();
-      if (error) throw error;
-      invalidateCatalog(TABLE);
-      return toCamelCaseArray([data])[0];
-    } catch (error) {
-      return rejectWithValue(error.message);
-    }
-  }
-);
+const crud = createCrudThunks({
+  prefix: "responsable",
+  table: TABLE,
+  idColumn: "cirun",
+  updatedKey: "updatedResponsable",
+});
 
-export const updateResponsable = createAsyncThunk(
-  "responsable/updateResponsable",
-  async ({ cirun, updatedResponsable }, { rejectWithValue }) => {
-    try {
-      const { data, error } = await supabase
-        .from(TABLE)
-        .update(toSnakeCase(updatedResponsable))
-        .eq("cirun", cirun)
-        .select("*")
-        .single();
-      if (error) throw error;
-      invalidateCatalog(TABLE);
-      return toCamelCaseArray([data])[0];
-    } catch (error) {
-      return rejectWithValue(error.message);
-    }
-  }
-);
-
-export const deleteResponsable = createAsyncThunk(
-  "responsable/deleteResponsable",
-  async (cirun, { rejectWithValue }) => {
-    try {
-      const { error } = await supabase.from(TABLE).delete().eq("cirun", cirun);
-      if (error) throw error;
-      invalidateCatalog(TABLE);
-      return cirun;
-    } catch (error) {
-      return rejectWithValue(error.message);
-    }
-  }
-);
+export const addResponsable = crud.add;
+export const updateResponsable = crud.update;
+export const deleteResponsable = crud.remove;

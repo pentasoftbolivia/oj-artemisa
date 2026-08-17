@@ -24,3 +24,15 @@ dist-ssr
 *.sw?
 .firebase
 .opencode
+
+# Secrets / variables de entorno
+.env
+.env.*
+!.env.example
+opencode.json
+
+# Scripts temporales o herramentales que puedan contener credenciales
+test-auth.js
+check_schema.cjs
+scripts/backfill_*.js
+scripts/refactor.cjs

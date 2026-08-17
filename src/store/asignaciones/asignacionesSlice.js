@@ -50,12 +50,6 @@ export const selectAsignacionesData = (state) => state.asignaciones?.data ?? [];
 export const selectAsignacionesTotalCount = (state) =>
   state.asignaciones?.totalCount ?? 0;
 
-export const selectAsignacionesPage = (state) =>
-  state.asignaciones?.currentPage ?? 1;
-
-export const selectAsignacionesPageSize = (state) =>
-  state.asignaciones?.pageSize ?? 50;
-
 export const selectAsignacionesLoading = createSelector(
   (state) => state.asignaciones?.status,
   (status) => Boolean(status === 'loading')
