@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSelector } from "react-redux";
-import { Package, Plus } from "lucide-react";
+import { Package, Building2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { selectUser } from "@/store/auth/authSlice";
 import { useToast } from "@/hooks/use-toast";
@@ -13,6 +13,7 @@ import InventarioFilters from "../components/InventarioFilters";
 import InventarioTable from "../components/InventarioTable";
 import InventarioBusqueda from "../components/InventarioBusqueda";
 import InventarioSummary from "../components/InventarioSummary";
+import InventarioInmuebleModal from "../components/InventarioInmuebleModal";
 import DataPagination from "@/components/ui/data-pagination";
 
 import { useInventarioData } from "../hooks/useInventarioData";
@@ -66,6 +67,8 @@ const InventarioList = () => {
     isLoadingSummary,
     loadSummaryByUbicacion,
     clearSummary,
+    loadInmuebleSummary,
+    loadInmueblePendientes,
     page,
     pageSize,
     setPage,
@@ -129,6 +132,8 @@ const InventarioList = () => {
       nivel: filtroNivel,
     },
   });
+
+  const [isInmuebleModalOpen, setIsInmuebleModalOpen] = useState(false);
 
   const firstEstadoRef = useRef(true);
 
@@ -697,16 +702,10 @@ const InventarioList = () => {
             Gestión de inventario de activos fijos
           </p>
         </div>
-        {currentUser?.role !== "Usuario" && (
-          <Button
-            onClick={() => {
-              setShowSearch(true);
-            }}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            NUEVO
-          </Button>
-        )}
+        <Button onClick={() => setIsInmuebleModalOpen(true)}>
+          <Building2 className="mr-2 h-4 w-4" />
+          por INMUEBLE
+        </Button>
       </div>
 
       <InventarioSummary
@@ -807,6 +806,21 @@ const InventarioList = () => {
         isLoadingImages={isLoadingImages}
         imageFiles={imageFiles}
         setImageFiles={setImageFiles}
+      />
+
+      <InventarioInmuebleModal
+        isOpen={isInmuebleModalOpen}
+        onClose={() => setIsInmuebleModalOpen(false)}
+        ciudadOptions={ciudadOptions}
+        inmuebleOptions={inmuebleOptions}
+        inmuebleCiudadMap={inmuebleCiudadMap}
+        getDisplayName={getDisplayName}
+        loadInmuebleSummary={loadInmuebleSummary}
+        loadInmueblePendientes={loadInmueblePendientes}
+        getAmbienteName={getAmbienteName}
+        getResponsableName={getResponsableName}
+        rubroFromTipo={rubroFromTipo}
+        tipoRubroDescMap={tipoRubroDescMap}
       />
     </div>
   );

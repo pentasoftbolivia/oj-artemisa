@@ -440,6 +440,72 @@ export const useInventarioData = () => {
     }
   }, []);
 
+  const loadInmuebleSummary = useCallback(async ({ ciudad = "", inmueble = "" } = {}) => {
+    const ambienteCodes = await resolveAmbienteCodes({ ciudad, inmueble });
+    const totalInmueble = await countActivosByUbicacion({ ciudad, inmueble });
+    if (!ambienteCodes || ambienteCodes.length === 0) {
+      return { totalInmueble, totalInventariado: 0, perUser: [] };
+    }
+
+    const CHUNK = 1000;
+    let userRows = [];
+    let start = 0;
+    for (;;) {
+      const { data, error } = await supabase
+        .from("act_activos")
+        .select("usuarioinventario,estadoinventario")
+        .eq("ultimoregistro", 1)
+        .in("codigoambiente", ambienteCodes)
+        .range(start, start + CHUNK - 1);
+      if (error) throw error;
+      userRows = userRows.concat(data || []);
+      if (!data || data.length < CHUNK) break;
+      start += CHUNK;
+    }
+
+    const acc = {};
+    let totalInventariado = 0;
+    userRows.forEach((r) => {
+      const est = String(r.estadoinventario || "").trim().toUpperCase();
+      const isInventariado = Boolean(est && est !== "PENDIENTE" && est !== "EN PROCESO");
+      if (isInventariado) totalInventariado += 1;
+      const email = r.usuarioinventario;
+      if (!email) return;
+      if (!acc[email]) acc[email] = { total: 0, inventariado: 0 };
+      acc[email].total += 1;
+      if (isInventariado) acc[email].inventariado += 1;
+    });
+    const perUser = Object.entries(acc).map(([email, counts]) => ({ email, ...counts }));
+    return { totalInmueble, totalInventariado, perUser };
+  }, []);
+
+  const loadInmueblePendientes = useCallback(async ({ ciudad = "", inmueble = "" } = {}) => {
+    const ambienteCodes = await resolveAmbienteCodes({ ciudad, inmueble });
+    if (!ambienteCodes || ambienteCodes.length === 0) {
+      return [];
+    }
+    const CHUNK = 1000;
+    let rows = [];
+    let start = 0;
+    for (;;) {
+      const { data, error } = await supabase
+        .from("act_activos")
+        .select(ACTIVO_COLUMNS)
+        .eq("ultimoregistro", 1)
+        .in("codigoambiente", ambienteCodes)
+        .or(
+          'estadoinventario.is.null,estadoinventario.not.in.("INVENTARIADO","REVISADO","ENVIADO")',
+        )
+        .order("codigoactivo", { ascending: true })
+        .range(start, start + CHUNK - 1);
+      if (error) throw error;
+      rows = rows.concat(data || []);
+      if (!data || data.length < CHUNK) break;
+      start += CHUNK;
+    }
+    return toCamelCaseArray(rows);
+  }, []);
+
   const clearSummary = useCallback(() => {
     setSummaryStats(null);
     setSummaryInmuebleCount(0);
@@ -480,6 +546,8 @@ export const useInventarioData = () => {
     isLoadingSummary,
     loadSummaryByUbicacion,
     clearSummary,
+    loadInmuebleSummary,
+    loadInmueblePendientes,
     page,
     pageSize,
     setPage,
