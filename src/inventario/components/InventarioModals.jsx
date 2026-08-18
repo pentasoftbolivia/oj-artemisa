@@ -89,7 +89,7 @@ export const InventarioEditModal = ({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="codigoAmbiente">Ambiente</Label>
+              <Label htmlFor="codigoAmbiente">Ubicacion</Label>
               <Select
                 value={editForm.codigoAmbiente}
                 onValueChange={(v) =>

@@ -1,5 +1,7 @@
 import { useState, useMemo } from "react";
-import { Building2, Users, Loader2, Search, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Building2, Users, Loader2, Search, X, ChevronLeft, ChevronRight, FileDown } from "lucide-react";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
   Dialog,
   DialogContent,
@@ -38,6 +40,7 @@ const InventarioInmuebleModal = ({
   const [result, setResult] = useState(null);
   const [pendientes, setPendientes] = useState([]);
   const [pendientesPage, setPendientesPage] = useState(1);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const PENDIENTES_PAGE_SIZE = 3;
 
   const filteredInmuebleOptions = useMemo(() => {
@@ -87,6 +90,93 @@ const InventarioInmuebleModal = ({
   const handleClose = () => {
     handleLimpiar();
     onClose();
+  };
+
+  const handleGenerarPdf = () => {
+    if (pendientes.length === 0) return;
+    setIsGeneratingPdf(true);
+    try {
+      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "letter" });
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      const pageWidth = doc.internal.pageSize.getWidth();
+      doc.text("ACTIVOS POR INVENTARIAR", pageWidth / 2, 15, { align: "center" });
+
+      doc.setFontSize(9);
+      const selectedCiudad = ciudadOptions.find((o) => String(o.value).trim() === String(ciudad).trim())?.label || "";
+      const selectedInmueble = inmuebleOptions.find((o) => String(o.value).trim() === String(inmueble).trim())?.label || "";
+
+      const drawCenteredBoldLabel = (label, value, xCenter, y) => {
+        doc.setFont("helvetica", "bold");
+        const labelWidth = doc.getTextWidth(label);
+        doc.setFont("helvetica", "normal");
+        const valueWidth = doc.getTextWidth(value);
+        const totalWidth = labelWidth + valueWidth;
+        const startX = xCenter - totalWidth / 2;
+        doc.setFont("helvetica", "bold");
+        doc.text(label, startX, y);
+        doc.setFont("helvetica", "normal");
+        doc.text(value, startX + labelWidth, y);
+      };
+
+      drawCenteredBoldLabel("CIUDAD: ", `${selectedCiudad || "Todas"}`, pageWidth / 4, 21);
+      drawCenteredBoldLabel("INMUEBLE: ", `${selectedInmueble || "Todos"}`, (pageWidth * 3) / 4, 21);
+
+      doc.setFontSize(8);
+      doc.text(`Total de activos por inventariar: ${pendientes.length}`, pageWidth / 2, 25, { align: "center" });
+
+      const body = pendientes.map((a) => {
+        const trId = a.tipoRubroAct || a.tiporubroact;
+        const rubro = (rubroFromTipo[trId] || "").trim();
+        const tipo = (tipoRubroDescMap[trId] || "").trim();
+        const codBase = (a.codigoActivo ?? a.codigoactivo ?? "").toString().trim();
+        return [
+          codBase ? `OJ-02-${codBase}` : "—",
+          rubro,
+          tipo,
+          a.descripcionActivo || "—",
+          getAmbienteName(String(a.codigoAmbiente ?? "").trim()),
+          getResponsableName(a.cirun),
+          a.cirun || "—",
+        ];
+      });
+
+      autoTable(doc, {
+        startY: 28,
+        head: [["Código", "Rubro", "Tipo Rubro", "Descripción", "Ambiente", "Responsable", "CI Responsable"]],
+        body,
+        theme: "striped",
+        styles: { font: "helvetica", fontSize: 7, cellPadding: 1.2, overflow: "linebreak" },
+        headStyles: { fillColor: [220, 38, 38], textColor: [255, 255, 255], halign: "center" },
+        columnStyles: {
+          0: { cellWidth: 28 },
+          1: { cellWidth: 30 },
+          2: { cellWidth: 30 },
+          3: { cellWidth: "auto" },
+          4: { cellWidth: 45 },
+          5: { cellWidth: 38 },
+          6: { cellWidth: 22, halign: "center" },
+        },
+        margin: { left: 14, right: 14 },
+      });
+
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const totalPages = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Página ${i} de ${totalPages}`, pageWidth / 2, pageHeight - 8, { align: "center" });
+      }
+
+      const safeLabel = (selectedInmueble || "Inmueble").replace(/[^a-zA-Z0-9]+/g, "_");
+      doc.save(`Activos_Por_Inventariar_${safeLabel}.pdf`);
+    } catch (e) {
+      console.error("Error generando PDF:", e);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
 
   return (
@@ -154,6 +244,34 @@ const InventarioInmuebleModal = ({
             </div>
           ) : result ? (
             <div className="flex-1 min-h-0 overflow-auto space-y-4">
+              {result.totalInmueble > 0 && (
+                <div className="flex justify-center py-2">
+                  <div className="text-center">
+                    <div className="text-sm font-semibold text-muted-foreground tracking-wide" 
+                    style={{ color: "#dc2626" }}>
+                      PORCENTAJE DE AVANCE
+                    </div>
+                    <div
+                      className="text-4xl font-extrabold animate-flash"
+                      style={{
+                        color:
+                          result.totalInventariado / result.totalInmueble <= 0.5
+                            ? "#dc2626"
+                            : result.totalInventariado / result.totalInmueble <= 0.8
+                              ? "#eab308"
+                              : "#16a34a",
+                      }}
+                    >
+                      {(
+                        (result.totalInventariado / result.totalInmueble) *
+                        100
+                      ).toFixed(2)}
+                      %
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/20 p-4 text-center shadow-sm">
                   <div className="text-sm font-semibold text-blue-600 dark:text-blue-400 tracking-wide">
@@ -293,6 +411,19 @@ const InventarioInmuebleModal = ({
                         <ChevronRight className="h-4 w-4" />
                       </Button>
                     </div>
+                  </div>
+                  <div className="flex justify-end px-4 py-3 border-t bg-muted/20">
+                    <Button
+                      onClick={handleGenerarPdf}
+                      disabled={isGeneratingPdf}
+                    >
+                      {isGeneratingPdf ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <FileDown className="h-4 w-4 mr-2" />
+                      )}
+                      Generar PDF
+                    </Button>
                   </div>
                 </div>
               )}

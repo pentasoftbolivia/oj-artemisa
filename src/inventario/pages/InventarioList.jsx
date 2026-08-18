@@ -61,12 +61,6 @@ const InventarioList = () => {
     inmuebles,
     niveles,
     totalStats: rawTotalStats,
-    inmuebleCount,
-    summaryStats,
-    summaryInmuebleCount,
-    isLoadingSummary,
-    loadSummaryByUbicacion,
-    clearSummary,
     loadInmuebleSummary,
     loadInmueblePendientes,
     page,
@@ -710,20 +704,11 @@ const InventarioList = () => {
 
       <InventarioSummary
         totalStats={totalStats}
-        inmuebleCount={inmuebleCount}
-        summaryInmuebleCount={summaryInmuebleCount}
         progressLevel={progressLevel}
         progressTextColors={progressTextColors}
         inventariadorStats={inventariadorStats}
-        summaryStats={summaryStats}
-        isLoadingSummary={isLoadingSummary}
         getDisplayName={getDisplayName}
         ubicacionLabel={ubicacionLabel}
-        onBuscar={loadSummaryByUbicacion}
-        onLimpiar={clearSummary}
-        ciudadOptions={ciudadOptions}
-        inmuebleOptions={inmuebleOptions}
-        inmuebleCiudadMap={inmuebleCiudadMap}
       />
 
       <InventarioFilters

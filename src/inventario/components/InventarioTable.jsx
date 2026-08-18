@@ -32,7 +32,7 @@ const InventarioTable = memo(
               <TableHead>Rubro</TableHead>
               <TableHead>Tipo Rubro</TableHead>
               <TableHead>Descripción del Activo</TableHead>
-              <TableHead>Ambiente</TableHead>
+              <TableHead>Ubicación</TableHead>
               <TableHead>Responsable</TableHead>
               <TableHead>CI</TableHead>
               <TableHead>Inventariador</TableHead>
