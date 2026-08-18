@@ -63,6 +63,7 @@ const InventarioList = () => {
     inmuebleCount,
     summaryStats,
     summaryInmuebleCount,
+    isLoadingSummary,
     loadSummaryByUbicacion,
     clearSummary,
     page,
@@ -716,6 +717,7 @@ const InventarioList = () => {
         progressTextColors={progressTextColors}
         inventariadorStats={inventariadorStats}
         summaryStats={summaryStats}
+        isLoadingSummary={isLoadingSummary}
         getDisplayName={getDisplayName}
         ubicacionLabel={ubicacionLabel}
         onBuscar={loadSummaryByUbicacion}

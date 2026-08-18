@@ -53,6 +53,7 @@ export const useInventarioData = () => {
   const [inmuebleCount, setInmuebleCount] = useState(0);
   const [summaryStats, setSummaryStats] = useState(null);
   const [summaryInmuebleCount, setSummaryInmuebleCount] = useState(0);
+  const [isLoadingSummary, setIsLoadingSummary] = useState(false);
 
   const pageRef = useRef(1);
   const pageSizeRef = useRef(DEFAULT_PAGE_SIZE);
@@ -400,6 +401,7 @@ export const useInventarioData = () => {
   }, [loadCatalogos]);
 
   const loadSummaryByUbicacion = useCallback(async ({ ciudad = "", inmueble = "" } = {}) => {
+    setIsLoadingSummary(true);
     try {
       let ambienteCodes = null;
       if (ciudad || inmueble) {
@@ -433,6 +435,8 @@ export const useInventarioData = () => {
     } catch (e) {
       console.error("Error loading summary by ubicacion:", e);
       setSummaryStats([]);
+    } finally {
+      setIsLoadingSummary(false);
     }
   }, []);
 
@@ -473,6 +477,7 @@ export const useInventarioData = () => {
     inmuebleCount,
     summaryStats,
     summaryInmuebleCount,
+    isLoadingSummary,
     loadSummaryByUbicacion,
     clearSummary,
     page,

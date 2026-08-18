@@ -26,6 +26,7 @@ const InventarioSummary = ({
   const [inmueble, setInmueble] = useState("");
 
   const hasSummaryFilter = summaryStats !== null;
+  const isFilterActive = !!ciudad || !!inmueble;
 
   const filteredInmuebleOptions = useMemo(() => {
     if (!ciudad) return inmuebleOptions;
@@ -128,10 +129,26 @@ const InventarioSummary = ({
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            Resumen por Inventariador
-          </CardTitle>
+          <div className="flex items-center justify-between gap-4">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Resumen por Inventariador
+            </CardTitle>
+            <div className="flex items-center gap-2 text-right whitespace-nowrap">
+              <span
+                className="text-sm font-bold tracking-wide text-muted-foreground"
+                style={{ textShadow: "1px 1px 2px rgba(0, 0, 0, 0.25)" }}
+              >
+                ACTIVOS POR INMUEBLE
+              </span>
+              <span
+                className="text-2xl font-extrabold leading-none"
+                style={{ textShadow: "1px 1px 2px rgba(0, 0, 0, 0.35)" }}
+              >
+                {displayInmuebleCount}
+              </span>
+            </div>
+          </div>
           {(ubicacionLabel || summaryLabel) && (
             <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
               <span className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
@@ -140,20 +157,6 @@ const InventarioSummary = ({
               </span>
             </div>
           )}
-           <div className="flex flex-col items-center text-center">
-              <span
-                className="text-sm font-bold tracking-wide text-muted-foreground"
-                style={{ textShadow: "1px 1px 2px rgba(0, 0, 0, 0.25)" }}
-              >
-                ACTIVOS POR INMUEBLE
-              </span>
-              <span
-                className="text-2xl font-extrabold"
-                style={{ textShadow: "1px 1px 2px rgba(0, 0, 0, 0.35)" }}
-              >
-                {displayInmuebleCount}
-              </span>
-            </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -188,10 +191,16 @@ const InventarioSummary = ({
               )}
               Buscar
             </Button>
-            <Button variant="outline" onClick={handleLimpiar} disabled={isLoadingSummary}>
-              <X className="h-4 w-4 mr-2" />
-              Limpiar
-            </Button>
+            {isFilterActive && (
+              <Button
+                variant="outline"
+                onClick={handleLimpiar}
+                disabled={isLoadingSummary}
+              >
+                <X className="h-4 w-4 mr-2" />
+                Limpiar
+              </Button>
+            )}
           </div>
 
           {displayStats.length > 0 && (
