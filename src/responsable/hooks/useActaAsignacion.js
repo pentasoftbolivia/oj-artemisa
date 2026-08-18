@@ -351,8 +351,8 @@ export const useActaAsignacion = () => {
           halign: 'center'
         },
         columnStyles: {
-          0: { cellWidth: 30 },
-          1: { cellWidth: 22 },
+          0: { cellWidth: 22 },
+          1: { cellWidth: 30 },
           2: { cellWidth: 22 },
           3: { cellWidth: 'auto' },
           4: { cellWidth: 38 },
