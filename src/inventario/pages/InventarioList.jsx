@@ -698,7 +698,7 @@ const InventarioList = () => {
         </div>
         <Button onClick={() => setIsInmuebleModalOpen(true)}>
           <Building2 className="mr-2 h-4 w-4" />
-          por INMUEBLE
+          POR INMUEBLE
         </Button>
       </div>
 

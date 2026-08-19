@@ -444,7 +444,7 @@ export const useInventarioData = () => {
     const ambienteCodes = await resolveAmbienteCodes({ ciudad, inmueble });
     const totalInmueble = await countActivosByUbicacion({ ciudad, inmueble });
     if (!ambienteCodes || ambienteCodes.length === 0) {
-      return { totalInmueble, totalInventariado: 0, perUser: [] };
+      return { totalInmueble, totalInventariado: 0, totalEnProceso: 0, perUser: [] };
     }
 
     const CHUNK = 1000;
@@ -465,18 +465,21 @@ export const useInventarioData = () => {
 
     const acc = {};
     let totalInventariado = 0;
+    let totalEnProceso = 0;
     userRows.forEach((r) => {
       const est = String(r.estadoinventario || "").trim().toUpperCase();
+      if (est === "EN PROCESO") totalEnProceso += 1;
       const isInventariado = Boolean(est && est !== "PENDIENTE" && est !== "EN PROCESO");
       if (isInventariado) totalInventariado += 1;
       const email = r.usuarioinventario;
       if (!email) return;
-      if (!acc[email]) acc[email] = { total: 0, inventariado: 0 };
+      if (!acc[email]) acc[email] = { total: 0, inventariado: 0, enProceso: 0 };
       acc[email].total += 1;
       if (isInventariado) acc[email].inventariado += 1;
+      if (est === "EN PROCESO") acc[email].enProceso += 1;
     });
     const perUser = Object.entries(acc).map(([email, counts]) => ({ email, ...counts }));
-    return { totalInmueble, totalInventariado, perUser };
+    return { totalInmueble, totalInventariado, totalEnProceso, perUser };
   }, []);
 
   const loadInmueblePendientes = useCallback(async ({ ciudad = "", inmueble = "" } = {}) => {

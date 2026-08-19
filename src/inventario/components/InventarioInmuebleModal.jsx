@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { Building2, Users, Loader2, Search, X, ChevronLeft, ChevronRight, FileDown } from "lucide-react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
 import {
   Dialog,
   DialogContent,
@@ -41,6 +42,7 @@ const InventarioInmuebleModal = ({
   const [pendientes, setPendientes] = useState([]);
   const [pendientesPage, setPendientesPage] = useState(1);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isGeneratingExcel, setIsGeneratingExcel] = useState(false);
   const PENDIENTES_PAGE_SIZE = 3;
 
   const filteredInmuebleOptions = useMemo(() => {
@@ -179,9 +181,70 @@ const InventarioInmuebleModal = ({
     }
   };
 
+  const handleGenerarExcel = () => {
+    if (!result) return;
+    setIsGeneratingExcel(true);
+    try {
+      const selectedCiudad = ciudadOptions.find((o) => String(o.value).trim() === String(ciudad).trim())?.label || "";
+      const selectedInmueble = inmuebleOptions.find((o) => String(o.value).trim() === String(inmueble).trim())?.label || "";
+      const porcentaje = result.totalInmueble > 0
+        ? Number(((result.totalInventariado / result.totalInmueble) * 100).toFixed(2))
+        : 0;
+
+      const wb = XLSX.utils.book_new();
+
+      const rows = [
+        ["CIUDAD", selectedCiudad || "Todas"],
+        ["INMUEBLE", selectedInmueble || "Todos"],
+        [],
+        ["TOTAL DE ACTIVOS EN EL INMUEBLE", result.totalInmueble],
+        ["TOTAL DE ACTIVOS INVENTARIADOS", result.totalInventariado],
+        ["TOTAL DE ACTIVOS EN PROCESO", result.totalEnProceso],
+        ["PORCENTAJE DE AVANCE", `${porcentaje}%`],
+        [],
+        ["INVENTARIADOR", "EN PROCESO", "INVENTARIADOS"],
+        ...result.perUser.map((stat) => [
+          getDisplayName(stat.email),
+          stat.enProceso,
+          stat.inventariado,
+        ]),
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      ws["!cols"] = [{ wch: 30 }, { wch: 16 }, { wch: 16 }];
+      XLSX.utils.book_append_sheet(wb, ws, "Resumen");
+
+      const pendRows = [
+        ["CÓDIGO", "RUBRO", "TIPO RUBRO", "DESCRIPCIÓN", "AMBIENTE", "RESPONSABLE", "CI RESPONSABLE"],
+        ...pendientes.map((a) => {
+          const trId = a.tipoRubroAct || a.tiporubroact;
+          const codBase = (a.codigoActivo ?? a.codigoactivo ?? "").toString().trim();
+          return [
+            codBase ? `OJ-02-${codBase}` : "—",
+            (rubroFromTipo[trId] || "").trim(),
+            (tipoRubroDescMap[trId] || "").trim(),
+            a.descripcionActivo || "—",
+            getAmbienteName(String(a.codigoAmbiente ?? "").trim()),
+            getResponsableName(a.cirun),
+            a.cirun || "—",
+          ];
+        }),
+      ];
+      const wsPend = XLSX.utils.aoa_to_sheet(pendRows);
+      wsPend["!cols"] = [{ wch: 16 }, { wch: 18 }, { wch: 18 }, { wch: 45 }, { wch: 30 }, { wch: 22 }, { wch: 14 }];
+      XLSX.utils.book_append_sheet(wb, wsPend, "Por Inventariar");
+
+      const safeLabel = (selectedInmueble || "Inmueble").replace(/[^a-zA-Z0-9]+/g, "_");
+      XLSX.writeFile(wb, `Activos_Por_Inmueble_${safeLabel}.xlsx`);
+    } catch (e) {
+      console.error("Error generando Excel:", e);
+    } finally {
+      setIsGeneratingExcel(false);
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="max-w-[98vw] w-[1600px] max-h-[90vh] flex flex-col p-6">
+      <DialogContent className="max-w-[96vw] sm:max-w-[1200px] w-[1200px] max-h-[90vh] flex flex-col p-6">
         <DialogHeader>
           <DialogTitle className="text-xl flex items-center gap-2">
             <Building2 className="h-5 w-5" />
@@ -233,6 +296,39 @@ const InventarioInmuebleModal = ({
               <X className="h-4 w-4 mr-2" />
               Limpiar
             </Button>
+            <Button
+              variant="outline"
+              className="ml-auto bg-yellow-400 hover:bg-yellow-500 text-yellow-950 border-yellow-500"
+              onClick={handleGenerarExcel}
+              disabled={isGeneratingExcel || !result}
+            >
+              {isGeneratingExcel ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <svg viewBox="0 0 24 24" className="h-4 w-4 mr-2" aria-hidden="true">
+                  <path
+                    fill="#217346"
+                    d="M19.5 3h-9A1.5 1.5 0 0 0 9 4.5V7H4.5A1.5 1.5 0 0 0 3 8.5v9A1.5 1.5 0 0 0 4.5 19H9v.5a1.5 1.5 0 0 0 1.5 1.5h9A1.5 1.5 0 0 0 21 19.5v-15A1.5 1.5 0 0 0 19.5 3z"
+                  />
+                  <path
+                    fill="#fff"
+                    d="M9 8.5v7A1.5 1.5 0 0 1 7.5 17H3V7h4.5A1.5 1.5 0 0 1 9 8.5z"
+                  />
+                  <g fill="#217346">
+                    <rect x="9" y="7" width="4" height="1.6" />
+                    <rect x="9" y="10" width="4" height="1.6" />
+                    <rect x="9" y="13" width="4" height="1.6" />
+                    <rect x="9" y="16" width="4" height="1.6" />
+                  </g>
+                  <g fill="#fff">
+                    <path d="M10.4 8.3l1.2 1.2-1.2 1.2-.9-.9-.9.9-1.2-1.2 1.2-1.2.9.9z" transform="translate(-1.4 0.6)" />
+                    <path d="M10.4 10.7l1.2 1.2-1.2 1.2-.9-.9-.9.9-1.2-1.2 1.2-1.2.9.9z" transform="translate(-1.4 0.6)" />
+                    <path d="M10.4 13.1l1.2 1.2-1.2 1.2-.9-.9-.9.9-1.2-1.2 1.2-1.2.9.9z" transform="translate(-1.4 0.6)" />
+                  </g>
+                </svg>
+              )}
+              Reporte de los Paneles en Excel
+            </Button>
           </div>
 
           {isLoading ? (
@@ -245,10 +341,12 @@ const InventarioInmuebleModal = ({
           ) : result ? (
             <div className="flex-1 min-h-0 overflow-auto space-y-4">
               {result.totalInmueble > 0 && (
-                <div className="flex justify-center py-2">
-                  <div className="text-center">
-                    <div className="text-sm font-semibold text-muted-foreground tracking-wide" 
-                    style={{ color: "#dc2626" }}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="flex flex-col justify-center items-center py-2">
+                    <div
+                      className="text-sm font-semibold tracking-wide"
+                      style={{ color: "#dc2626" }}
+                    >
                       PORCENTAJE DE AVANCE
                     </div>
                     <div
@@ -269,24 +367,37 @@ const InventarioInmuebleModal = ({
                       %
                     </div>
                   </div>
+                  <div className="rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/20 p-4 text-center shadow-sm">
+                    <div className="text-sm font-semibold text-blue-600 dark:text-blue-400 tracking-wide">
+                      TOTAL DE ACTIVOS EN EL INMUEBLE
+                    </div>
+                    <div className="text-lg font-bold text-blue-700 dark:text-blue-300 mt-1">
+                      {(ciudadOptions.find((o) => String(o.value).trim() === String(ciudad).trim())?.label || "Todas") +
+                        " - " +
+                        (inmuebleOptions.find((o) => String(o.value).trim() === String(inmueble).trim())?.label || "Todos")}
+                    </div>
+                    <div className="text-3xl font-bold text-blue-700 dark:text-blue-300">
+                      {result.totalInmueble}
+                    </div>
+                  </div>
                 </div>
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/20 p-4 text-center shadow-sm">
-                  <div className="text-sm font-semibold text-blue-600 dark:text-blue-400 tracking-wide">
-                    TOTAL DE ACTIVOS EN EL INMUEBLE
-                  </div>
-                  <div className="text-3xl font-bold text-blue-700 dark:text-blue-300">
-                    {result.totalInmueble}
-                  </div>
-                </div>
                 <div className="rounded-lg border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/20 p-4 text-center shadow-sm">
                   <div className="text-sm font-semibold text-green-600 dark:text-green-400 tracking-wide">
                     TOTAL DE ACTIVOS INVENTARIADOS
                   </div>
                   <div className="text-3xl font-bold text-green-700 dark:text-green-300">
                     {result.totalInventariado}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-yellow-200 dark:border-yellow-900 bg-yellow-50 dark:bg-yellow-950/20 p-4 text-center shadow-sm">
+                  <div className="text-sm font-semibold text-yellow-600 dark:text-yellow-400 tracking-wide">
+                    TOTAL DE ACTIVOS EN PROCESO
+                  </div>
+                  <div className="text-3xl font-bold text-yellow-700 dark:text-yellow-300">
+                    {result.totalEnProceso}
                   </div>
                 </div>
               </div>
@@ -296,7 +407,7 @@ const InventarioInmuebleModal = ({
                   {result.perUser.map((stat) => (
                     <div
                       key={stat.email}
-                      className="rounded-lg border p-4 bg-muted/20 space-y-2"
+                      className="rounded-lg border p-4 bg-muted/20 space-y-2 min-w-0"
                     >
                       <div
                         className="text-xs font-semibold truncate text-muted-foreground"
@@ -304,17 +415,17 @@ const InventarioInmuebleModal = ({
                       >
                         {getDisplayName(stat.email)}
                       </div>
-                      <div className="flex gap-2">
-                        <div className="flex-1 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded p-2 text-center">
-                          <div className="text-xs text-blue-600 dark:text-blue-400 font-medium">
-                            Total
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="min-w-0 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-900 rounded p-2 text-center">
+                          <div className="text-xs text-yellow-600 dark:text-yellow-400 font-medium whitespace-nowrap">
+                            En Proceso
                           </div>
-                          <div className="text-lg font-bold text-blue-700 dark:text-blue-300">
-                            {stat.total}
+                          <div className="text-lg font-bold text-yellow-700 dark:text-yellow-300">
+                            {stat.enProceso}
                           </div>
                         </div>
-                        <div className="flex-1 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded p-2 text-center">
-                          <div className="text-xs text-green-600 dark:text-green-400 font-medium">
+                        <div className="min-w-0 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded p-2 text-center">
+                          <div className="text-xs text-green-600 dark:text-green-400 font-medium whitespace-nowrap">
                             Inventariados
                           </div>
                           <div className="text-lg font-bold text-green-700 dark:text-green-300">
@@ -361,7 +472,7 @@ const InventarioInmuebleModal = ({
                             const codBase = (a.codigoActivo ?? a.codigoactivo ?? "").toString().trim();
                             const codigo = codBase ? `OJ-02-${codBase}` : "—";
                             const ambiente = getAmbienteName(String(a.codigoAmbiente ?? "").trim());
-                            const respName = getResponsableName(a.cirun);
+const respName = getResponsableName(a.cirun);
                             return (
                               <TableRow key={i}>
                                 <TableCell className="font-mono text-xs">{codigo}</TableCell>
@@ -422,7 +533,7 @@ const InventarioInmuebleModal = ({
                       ) : (
                         <FileDown className="h-4 w-4 mr-2" />
                       )}
-                      Generar PDF
+                      Reporte Activos No Inventariados en PDF
                     </Button>
                   </div>
                 </div>
