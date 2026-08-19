@@ -22,6 +22,7 @@ const ComboboxField = ({
   error,
   emptyMessage = "Sin resultados",
   className,
+  wrapText = false,
 }) => {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -80,7 +81,9 @@ const ComboboxField = ({
                 Cargando...
               </span>
             ) : value && selectedLabel ? (
-              <span className="truncate">{selectedLabel}</span>
+              <span className={wrapText ? "whitespace-normal text-left" : "truncate"}>
+                {selectedLabel}
+              </span>
             ) : (
               <span className="text-muted-foreground">{placeholder}</span>
             )}
@@ -91,7 +94,11 @@ const ComboboxField = ({
           className="p-0"
           align="start"
           sideOffset={4}
-          style={{ width: "var(--radix-popover-trigger-width)" }}
+          style={
+            wrapText
+              ? { width: "max(320px, var(--radix-popover-trigger-width))", maxWidth: "min(520px, 90vw)" }
+              : { width: "var(--radix-popover-trigger-width)" }
+          }
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
           <div ref={containerRef}>
@@ -118,17 +125,21 @@ const ComboboxField = ({
                     aria-selected={value === opt.value}
                     className={cn(
                       "relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground",
+                      wrapText && "items-start",
                       value === opt.value && "bg-accent text-accent-foreground"
                     )}
                     onClick={() => handleSelect(opt.value)}
                   >
                     <Check
                       className={cn(
-                        "mr-2 h-4 w-4",
+                        "mr-2 h-4 w-4 shrink-0",
+                        wrapText && "mt-0.5",
                         value === opt.value ? "opacity-100" : "opacity-0"
                       )}
                     />
-                    <span className="truncate">{opt.label}</span>
+                    <span className={wrapText ? "whitespace-normal" : "truncate"}>
+                      {opt.label}
+                    </span>
                   </div>
                 ))
               )}

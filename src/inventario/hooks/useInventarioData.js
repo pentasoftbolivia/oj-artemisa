@@ -482,6 +482,38 @@ export const useInventarioData = () => {
     return { totalInmueble, totalInventariado, totalEnProceso, perUser };
   }, []);
 
+  const loadActivosPorFecha = useCallback(async ({ fechaDesde, fechaHasta } = {}) => {
+    const start = new Date(`${fechaDesde}T00:00:00`).toISOString();
+    const end = new Date(`${fechaHasta}T23:59:59.999`).toISOString();
+    const CHUNK = 1000;
+    let rows = [];
+    let offset = 0;
+    for (;;) {
+      const { data, error } = await supabase
+        .from("act_activos")
+        .select("usuarioinventario")
+        .eq("ultimoregistro", 1)
+        .gte("fecharegistro", start)
+        .lte("fecharegistro", end)
+        .range(offset, offset + CHUNK - 1);
+      if (error) throw error;
+      rows = rows.concat(data || []);
+      if (!data || data.length < CHUNK) break;
+      offset += CHUNK;
+    }
+
+    const acc = {};
+    rows.forEach((r) => {
+      const email = r.usuarioinventario;
+      if (!email) return;
+      if (!acc[email]) acc[email] = { total: 0 };
+      acc[email].total += 1;
+    });
+    return Object.entries(acc)
+      .map(([email, counts]) => ({ email, ...counts }))
+      .sort((a, b) => b.total - a.total);
+  }, []);
+
   const loadInmueblePendientes = useCallback(async ({ ciudad = "", inmueble = "" } = {}) => {
     const ambienteCodes = await resolveAmbienteCodes({ ciudad, inmueble });
     if (!ambienteCodes || ambienteCodes.length === 0) {
@@ -551,6 +583,7 @@ export const useInventarioData = () => {
     clearSummary,
     loadInmuebleSummary,
     loadInmueblePendientes,
+    loadActivosPorFecha,
     page,
     pageSize,
     setPage,

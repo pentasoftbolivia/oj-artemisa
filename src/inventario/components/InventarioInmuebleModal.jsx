@@ -298,7 +298,7 @@ const InventarioInmuebleModal = ({
             </Button>
             <Button
               variant="outline"
-              className="ml-auto bg-yellow-400 hover:bg-yellow-500 text-yellow-950 border-yellow-500"
+              className="ml-auto bg-sky-300 hover:bg-sky-400 text-sky-950 border-sky-400"
               onClick={handleGenerarExcel}
               disabled={isGeneratingExcel || !result}
             >

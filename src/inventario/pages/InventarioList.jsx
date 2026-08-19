@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSelector } from "react-redux";
-import { Package, Building2 } from "lucide-react";
+import { Package, Building2, CalendarDays, FileSpreadsheet, Loader2 } from "lucide-react";
+import * as XLSX from "xlsx";
 import { supabase } from "@/lib/supabase";
 import { selectUser } from "@/store/auth/authSlice";
 import { useToast } from "@/hooks/use-toast";
@@ -14,6 +15,7 @@ import InventarioTable from "../components/InventarioTable";
 import InventarioBusqueda from "../components/InventarioBusqueda";
 import InventarioSummary from "../components/InventarioSummary";
 import InventarioInmuebleModal from "../components/InventarioInmuebleModal";
+import InventarioFechaModal from "../components/InventarioFechaModal";
 import DataPagination from "@/components/ui/data-pagination";
 
 import { useInventarioData } from "../hooks/useInventarioData";
@@ -63,6 +65,7 @@ const InventarioList = () => {
     totalStats: rawTotalStats,
     loadInmuebleSummary,
     loadInmueblePendientes,
+    loadActivosPorFecha,
     page,
     pageSize,
     setPage,
@@ -128,6 +131,8 @@ const InventarioList = () => {
   });
 
   const [isInmuebleModalOpen, setIsInmuebleModalOpen] = useState(false);
+  const [isFechaModalOpen, setIsFechaModalOpen] = useState(false);
+  const [isGeneratingExcel, setIsGeneratingExcel] = useState(false);
 
   const firstEstadoRef = useRef(true);
 
@@ -685,6 +690,36 @@ const InventarioList = () => {
     );
   }
 
+  const handleGenerarExcelPaneles = () => {
+    setIsGeneratingExcel(true);
+    try {
+      const wb = XLSX.utils.book_new();
+      const rows = [
+        ["RESUMEN DE TOTALES"],
+        ["TOTAL ACTIVOS INVENTARIADOS", totalStats.total],
+        ["NO REVISADOS", totalStats.noRevisados],
+        ["REVISADOS", totalStats.revisados],
+        ["PROGRESO", `${totalStats.progreso.toFixed(2)}%`],
+        [],
+        ["RESUMEN POR INVENTARIADOR"],
+        ["INVENTARIADOR", "PENDIENTES", "REVISADOS"],
+        ...inventariadorStats.map((stat) => [
+          getDisplayName(stat.email),
+          stat.pendiente,
+          stat.revisado,
+        ]),
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      ws["!cols"] = [{ wch: 30 }, { wch: 14 }, { wch: 14 }];
+      XLSX.utils.book_append_sheet(wb, ws, "Panel de Control");
+      XLSX.writeFile(wb, "Panel_Control_Inventario.xlsx");
+    } catch (e) {
+      console.error("Error generando Excel de paneles:", e);
+    } finally {
+      setIsGeneratingExcel(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -695,11 +730,31 @@ const InventarioList = () => {
           <p className="text-muted-foreground">
             Gestión de inventario de activos fijos
           </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-3 bg-sky-300 hover:bg-sky-400 text-sky-950 border-sky-400"
+            onClick={handleGenerarExcelPaneles}
+            disabled={isGeneratingExcel}
+          >
+            {isGeneratingExcel ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+            )}
+            Reporte de Paneles
+          </Button>
         </div>
-        <Button onClick={() => setIsInmuebleModalOpen(true)}>
-          <Building2 className="mr-2 h-4 w-4" />
-          POR INMUEBLE
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button onClick={() => setIsInmuebleModalOpen(true)}>
+            <Building2 className="mr-2 h-4 w-4" />
+            POR INMUEBLE
+          </Button>
+          <Button variant="outline" onClick={() => setIsFechaModalOpen(true)}>
+            <CalendarDays className="mr-2 h-4 w-4" />
+            POR FECHA
+          </Button>
+        </div>
       </div>
 
       <InventarioSummary
@@ -806,6 +861,13 @@ const InventarioList = () => {
         getResponsableName={getResponsableName}
         rubroFromTipo={rubroFromTipo}
         tipoRubroDescMap={tipoRubroDescMap}
+      />
+
+      <InventarioFechaModal
+        isOpen={isFechaModalOpen}
+        onClose={() => setIsFechaModalOpen(false)}
+        getDisplayName={getDisplayName}
+        loadActivosPorFecha={loadActivosPorFecha}
       />
     </div>
   );

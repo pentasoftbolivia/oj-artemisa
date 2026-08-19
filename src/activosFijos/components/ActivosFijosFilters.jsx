@@ -126,6 +126,7 @@ const ActivosFijosFilters = memo(({
                 placeholder="Seleccionar ambiente..."
                 searchPlaceholder="Buscar ambiente..."
                 emptyMessage="Sin resultados"
+                wrapText
               />
             </div>
           </div>
