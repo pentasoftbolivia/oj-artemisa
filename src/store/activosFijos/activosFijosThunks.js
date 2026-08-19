@@ -2,6 +2,7 @@ import { createAsyncThunk } from "@reduxjs/toolkit";
 import { supabase } from "@/lib/supabase";
 import { toSnakeCase, toCamelCaseArray } from "@/lib/mapFields";
 import { normalizeCi } from "@/inventario/constants/inventarioConstants";
+import { resolveAmbienteCodes } from "@/lib/ubicacionFilters";
 
 const TABLE = "act_activos";
 
@@ -32,7 +33,7 @@ export const fetchActivosFijosPaginated = createAsyncThunk(
         if (s) {
           const searchNum = Number(s);
           if (!isNaN(searchNum)) {
-            query = query.or(`codigoactivo.eq.${searchNum}`);
+            query = query.or(`codigoactivo.eq.${searchNum},cirun.ilike.%${s}%`);
           } else {
             const words = s.split(/\s+/).filter(Boolean);
             words.forEach((word) => {
@@ -58,69 +59,13 @@ export const fetchActivosFijosPaginated = createAsyncThunk(
 
       if (filters.ambiente) {
         query = query.eq("codigoambiente", filters.ambiente);
-      }
-
-      if (filters.nivel) {
-        const { data: ambientesByNivel } = await supabase
-          .from("act_ambiente")
-          .select("codigoambiente")
-          .eq("codigonivel", filters.nivel);
-        const codes = (ambientesByNivel || []).map(a => a.codigoambiente);
-        if (codes.length > 0) {
-          query = query.in("codigoambiente", codes);
-        } else {
-          query = query.in("codigoambiente", [-1]);
-        }
-      }
-
-      if (filters.inmueble) {
-        const { data: nivelesByInmueble } = await supabase
-          .from("act_nivel")
-          .select("codigonivel")
-          .eq("codigoinmueble", filters.inmueble);
-        const nivelCodes = (nivelesByInmueble || []).map(n => n.codigonivel);
-        if (nivelCodes.length > 0) {
-          const { data: ambientesByNivel } = await supabase
-            .from("act_ambiente")
-            .select("codigoambiente")
-            .in("codigonivel", nivelCodes);
-          const codes = (ambientesByNivel || []).map(a => a.codigoambiente);
-          if (codes.length > 0) {
-            query = query.in("codigoambiente", codes);
-          } else {
-            query = query.in("codigoambiente", [-1]);
-          }
-        } else {
-          query = query.in("codigoambiente", [-1]);
-        }
-      }
-
-      if (filters.ciudad) {
-        const { data: inmueblesByCiudad } = await supabase
-          .from("act_inmueble")
-          .select("codigoinmueble")
-          .eq("codigociudad", filters.ciudad);
-        const inmuebleCodes = (inmueblesByCiudad || []).map(i => i.codigoinmueble);
-        let cityAmbientes = [];
-        if (inmuebleCodes.length > 0) {
-          const { data: nivelesByInmueble } = await supabase
-            .from("act_nivel")
-            .select("codigonivel")
-            .in("codigoinmueble", inmuebleCodes);
-          const nivelCodes = (nivelesByInmueble || []).map(n => n.codigonivel);
-          if (nivelCodes.length > 0) {
-            const { data: ambientesByNivel } = await supabase
-              .from("act_ambiente")
-              .select("codigoambiente")
-              .in("codigonivel", nivelCodes);
-            cityAmbientes = (ambientesByNivel || []).map(a => a.codigoambiente);
-          }
-        }
-        if (cityAmbientes.length > 0) {
-          query = query.in("codigoambiente", cityAmbientes);
-        } else {
-          query = query.in("codigoambiente", [-1]);
-        }
+      } else if (filters.nivel || filters.inmueble || filters.ciudad) {
+        const codes = await resolveAmbienteCodes({
+          ciudad: filters.ciudad,
+          inmueble: filters.inmueble,
+          nivel: filters.nivel,
+        });
+        query = query.in("codigoambiente", codes && codes.length > 0 ? codes : [-1]);
       }
 
       const { data, error, count } = await query;
