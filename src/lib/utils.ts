@@ -56,8 +56,8 @@ export const buildDenominacion = (activo: Record<string, unknown>, rubroName: st
   const rn = rubroName.toUpperCase();
   if (rn.includes("EQUIPO EDUCACIONAL Y RECREATIVO")) {
     add("modelo", "MOD: "); add("capacidaddimension", "CAPACIDAD/DIMENSIÓN: "); add("fuentealimentacion", "FUENTE ALIM: "); add("accesorios", "ACCESORIOS: ");
-  } else if (rn.includes("EQUIPO DE TRANSPORTE, ELEVACIÓN Y TRACCIÓN") || rn.includes("EQUIPO DE TRANSPORTE")) {
-    add("numeromotor", "MOTOR: "); add("numerochasisserial", "CHASIS: "); add("placamatricula", "PLACA: "); add("capacidadcargatraccion", "CAPACIDAD CARGA: ");
+  } else if (rn.includes("EQUIPOS DE TRANSPORTE") || rn.includes("EQUIPO DE TRANSPORTE, ELEVACIÓN Y TRACCIÓN") || rn.includes("EQUIPO DE TRANSPORTE")) {
+    add("marcaMaterial", "MARCA: "); add("modelo", "MOD: "); add("serie", "S/N: "); add("numeromotor", "MOTOR: "); add("numerochasisserial", "CHASIS: "); add("placamatricula", "PLACA: "); add("capacidadcargatraccion", "CAPACIDAD CARGA: ");
   } else if (rn.includes("EQUIPO DE COMUNICAC") || rn.includes("EQUIPOS DE COMUNICAC")) {
     add("marcaMaterial", "MARCA: "); add("modelo", "MOD: "); add("serie", "S/N: "); add("alcancecobertura", "ALCANCE: ");
   } else if (rn.includes("EQUIPO DE OFICINA") || rn.includes("EQUIPOS DE OFICINA")) {
