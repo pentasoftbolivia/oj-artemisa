@@ -244,7 +244,7 @@ const InventarioInmuebleModal = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="max-w-[96vw] sm:max-w-[1200px] w-[1200px] max-h-[90vh] flex flex-col p-6">
+      <DialogContent className="w-full max-w-[96vw] sm:max-w-[1200px] max-h-[90vh] flex flex-col p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="text-xl flex items-center gap-2">
             <Building2 className="h-5 w-5" />
@@ -280,7 +280,7 @@ const InventarioInmuebleModal = ({
             />
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               onClick={handleBuscar}
               disabled={isLoading || !ciudad && !inmueble}
@@ -491,7 +491,7 @@ const respName = getResponsableName(a.cirun);
                       </Table>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between px-4 py-2 border-t bg-muted/20">
+                  <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 border-t bg-muted/20">
                     <span className="text-xs text-muted-foreground">
                       Mostrando {pendientesPageData.length} de {pendientes.length}
                     </span>
@@ -523,7 +523,7 @@ const respName = getResponsableName(a.cirun);
                       </Button>
                     </div>
                   </div>
-                  <div className="flex justify-end px-4 py-3 border-t bg-muted/20">
+                  <div className="flex flex-wrap justify-end gap-2 px-4 py-3 border-t bg-muted/20">
                     <Button
                       onClick={handleGenerarPdf}
                       disabled={isGeneratingPdf}
