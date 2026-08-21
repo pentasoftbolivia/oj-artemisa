@@ -5,10 +5,34 @@ import { getCachedCatalog } from "@/lib/catalogCache";
 import { ACTIVO_COLUMNS } from "@/lib/activoColumns";
 import { resolveAmbienteCodes, countActivosByUbicacion } from "@/lib/ubicacionFilters";
 import { useToast } from "@/hooks/use-toast";
-import { normalizeCi, normalizeCiLoose, getCiPrefix } from "../constants/inventarioConstants";
+import { normalizeCi, normalizeCiLoose, getCiPrefix, normalizarEstado } from "../constants/inventarioConstants";
 
 const DEFAULT_PAGE_SIZE = 50;
 const MIN_LOADING_MS = 400;
+
+const ESTADO_FECHA_KEYS = {
+  "EN PROCESO": "enProceso",
+  INVENTARIADO: "inventariado",
+  REVISADO: "revisado",
+};
+
+const aggregateActivosPorFecha = (rows) => {
+  const acc = {};
+  rows.forEach((r) => {
+    const email = r.usuarioinventario;
+    if (!email) return;
+    if (!acc[email]) acc[email] = { enProceso: 0, inventariado: 0, revisado: 0 };
+    const key = ESTADO_FECHA_KEYS[String(r.estadoinventario || "").trim().toUpperCase()];
+    if (key) acc[email][key] += 1;
+  });
+  return Object.entries(acc)
+    .map(([email, c]) => ({
+      email,
+      ...c,
+      total: c.enProceso + c.inventariado + c.revisado,
+    }))
+    .sort((a, b) => b.total - a.total);
+};
 
 const aggregatePerUserRows = (userRows) => {
   const acc = {};
@@ -456,6 +480,7 @@ export const useInventarioData = () => {
         .select("usuarioinventario,estadoinventario")
         .eq("ultimoregistro", 1)
         .in("codigoambiente", ambienteCodes)
+        .order("codigoactivointerno", { ascending: true })
         .range(start, start + CHUNK - 1);
       if (error) throw error;
       userRows = userRows.concat(data || []);
@@ -467,7 +492,7 @@ export const useInventarioData = () => {
     let totalInventariado = 0;
     let totalEnProceso = 0;
     userRows.forEach((r) => {
-      const est = String(r.estadoinventario || "").trim().toUpperCase();
+      const est = normalizarEstado(r.estadoinventario);
       if (est === "EN PROCESO") totalEnProceso += 1;
       const isInventariado = Boolean(est && est !== "PENDIENTE" && est !== "EN PROCESO");
       if (isInventariado) totalInventariado += 1;
@@ -491,7 +516,7 @@ export const useInventarioData = () => {
     for (;;) {
       const { data, error } = await supabase
         .from("act_activos")
-        .select("usuarioinventario")
+        .select("usuarioinventario, estadoinventario")
         .eq("ultimoregistro", 1)
         .gte("fecharegistro", start)
         .lte("fecharegistro", end)
@@ -502,35 +527,20 @@ export const useInventarioData = () => {
       offset += CHUNK;
     }
 
-    const acc = {};
-    rows.forEach((r) => {
-      const email = r.usuarioinventario;
-      if (!email) return;
-      if (!acc[email]) acc[email] = { total: 0 };
-      acc[email].total += 1;
-    });
-    return Object.entries(acc)
-      .map(([email, counts]) => ({ email, ...counts }))
-      .sort((a, b) => b.total - a.total);
+    return aggregateActivosPorFecha(rows);
   }, []);
 
-  const loadInmueblePendientes = useCallback(async ({ ciudad = "", inmueble = "" } = {}) => {
-    const ambienteCodes = await resolveAmbienteCodes({ ciudad, inmueble });
-    if (!ambienteCodes || ambienteCodes.length === 0) {
-      return [];
-    }
+  const fetchActivosPorAmbientes = useCallback(async ({ ambienteCodes, applyFilters }) => {
     const CHUNK = 1000;
     let rows = [];
     let start = 0;
     for (;;) {
-      const { data, error } = await supabase
+      const baseQuery = supabase
         .from("act_activos")
         .select(ACTIVO_COLUMNS)
         .eq("ultimoregistro", 1)
-        .in("codigoambiente", ambienteCodes)
-        .or(
-          'estadoinventario.is.null,estadoinventario.not.in.("INVENTARIADO","REVISADO","ENVIADO")',
-        )
+        .in("codigoambiente", ambienteCodes);
+      const { data, error } = await applyFilters(baseQuery)
         .order("codigoactivo", { ascending: true })
         .range(start, start + CHUNK - 1);
       if (error) throw error;
@@ -540,6 +550,23 @@ export const useInventarioData = () => {
     }
     return toCamelCaseArray(rows);
   }, []);
+
+  const loadInmueblePendientes = useCallback(
+    async ({ ciudad = "", inmueble = "" } = {}) => {
+      const ambienteCodes = await resolveAmbienteCodes({ ciudad, inmueble });
+      if (!ambienteCodes || ambienteCodes.length === 0) {
+        return [];
+      }
+      return fetchActivosPorAmbientes({
+        ambienteCodes,
+        applyFilters: (q) =>
+          q.or(
+            'estadoinventario.is.null,estadoinventario.not.in.("INVENTARIADO","REVISADO","ENVIADO")',
+          ),
+      });
+    },
+    [fetchActivosPorAmbientes],
+  );
 
   const clearSummary = useCallback(() => {
     setSummaryStats(null);

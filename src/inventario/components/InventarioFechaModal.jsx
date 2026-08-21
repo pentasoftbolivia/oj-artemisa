@@ -17,6 +17,7 @@ import {
   TableBody,
   TableCell,
   TableHead,
+  TableFooter,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
@@ -53,7 +54,10 @@ const InventarioFechaModal = ({
     setResult(null);
   };
 
-  const totalGeneral = result ? result.reduce((acc, r) => acc + r.total, 0) : 0;
+  const totalEnProceso = result ? result.reduce((acc, r) => acc + r.enProceso, 0) : 0;
+  const totalInventariado = result ? result.reduce((acc, r) => acc + r.inventariado, 0) : 0;
+  const totalRevisado = result ? result.reduce((acc, r) => acc + r.revisado, 0) : 0;
+  const totalGeneral = totalEnProceso + totalInventariado + totalRevisado;
 
   const handleGenerarPdf = () => {
     if (!result) return;
@@ -71,19 +75,26 @@ const InventarioFechaModal = ({
       const body = result.map((stat, i) => [
         i + 1,
         getDisplayName(stat.email),
+        stat.enProceso,
+        stat.inventariado,
+        stat.revisado,
         stat.total,
       ]);
-      body.push(["", "TOTAL GENERAL", totalGeneral]);
+      body.push(["", "TOTAL GENERAL", totalEnProceso, totalInventariado, totalRevisado, totalGeneral]);
 
       autoTable(doc, {
         startY: 28,
-        head: [["N°", "INVENTARIADOR", "TOTAL DE ACTIVOS"]],
+        head: [["N°", "INVENTARIADOR", "EN PROCESO", "INVENTARIADO", "REVISADO", "TOTAL DE ACTIVOS"]],
         body,
         styles: { fontSize: 10, cellPadding: 2.5 },
         headStyles: { fillColor: [33, 115, 70], textColor: 255, halign: "center" },
         columnStyles: {
-          0: { halign: "center", cellWidth: 20 },
-          2: { halign: "center", cellWidth: 40 },
+          0: { halign: "center", cellWidth: 15 },
+          1: { halign: "left" },
+          2: { halign: "center", cellWidth: 32 },
+          3: { halign: "center", cellWidth: 32 },
+          4: { halign: "center", cellWidth: 32 },
+          5: { halign: "center", cellWidth: 40 },
         },
         didParseCell: (data) => {
           if (data.row.index === body.length - 1 && data.section === "body") {
@@ -181,6 +192,9 @@ const InventarioFechaModal = ({
                 <TableRow>
                   <TableHead className="w-[60px]">N°</TableHead>
                   <TableHead>Inventariador</TableHead>
+                  <TableHead className="text-center">En Proceso</TableHead>
+                  <TableHead className="text-center">Inventariado</TableHead>
+                  <TableHead className="text-center">Revisado</TableHead>
                   <TableHead className="w-[160px] text-right">
                     Total de Activos
                   </TableHead>
@@ -190,7 +204,7 @@ const InventarioFechaModal = ({
                 {result.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={3}
+                      colSpan={6}
                       className="text-center text-muted-foreground py-8"
                     >
                       No se encontraron activos en el rango de fechas seleccionado.
@@ -203,6 +217,9 @@ const InventarioFechaModal = ({
                       <TableCell className="font-medium">
                         {getDisplayName(stat.email)}
                       </TableCell>
+                      <TableCell className="text-center">{stat.enProceso}</TableCell>
+                      <TableCell className="text-center">{stat.inventariado}</TableCell>
+                      <TableCell className="text-center">{stat.revisado}</TableCell>
                       <TableCell className="text-right font-bold">
                         {stat.total}
                       </TableCell>
@@ -210,17 +227,30 @@ const InventarioFechaModal = ({
                   ))
                 )}
               </TableBody>
+              {result.length > 0 && (
+                <TableFooter className="bg-muted/50">
+                  <TableRow>
+                    <TableCell colSpan={2} className="font-bold">
+                      TOTAL GENERAL
+                    </TableCell>
+                    <TableCell className="text-center font-bold">
+                      {totalEnProceso}
+                    </TableCell>
+                    <TableCell className="text-center font-bold">
+                      {totalInventariado}
+                    </TableCell>
+                    <TableCell className="text-center font-bold">
+                      {totalRevisado}
+                    </TableCell>
+                    <TableCell className="text-right font-bold text-blue-600 dark:text-blue-400">
+                      {totalGeneral}
+                    </TableCell>
+                  </TableRow>
+                </TableFooter>
+              )}
             </Table>
           </div>
         ) : null}
-
-        {result && result.length > 0 && (
-          <div className="flex justify-end px-4 py-2 border rounded-md bg-muted/20">
-            <span className="text-sm font-semibold">
-              Total general: <span className="text-blue-600 dark:text-blue-400">{totalGeneral}</span>
-            </span>
-          </div>
-        )}
       </DialogContent>
     </Dialog>
   );

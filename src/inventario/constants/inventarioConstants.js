@@ -1,5 +1,8 @@
 export const normalizeKey = (s) => String(s ?? "").toLowerCase().replace(/\s+/g, " ").trim();
 
+export const normalizarEstado = (estado) =>
+  String(estado ?? "").trim().replace(/\s+/g, " ").toUpperCase();
+
 export const RUBRO_ALIAS = {
   "equipo de oficina y muebles": "equipos de oficina y muebles",
   "equipos de comunicaciones": "equipos de comunicación",

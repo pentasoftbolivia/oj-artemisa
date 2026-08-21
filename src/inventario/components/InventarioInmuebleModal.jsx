@@ -21,6 +21,77 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+const PAGE_SIZE = 3;
+
+const ACTIVO_COLUMNAS = [
+  { head: "Código", headClass: "w-[90px]", cellClass: "font-mono text-xs" },
+  { head: "Rubro", headClass: "w-[110px]", cellClass: "text-xs whitespace-normal break-words max-w-[110px]" },
+  { head: "Tipo Rubro", headClass: "w-[110px]", cellClass: "text-xs whitespace-normal break-words max-w-[110px]" },
+  { head: "Descripción", headClass: "w-[200px]", cellClass: "text-xs whitespace-normal break-words max-w-[200px]" },
+  { head: "Ambiente", headClass: "w-[180px]", cellClass: "text-xs whitespace-normal break-words max-w-[180px]" },
+  { head: "Responsable", headClass: "w-[150px]", cellClass: "text-xs whitespace-normal break-words max-w-[150px]" },
+  { head: "CI Responsable", headClass: "w-[90px]", cellClass: "font-mono text-xs" },
+];
+
+const PaginacionTabla = ({ count, mostrados, page, totalPages, onPrev, onNext }) => (
+  <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 border-t bg-muted/20">
+    <span className="text-xs text-muted-foreground">
+      Mostrando {mostrados} de {count}
+    </span>
+    <div className="flex items-center gap-2">
+      <Button variant="outline" size="sm" onClick={onPrev} disabled={page <= 1}>
+        <ChevronLeft className="h-4 w-4" />
+      </Button>
+      <span className="text-xs font-medium">
+        {page} / {totalPages}
+      </span>
+      <Button variant="outline" size="sm" onClick={onNext} disabled={page >= totalPages}>
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+    </div>
+  </div>
+);
+
+const TablaActivos = ({ items, mapRow }) => (
+  <div className="flex-1 overflow-auto">
+    <div className="min-w-max">
+      <Table>
+        <TableHeader className="bg-muted/50 sticky top-0">
+          <TableRow>
+            {ACTIVO_COLUMNAS.map((c) => (
+              <TableHead key={c.head} className={c.headClass}>
+                {c.head}
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {items.map((a, i) => (
+            <TableRow key={i}>
+              {mapRow(a).map((valor, j) => (
+                <TableCell key={j} className={ACTIVO_COLUMNAS[j].cellClass}>
+                  {valor}
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  </div>
+);
+
+const SeccionActivos = ({ titulo, tituloClass, headerClass, count, children }) => (
+  <div className="rounded-md border shadow-sm flex flex-col overflow-hidden">
+    <div className={`px-4 py-3 border-b ${headerClass}`}>
+      <span className={`text-sm font-bold ${tituloClass}`}>
+        {titulo} ({count})
+      </span>
+    </div>
+    {children}
+  </div>
+);
+
 const InventarioInmuebleModal = ({
   isOpen,
   onClose,
@@ -43,7 +114,6 @@ const InventarioInmuebleModal = ({
   const [pendientesPage, setPendientesPage] = useState(1);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isGeneratingExcel, setIsGeneratingExcel] = useState(false);
-  const PENDIENTES_PAGE_SIZE = 3;
 
   const filteredInmuebleOptions = useMemo(() => {
     if (!ciudad) return inmuebleOptions;
@@ -53,13 +123,27 @@ const InventarioInmuebleModal = ({
   }, [inmuebleOptions, inmuebleCiudadMap, ciudad]);
 
   const pendientesTotalPages = useMemo(
-    () => Math.max(1, Math.ceil(pendientes.length / PENDIENTES_PAGE_SIZE)),
+    () => Math.max(1, Math.ceil(pendientes.length / PAGE_SIZE)),
     [pendientes],
   );
   const pendientesPageData = useMemo(() => {
-    const start = (pendientesPage - 1) * PENDIENTES_PAGE_SIZE;
-    return pendientes.slice(start, start + PENDIENTES_PAGE_SIZE);
+    const start = (pendientesPage - 1) * PAGE_SIZE;
+    return pendientes.slice(start, start + PAGE_SIZE);
   }, [pendientes, pendientesPage]);
+
+  const mapActivoRow = (a) => {
+    const trId = a.tipoRubroAct || a.tiporubroact;
+    const codBase = (a.codigoActivo ?? a.codigoactivo ?? "").toString().trim();
+    return [
+      codBase ? `OJ-02-${codBase}` : "—",
+      (rubroFromTipo[trId] || "").trim(),
+      (tipoRubroDescMap[trId] || "").trim(),
+      a.descripcionActivo || "—",
+      getAmbienteName(String(a.codigoAmbiente ?? "").trim()),
+      getResponsableName(a.cirun),
+      a.cirun || "—",
+    ];
+  };
 
   const handleBuscar = async () => {
     setIsLoading(true);
@@ -128,21 +212,7 @@ const InventarioInmuebleModal = ({
       doc.setFontSize(8);
       doc.text(`Total de activos por inventariar: ${pendientes.length}`, pageWidth / 2, 25, { align: "center" });
 
-      const body = pendientes.map((a) => {
-        const trId = a.tipoRubroAct || a.tiporubroact;
-        const rubro = (rubroFromTipo[trId] || "").trim();
-        const tipo = (tipoRubroDescMap[trId] || "").trim();
-        const codBase = (a.codigoActivo ?? a.codigoactivo ?? "").toString().trim();
-        return [
-          codBase ? `OJ-02-${codBase}` : "—",
-          rubro,
-          tipo,
-          a.descripcionActivo || "—",
-          getAmbienteName(String(a.codigoAmbiente ?? "").trim()),
-          getResponsableName(a.cirun),
-          a.cirun || "—",
-        ];
-      });
+      const body = pendientes.map(mapActivoRow);
 
       autoTable(doc, {
         startY: 28,
@@ -215,19 +285,7 @@ const InventarioInmuebleModal = ({
 
       const pendRows = [
         ["CÓDIGO", "RUBRO", "TIPO RUBRO", "DESCRIPCIÓN", "AMBIENTE", "RESPONSABLE", "CI RESPONSABLE"],
-        ...pendientes.map((a) => {
-          const trId = a.tipoRubroAct || a.tiporubroact;
-          const codBase = (a.codigoActivo ?? a.codigoactivo ?? "").toString().trim();
-          return [
-            codBase ? `OJ-02-${codBase}` : "—",
-            (rubroFromTipo[trId] || "").trim(),
-            (tipoRubroDescMap[trId] || "").trim(),
-            a.descripcionActivo || "—",
-            getAmbienteName(String(a.codigoAmbiente ?? "").trim()),
-            getResponsableName(a.cirun),
-            a.cirun || "—",
-          ];
-        }),
+        ...pendientes.map(mapActivoRow),
       ];
       const wsPend = XLSX.utils.aoa_to_sheet(pendRows);
       wsPend["!cols"] = [{ wch: 16 }, { wch: 18 }, { wch: 18 }, { wch: 45 }, { wch: 30 }, { wch: 22 }, { wch: 14 }];
@@ -444,85 +502,21 @@ const InventarioInmuebleModal = ({
               )}
 
               {pendientes.length > 0 && (
-                <div className="flex-1 min-h-0 rounded-md border shadow-sm flex flex-col overflow-hidden">
-                  <div className="px-4 py-3 bg-red-50 dark:bg-red-950/20 border-b">
-                    <span className="text-sm font-bold text-red-600 dark:text-red-400">
-                      ACTIVOS POR INVENTARIAR ({pendientes.length})
-                    </span>
-                  </div>
-                  <div className="flex-1 overflow-auto">
-                    <div className="min-w-max">
-                      <Table>
-                        <TableHeader className="bg-muted/50 sticky top-0">
-                          <TableRow>
-                            <TableHead className="w-[90px]">Código</TableHead>
-                            <TableHead className="w-[110px]">Rubro</TableHead>
-                            <TableHead className="w-[110px]">Tipo Rubro</TableHead>
-                            <TableHead className="w-[200px]">Descripción</TableHead>
-                            <TableHead className="w-[180px]">Ambiente</TableHead>
-                            <TableHead className="w-[150px]">Responsable</TableHead>
-                            <TableHead className="w-[90px]">CI Responsable</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {pendientesPageData.map((a, i) => {
-                            const trId = a.tipoRubroAct || a.tiporubroact;
-                            const rubro = (rubroFromTipo[trId] || "").trim();
-                            const tipo = (tipoRubroDescMap[trId] || "").trim();
-                            const codBase = (a.codigoActivo ?? a.codigoactivo ?? "").toString().trim();
-                            const codigo = codBase ? `OJ-02-${codBase}` : "—";
-                            const ambiente = getAmbienteName(String(a.codigoAmbiente ?? "").trim());
-const respName = getResponsableName(a.cirun);
-                            return (
-                              <TableRow key={i}>
-                                <TableCell className="font-mono text-xs">{codigo}</TableCell>
-                                <TableCell className="text-xs whitespace-normal break-words max-w-[110px]">{rubro}</TableCell>
-                                <TableCell className="text-xs whitespace-normal break-words max-w-[110px]">{tipo}</TableCell>
-                                <TableCell className="text-xs whitespace-normal break-words max-w-[200px]">
-                                  {a.descripcionActivo || "—"}
-                                </TableCell>
-                                <TableCell className="text-xs whitespace-normal break-words max-w-[180px]">{ambiente}</TableCell>
-                                <TableCell className="text-xs whitespace-normal break-words max-w-[150px]">{respName}</TableCell>
-                                <TableCell className="font-mono text-xs">{a.cirun || "—"}</TableCell>
-                              </TableRow>
-                            );
-                          })}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 border-t bg-muted/20">
-                    <span className="text-xs text-muted-foreground">
-                      Mostrando {pendientesPageData.length} de {pendientes.length}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          setPendientesPage((p) => Math.max(1, p - 1))
-                        }
-                        disabled={pendientesPage <= 1}
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </Button>
-                      <span className="text-xs font-medium">
-                        {pendientesPage} / {pendientesTotalPages}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          setPendientesPage((p) =>
-                            Math.min(pendientesTotalPages, p + 1),
-                          )
-                        }
-                        disabled={pendientesPage >= pendientesTotalPages}
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
+                <SeccionActivos
+                  titulo="ACTIVOS POR INVENTARIAR"
+                  count={pendientes.length}
+                  tituloClass="text-red-600 dark:text-red-400"
+                  headerClass="bg-red-50 dark:bg-red-950/20"
+                >
+                  <TablaActivos items={pendientesPageData} mapRow={mapActivoRow} />
+                  <PaginacionTabla
+                    count={pendientes.length}
+                    mostrados={pendientesPageData.length}
+                    page={pendientesPage}
+                    totalPages={pendientesTotalPages}
+                    onPrev={() => setPendientesPage((p) => Math.max(1, p - 1))}
+                    onNext={() => setPendientesPage((p) => Math.min(pendientesTotalPages, p + 1))}
+                  />
                   <div className="flex flex-wrap justify-end gap-2 px-4 py-3 border-t bg-muted/20">
                     <Button
                       onClick={handleGenerarPdf}
@@ -536,7 +530,7 @@ const respName = getResponsableName(a.cirun);
                       Reporte Activos No Inventariados en PDF
                     </Button>
                   </div>
-                </div>
+                </SeccionActivos>
               )}
             </div>
           ) : null}
