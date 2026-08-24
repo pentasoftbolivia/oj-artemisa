@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { CalendarDays, Loader2, Search, X, FileDown } from "lucide-react";
+import { CalendarDays, Loader2, Search, X, FileDown, FileSpreadsheet } from "lucide-react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
 import {
   Dialog,
   DialogContent,
@@ -32,17 +33,21 @@ const InventarioFechaModal = ({
   const [fechaHasta, setFechaHasta] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState(null);
+  const [rawData, setRawData] = useState(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isGeneratingExcel, setIsGeneratingExcel] = useState(false);
 
   const handleBuscar = async () => {
     if (!fechaDesde || !fechaHasta) return;
     setIsLoading(true);
     try {
-      const data = await loadActivosPorFecha({ fechaDesde, fechaHasta });
-      setResult(data);
+      const { aggregated, rawRows } = await loadActivosPorFecha({ fechaDesde, fechaHasta });
+      setResult(aggregated);
+      setRawData(rawRows);
     } catch (e) {
       console.error("Error cargando activos por fecha:", e);
       setResult([]);
+      setRawData([]);
     } finally {
       setIsLoading(false);
     }
@@ -52,12 +57,13 @@ const InventarioFechaModal = ({
     setFechaDesde("");
     setFechaHasta("");
     setResult(null);
+    setRawData(null);
   };
 
   const totalEnProceso = result ? result.reduce((acc, r) => acc + r.enProceso, 0) : 0;
   const totalInventariado = result ? result.reduce((acc, r) => acc + r.inventariado, 0) : 0;
   const totalRevisado = result ? result.reduce((acc, r) => acc + r.revisado, 0) : 0;
-  const totalGeneral = totalEnProceso + totalInventariado + totalRevisado;
+  const totalGeneral = totalInventariado + totalRevisado;
 
   const handleGenerarPdf = () => {
     if (!result) return;
@@ -91,10 +97,10 @@ const InventarioFechaModal = ({
         columnStyles: {
           0: { halign: "center", cellWidth: 15 },
           1: { halign: "left" },
-          2: { halign: "center", cellWidth: 32 },
-          3: { halign: "center", cellWidth: 32 },
-          4: { halign: "center", cellWidth: 32 },
-          5: { halign: "center", cellWidth: 40 },
+          2: { halign: "center", cellWidth: 32, textColor: [128, 128, 128] },
+          3: { halign: "center", cellWidth: 32, fontStyle: "bold" },
+          4: { halign: "center", cellWidth: 32, fontStyle: "bold" },
+          5: { halign: "center", cellWidth: 40, fontStyle: "bold" },
         },
         didParseCell: (data) => {
           if (data.row.index === body.length - 1 && data.section === "body") {
@@ -110,6 +116,132 @@ const InventarioFechaModal = ({
       console.error("Error generando PDF:", e);
     } finally {
       setIsGeneratingPdf(false);
+    }
+  };
+
+  const handleGenerarExcel = () => {
+    if (!rawData) return;
+    setIsGeneratingExcel(true);
+    try {
+      const ESTADO_FECHA_KEYS = {
+        "EN PROCESO": "enProceso",
+        INVENTARIADO: "inventariado",
+        REVISADO: "revisado",
+      };
+
+      const groupedByDayAndUser = {};
+
+      rawData.forEach((r) => {
+        const email = r.usuarioinventario;
+        if (!email) return;
+
+        const dateStr = r.fecharegistro ? r.fecharegistro.split("T")[0] : "Sin Fecha";
+        const stateKey = ESTADO_FECHA_KEYS[String(r.estadoinventario || "").trim().toUpperCase()];
+
+        if (!groupedByDayAndUser[dateStr]) {
+          groupedByDayAndUser[dateStr] = {};
+        }
+        if (!groupedByDayAndUser[dateStr][email]) {
+          groupedByDayAndUser[dateStr][email] = { enProceso: 0, inventariado: 0, revisado: 0 };
+        }
+        if (stateKey) {
+          groupedByDayAndUser[dateStr][email][stateKey] += 1;
+        }
+      });
+
+      const excelData = [
+        ["REPORTE DIARIO DE ACTIVOS POR INVENTARIADOR"],
+        [`Desde: ${fechaDesde || "—"}    Hasta: ${fechaHasta || "—"}`],
+        [],
+        ["FECHA", "INVENTARIADOR", "EN PROCESO", "INVENTARIADO", "REVISADO", "TOTAL"]
+      ];
+
+      // Generar todas las fechas en el rango
+      const dateRange = [];
+      if (fechaDesde && fechaHasta) {
+        let currentDate = new Date(`${fechaDesde}T00:00:00`);
+        const endDate = new Date(`${fechaHasta}T00:00:00`);
+        while (currentDate <= endDate) {
+          dateRange.push(currentDate.toISOString().split("T")[0]);
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+      } else {
+        dateRange.push(...Object.keys(groupedByDayAndUser).sort());
+      }
+
+      dateRange.forEach(date => {
+        const usersInDate = groupedByDayAndUser[date];
+        if (usersInDate && Object.keys(usersInDate).length > 0) {
+          let dailyEnProceso = 0;
+          let dailyInventariado = 0;
+          let dailyRevisado = 0;
+          let dailyTotal = 0;
+
+          Object.entries(usersInDate).forEach(([email, counts]) => {
+            const userTotal = counts.inventariado + counts.revisado;
+            excelData.push([
+              date,
+              getDisplayName(email),
+              counts.enProceso,
+              counts.inventariado,
+              counts.revisado,
+              userTotal
+            ]);
+            dailyEnProceso += counts.enProceso;
+            dailyInventariado += counts.inventariado;
+            dailyRevisado += counts.revisado;
+            dailyTotal += userTotal;
+          });
+
+          excelData.push([
+            "",
+            "TOTAL DEL DÍA",
+            dailyEnProceso,
+            dailyInventariado,
+            dailyRevisado,
+            dailyTotal
+          ]);
+        } else {
+          excelData.push([
+            date,
+            "Sin actividad",
+            0,
+            0,
+            0,
+            0
+          ]);
+        }
+        // Añadir fila en blanco para separar visualmente por día
+        excelData.push([]);
+      });
+
+      const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+
+      // Combinar celdas para el título y el subtítulo
+      worksheet["!merges"] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }, // A1:F1
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } }  // A2:F2
+      ];
+
+      const columnWidths = [
+        { wch: 15 },
+        { wch: 35 },
+        { wch: 15 },
+        { wch: 15 },
+        { wch: 15 },
+        { wch: 12 }
+      ];
+      worksheet["!cols"] = columnWidths;
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Reporte Diario");
+
+      const safeLabel = `${fechaDesde}_${fechaHasta}`.replace(/[^a-zA-Z0-9]+/g, "_");
+      XLSX.writeFile(workbook, `Reporte_Diario_${safeLabel}.xlsx`);
+    } catch (e) {
+      console.error("Error generando Excel:", e);
+    } finally {
+      setIsGeneratingExcel(false);
     }
   };
 
@@ -147,20 +279,20 @@ const InventarioFechaModal = ({
           </div>
           <Button
             variant="outline"
-            className="ml-auto bg-sky-300 hover:bg-sky-400 text-sky-950 border-sky-400"
-            onClick={handleGenerarPdf}
-            disabled={isGeneratingPdf || !result}
+            className="ml-auto bg-green-300 hover:bg-green-400 text-green-950 border-green-400 w-[260px]"
+            onClick={handleGenerarExcel}
+            disabled={isGeneratingExcel || !rawData}
           >
-            {isGeneratingPdf ? (
+            {isGeneratingExcel ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
             ) : (
-              <FileDown className="h-4 w-4 mr-2" />
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
             )}
-            REPORTE EN PDF
+            REPORTE POR DIAS EN EXCEL
           </Button>
         </div>
 
-        <div className="flex items-center gap-2 mb-2">
+        <div className="flex flex-wrap items-center gap-3 mb-2">
           <Button
             onClick={handleBuscar}
             disabled={isLoading || !fechaDesde || !fechaHasta}
@@ -175,6 +307,20 @@ const InventarioFechaModal = ({
           <Button variant="outline" onClick={handleLimpiar} disabled={isLoading}>
             <X className="h-4 w-4 mr-2" />
             Limpiar
+          </Button>
+
+          <Button
+            variant="outline"
+            className="ml-auto bg-sky-300 hover:bg-sky-400 text-sky-950 border-sky-400 w-[260px]"
+            onClick={handleGenerarPdf}
+            disabled={isGeneratingPdf || !result}
+          >
+            {isGeneratingPdf ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <FileDown className="h-4 w-4 mr-2" />
+            )}
+            REPORTE TOTALES EN PDF
           </Button>
         </div>
 

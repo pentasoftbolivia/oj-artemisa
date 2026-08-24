@@ -29,7 +29,7 @@ const aggregateActivosPorFecha = (rows) => {
     .map(([email, c]) => ({
       email,
       ...c,
-      total: c.enProceso + c.inventariado + c.revisado,
+      total: c.inventariado + c.revisado,
     }))
     .sort((a, b) => b.total - a.total);
 };
@@ -508,15 +508,15 @@ export const useInventarioData = () => {
   }, []);
 
   const loadActivosPorFecha = useCallback(async ({ fechaDesde, fechaHasta } = {}) => {
-    const start = new Date(`${fechaDesde}T00:00:00`).toISOString();
-    const end = new Date(`${fechaHasta}T23:59:59.999`).toISOString();
+    const start = `${fechaDesde}T00:00:00`;
+    const end = `${fechaHasta}T23:59:59.999`;
     const CHUNK = 1000;
     let rows = [];
     let offset = 0;
     for (;;) {
       const { data, error } = await supabase
         .from("act_activos")
-        .select("usuarioinventario, estadoinventario")
+        .select("usuarioinventario, estadoinventario, fecharegistro")
         .eq("ultimoregistro", 1)
         .gte("fecharegistro", start)
         .lte("fecharegistro", end)
@@ -527,7 +527,10 @@ export const useInventarioData = () => {
       offset += CHUNK;
     }
 
-    return aggregateActivosPorFecha(rows);
+    return {
+      aggregated: aggregateActivosPorFecha(rows),
+      rawRows: rows,
+    };
   }, []);
 
   const fetchActivosPorAmbientes = useCallback(async ({ ambienteCodes, applyFilters }) => {
