@@ -92,6 +92,31 @@ const SeccionActivos = ({ titulo, tituloClass, headerClass, count, children }) =
   </div>
 );
 
+const BarraAvance = ({ inventariado, total }) => {
+  const pct = total > 0 ? (inventariado / total) * 100 : 0;
+  const color =
+    pct <= 50 ? "#dc2626" : pct <= 80 ? "#eab308" : "#16a34a";
+  return (
+    <div className="col-span-2 space-y-1">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+          Avance del total de activos en el inmueble
+        </span>
+        <span className="text-xs font-bold" style={{ color }}>
+          {pct.toFixed(2)}%
+        </span>
+      </div>
+      <div className="h-3 w-full rounded-full bg-muted overflow-hidden border border-border">
+        <div
+          className="h-full rounded-full transition-all duration-500"
+          style={{ width: `${Math.min(100, pct)}%`, backgroundColor: color }}
+          title={`${inventariado} de ${total} activos`}
+        />
+      </div>
+    </div>
+  );
+};
+
 const InventarioInmuebleModal = ({
   isOpen,
   onClose,
@@ -490,6 +515,10 @@ const InventarioInmuebleModal = ({
                             {stat.inventariado}
                           </div>
                         </div>
+                        <BarraAvance
+                          inventariado={stat.inventariado}
+                          total={result.totalInmueble}
+                        />
                       </div>
                     </div>
                   ))}

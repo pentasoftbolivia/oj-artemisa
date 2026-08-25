@@ -503,7 +503,9 @@ export const useInventarioData = () => {
       if (isInventariado) acc[email].inventariado += 1;
       if (est === "EN PROCESO") acc[email].enProceso += 1;
     });
-    const perUser = Object.entries(acc).map(([email, counts]) => ({ email, ...counts }));
+    const perUser = Object.entries(acc)
+      .map(([email, counts]) => ({ email, ...counts }))
+      .sort((a, b) => b.inventariado - a.inventariado);
     return { totalInmueble, totalInventariado, totalEnProceso, perUser };
   }, []);
 
