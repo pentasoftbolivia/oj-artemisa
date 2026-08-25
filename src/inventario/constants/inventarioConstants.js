@@ -29,8 +29,7 @@ export const RUBRO_ALIAS = {
 export const RUBRO_FIELDS_RAW = {
   "EQUIPO EDUCACIONAL Y RECREATIVO": [
     { key: "modelo", label: "Modelo" },
-    { key: "capacidad", label: "Capacidad" },
-    { key: "dimension", label: "Dimensión" },
+    { key: "capacidaddimension", label: "Capacidad/Dimensión" },
     { key: "fuentealimentacion", label: "Fuente de Alimentación" },
     { key: "accesorios", label: "Accesorios" },
   ],
