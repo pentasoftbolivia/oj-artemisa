@@ -46,7 +46,9 @@ const aggregatePerUserRows = (userRows) => {
       acc[email].pendiente += 1;
     }
   });
-  return Object.entries(acc).map(([email, counts]) => ({ email, ...counts }));
+  return Object.entries(acc)
+    .map(([email, counts]) => ({ email, ...counts }))
+    .sort((a, b) => b.revisado - a.revisado);
 };
 
 export const useInventarioData = () => {
@@ -73,6 +75,7 @@ export const useInventarioData = () => {
   const [pageSize, setPageSizeState] = useState(DEFAULT_PAGE_SIZE);
   const [totalCount, setTotalCount] = useState(0);
   const [totalStats, setTotalStats] = useState({ total: 0, revisados: 0, noRevisados: 0 });
+  const [universoTotal, setUniversoTotal] = useState(0);
   const [inventariadorStats, setInventariadorStats] = useState([]);
   const [inmuebleCount, setInmuebleCount] = useState(0);
   const [summaryStats, setSummaryStats] = useState(null);
@@ -407,20 +410,34 @@ export const useInventarioData = () => {
     const email = activo.usuarioinventario;
     if (!email) return;
     setInventariadorStats((prev) =>
-      prev.map((s) => {
-        if (s.email !== email) return s;
-        return {
-          ...s,
-          revisado: Math.max(0, s.revisado + (isRevisado ? 1 : -1)),
-          pendiente: Math.max(0, s.pendiente + (isRevisado ? -1 : 1)),
-        };
-      }),
+      prev
+        .map((s) => {
+          if (s.email !== email) return s;
+          return {
+            ...s,
+            revisado: Math.max(0, s.revisado + (isRevisado ? 1 : -1)),
+            pendiente: Math.max(0, s.pendiente + (isRevisado ? -1 : 1)),
+          };
+        })
+        .sort((a, b) => b.revisado - a.revisado),
     );
   }, []);
 
   const loadInitialData = useCallback(async () => {
     setIsLoading(true);
     await loadCatalogos();
+    // universo real para cálculo de PROGRESO: SELECT COUNT(*) FROM act_activos WHERE ultimoregistro=1
+    try {
+      const { count, error } = await supabase
+        .from("act_activos")
+        .select("codigoactivointerno", { count: "exact", head: true })
+        .eq("ultimoregistro", 1);
+      if (!error && typeof count === "number" && count > 0) {
+        setUniversoTotal(count);
+      }
+    } catch (e) {
+      console.error("Error loading universo total:", e);
+    }
     setIsLoading(false);
   }, [loadCatalogos]);
 
@@ -607,6 +624,7 @@ export const useInventarioData = () => {
     ambienteMap,
     responsableMap,
     totalStats,
+    universoTotal,
     inmuebleCount,
     summaryStats,
     summaryInmuebleCount,

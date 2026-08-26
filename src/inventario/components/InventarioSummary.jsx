@@ -1,6 +1,31 @@
+import { useMemo } from "react";
 import { Package, Users, MapPin } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import ProgressFace from "./ProgressFace";
+
+const BarraAvance = ({ revisado, total }) => {
+  const pct = total > 0 ? (revisado / total) * 100 : 0;
+  const color = pct <= 50 ? "#dc2626" : pct <= 80 ? "#eab308" : "#16a34a";
+  return (
+    <div className="space-y-1 pt-1">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+          Avance del total de activos
+        </span>
+        <span className="text-xs font-bold" style={{ color }}>
+          {pct.toFixed(2)}%
+        </span>
+      </div>
+      <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden border border-border">
+        <div
+          className="h-full rounded-full transition-all duration-500"
+          style={{ width: `${Math.min(100, pct)}%`, backgroundColor: color }}
+          title={`${revisado} de ${total} activos`}
+        />
+      </div>
+    </div>
+  );
+};
 
 const InventarioSummary = ({
   totalStats,
@@ -9,7 +34,13 @@ const InventarioSummary = ({
   inventariadorStats,
   getDisplayName,
   ubicacionLabel = "",
+  universoTotal = 0,
 }) => {
+  const sortedStats = useMemo(
+    () => [...(inventariadorStats || [])].sort((a, b) => b.revisado - a.revisado),
+    [inventariadorStats],
+  );
+
   return (
     <>
       <Card>
@@ -95,9 +126,9 @@ const InventarioSummary = ({
           )}
         </CardHeader>
         <CardContent className="space-y-4">
-          {inventariadorStats.length > 0 && (
+          {sortedStats.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {inventariadorStats.map((stat) => (
+              {sortedStats.map((stat) => (
                 <div
                   key={stat.email}
                   className="rounded-lg border p-4 bg-muted/20 space-y-2"
@@ -126,6 +157,7 @@ const InventarioSummary = ({
                       </div>
                     </div>
                   </div>
+                  <BarraAvance revisado={stat.revisado} total={universoTotal} />
                 </div>
               ))}
             </div>

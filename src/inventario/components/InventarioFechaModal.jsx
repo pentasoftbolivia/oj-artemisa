@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { CalendarDays, Loader2, Search, X, FileDown, FileSpreadsheet } from "lucide-react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -60,13 +60,18 @@ const InventarioFechaModal = ({
     setRawData(null);
   };
 
-  const totalEnProceso = result ? result.reduce((acc, r) => acc + r.enProceso, 0) : 0;
-  const totalInventariado = result ? result.reduce((acc, r) => acc + r.inventariado, 0) : 0;
-  const totalRevisado = result ? result.reduce((acc, r) => acc + r.revisado, 0) : 0;
+  const sortedResult = useMemo(
+    () => (result ? [...result].sort((a, b) => b.total - a.total) : null),
+    [result],
+  );
+
+  const totalEnProceso = sortedResult ? sortedResult.reduce((acc, r) => acc + r.enProceso, 0) : 0;
+  const totalInventariado = sortedResult ? sortedResult.reduce((acc, r) => acc + r.inventariado, 0) : 0;
+  const totalRevisado = sortedResult ? sortedResult.reduce((acc, r) => acc + r.revisado, 0) : 0;
   const totalGeneral = totalInventariado + totalRevisado;
 
   const handleGenerarPdf = () => {
-    if (!result) return;
+    if (!sortedResult) return;
     setIsGeneratingPdf(true);
     try {
       const doc = new jsPDF("landscape", "mm", "letter");
@@ -78,7 +83,7 @@ const InventarioFechaModal = ({
       doc.setFont("helvetica", "normal");
       doc.text(`Desde: ${fechaDesde || "—"}    Hasta: ${fechaHasta || "—"}`, pageWidth / 2, 23, { align: "center" });
 
-      const body = result.map((stat, i) => [
+      const body = sortedResult.map((stat, i) => [
         i + 1,
         getDisplayName(stat.email),
         stat.enProceso,
@@ -177,7 +182,9 @@ const InventarioFechaModal = ({
           let dailyRevisado = 0;
           let dailyTotal = 0;
 
-          Object.entries(usersInDate).forEach(([email, counts]) => {
+          Object.entries(usersInDate)
+            .sort(([, a], [, b]) => (b.inventariado + b.revisado) - (a.inventariado + a.revisado))
+            .forEach(([email, counts]) => {
             const userTotal = counts.inventariado + counts.revisado;
             excelData.push([
               date,
@@ -313,7 +320,7 @@ const InventarioFechaModal = ({
             variant="outline"
             className="ml-auto bg-sky-300 hover:bg-sky-400 text-sky-950 border-sky-400 w-[260px]"
             onClick={handleGenerarPdf}
-            disabled={isGeneratingPdf || !result}
+            disabled={isGeneratingPdf || !sortedResult}
           >
             {isGeneratingPdf ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -331,7 +338,7 @@ const InventarioFechaModal = ({
               Cargando activos por fecha...
             </p>
           </div>
-        ) : result ? (
+        ) : sortedResult ? (
           <div className="flex-1 min-h-0 overflow-auto border rounded-md">
             <Table>
               <TableHeader className="bg-muted/50 sticky top-0">
@@ -347,7 +354,7 @@ const InventarioFechaModal = ({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {result.length === 0 ? (
+                {sortedResult.length === 0 ? (
                   <TableRow>
                     <TableCell
                       colSpan={6}
@@ -357,7 +364,7 @@ const InventarioFechaModal = ({
                     </TableCell>
                   </TableRow>
                 ) : (
-                  result.map((stat, i) => (
+                  sortedResult.map((stat, i) => (
                     <TableRow key={stat.email}>
                       <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                       <TableCell className="font-medium">
@@ -373,7 +380,7 @@ const InventarioFechaModal = ({
                   ))
                 )}
               </TableBody>
-              {result.length > 0 && (
+              {sortedResult.length > 0 && (
                 <TableFooter className="bg-muted/50">
                   <TableRow>
                     <TableCell colSpan={2} className="font-bold">

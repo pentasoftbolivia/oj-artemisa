@@ -33,8 +33,6 @@ import {
   InventarioImagesModal,
 } from "../components/InventarioModals";
 
-const TOTAL_ACTIVOS = 43310;
-
 const InventarioList = () => {
   const { toast } = useToast();
   const currentUser = useSelector(selectUser);
@@ -63,6 +61,7 @@ const InventarioList = () => {
     inmuebles,
     niveles,
     totalStats: rawTotalStats,
+    universoTotal,
     loadInmuebleSummary,
     loadInmueblePendientes,
     loadActivosPorFecha,
@@ -607,9 +606,9 @@ const InventarioList = () => {
   const totalStats = useMemo(
     () => ({
       ...rawTotalStats,
-      progreso: (rawTotalStats.total / TOTAL_ACTIVOS) * 100,
+      progreso: universoTotal > 0 ? (rawTotalStats.total / universoTotal) * 100 : 0,
     }),
-    [rawTotalStats],
+    [rawTotalStats, universoTotal],
   );
 
   const progressLevel = useMemo(() => {
@@ -764,6 +763,7 @@ const InventarioList = () => {
         inventariadorStats={inventariadorStats}
         getDisplayName={getDisplayName}
         ubicacionLabel={ubicacionLabel}
+        universoTotal={universoTotal}
       />
 
       <InventarioFilters
