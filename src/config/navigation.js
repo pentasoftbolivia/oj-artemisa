@@ -12,6 +12,7 @@ export const DEFAULT_NAV_ITEMS = [
       { title: "Tipos de Rubro", href: "/tiporubro" },
       { title: "Responsables", href: "/responsables-config" },
       { title: "Actualización Transferencias", href: "/actualizacion-transferencias" },
+      { title: "Registro Activos", href: "/registro-activos" },
     ],
   },
   { title: "Activos fijos", href: "/activos", adminOnly: true },
