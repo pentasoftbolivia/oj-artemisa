@@ -5,7 +5,7 @@ import ProgressFace from "./ProgressFace";
 
 const BarraAvance = ({ revisado, total }) => {
   const pct = total > 0 ? (revisado / total) * 100 : 0;
-  const color = pct <= 50 ? "#dc2626" : pct <= 80 ? "#eab308" : "#ca8a04";
+  const color = pct <= 50 ? "#dc2626" : pct <= 80 ? "#eab308" : "#16a34a";
   return (
     <div className="space-y-1 pt-1">
       <div className="flex items-center justify-between">
@@ -148,11 +148,11 @@ const InventarioSummary = ({
                         {stat.pendiente}
                       </div>
                     </div>
-                    <div className="flex-1 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-900 rounded p-2 text-center">
-                      <div className="text-xs text-yellow-600 dark:text-yellow-400 font-medium">
+                    <div className="flex-1 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded p-2 text-center">
+                      <div className="text-xs text-green-600 dark:text-green-400 font-medium">
                         Revisados
                       </div>
-                      <div className="text-lg font-bold text-yellow-700 dark:text-yellow-300">
+                      <div className="text-lg font-bold text-green-700 dark:text-green-300">
                         {stat.revisado}
                       </div>
                     </div>

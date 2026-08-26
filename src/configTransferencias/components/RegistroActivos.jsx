@@ -176,7 +176,7 @@ const RegistroActivos = ({ onSuccess }) => {
   const isSubmitDisabled = saving || isLoading || !codigoActivo.trim() || !descripcionActivo.trim() || !valorActual.toString().trim() || !selAmbiente || !cirun || !tipoRubroSel;
 
   return (
-    <Card className="border-t-4 border-t-yellow-500">
+    <Card className="border-t-4 border-t-emerald-500">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <PackagePlus className="h-4 w-4" />
@@ -289,7 +289,7 @@ const RegistroActivos = ({ onSuccess }) => {
 
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={resetForm} disabled={saving}>Limpiar</Button>
-            <Button type="submit" disabled={isSubmitDisabled} className="bg-yellow-500 hover:bg-yellow-600 text-white">
+            <Button type="submit" disabled={isSubmitDisabled}>
               {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
               Registrar Activo
             </Button>

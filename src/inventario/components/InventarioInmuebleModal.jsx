@@ -95,7 +95,7 @@ const SeccionActivos = ({ titulo, tituloClass, headerClass, count, children }) =
 const BarraAvance = ({ inventariado, total }) => {
   const pct = total > 0 ? (inventariado / total) * 100 : 0;
   const color =
-    pct <= 50 ? "#dc2626" : pct <= 80 ? "#eab308" : "#ca8a04";
+    pct <= 50 ? "#dc2626" : pct <= 80 ? "#eab308" : "#16a34a";
   return (
     <div className="col-span-2 space-y-1">
       <div className="flex items-center justify-between">
@@ -467,11 +467,11 @@ const InventarioInmuebleModal = ({
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="rounded-lg border border-yellow-200 dark:border-yellow-900 bg-yellow-50 dark:bg-yellow-950/20 p-4 text-center shadow-sm">
-                  <div className="text-sm font-semibold text-yellow-600 dark:text-yellow-400 tracking-wide">
+                <div className="rounded-lg border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/20 p-4 text-center shadow-sm">
+                  <div className="text-sm font-semibold text-green-600 dark:text-green-400 tracking-wide">
                     TOTAL DE ACTIVOS INVENTARIADOS
                   </div>
-                  <div className="text-3xl font-bold text-yellow-700 dark:text-yellow-300">
+                  <div className="text-3xl font-bold text-green-700 dark:text-green-300">
                     {result.totalInventariado}
                   </div>
                 </div>
@@ -507,11 +507,11 @@ const InventarioInmuebleModal = ({
                             {stat.enProceso}
                           </div>
                         </div>
-                        <div className="min-w-0 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-900 rounded p-2 text-center">
-                          <div className="text-xs text-yellow-600 dark:text-yellow-400 font-medium whitespace-nowrap">
+                        <div className="min-w-0 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded p-2 text-center">
+                          <div className="text-xs text-green-600 dark:text-green-400 font-medium whitespace-nowrap">
                             Inventariados
                           </div>
-                          <div className="text-lg font-bold text-yellow-700 dark:text-yellow-300">
+                          <div className="text-lg font-bold text-green-700 dark:text-green-300">
                             {stat.inventariado}
                           </div>
                         </div>
