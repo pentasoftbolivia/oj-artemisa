@@ -12,23 +12,25 @@ export const useUbicacionOptions = ({
   ambientes = [],
   filters = {},
 }) => {
+  const filterEliminar = (opts) => opts.filter((o) => !String(o.label).toUpperCase().includes("(ELIMINAR)"));
+
   const ciudadOptions = useMemo(
-    () => createOptionsList(ciudades, "codigociudad", "descripcion"),
+    () => filterEliminar(createOptionsList(ciudades, "codigociudad", "descripcion")),
     [ciudades],
   );
 
   const inmuebleOptions = useMemo(
-    () => createOptionsList(inmuebles, "codigoinmueble", "inmueble"),
+    () => filterEliminar(createOptionsList(inmuebles, "codigoinmueble", "inmueble")),
     [inmuebles],
   );
 
   const nivelOptions = useMemo(
-    () => createOptionsList(niveles, "codigonivel", "nivel"),
+    () => filterEliminar(createOptionsList(niveles, "codigonivel", "nivel")),
     [niveles],
   );
 
   const ambienteOptions = useMemo(
-    () => createOptionsList(ambientes, "codigoambiente", "ambiente"),
+    () => filterEliminar(createOptionsList(ambientes, "codigoambiente", "ambiente")),
     [ambientes],
   );
 

@@ -69,27 +69,29 @@ const AmbienteEditor = memo(() => {
     return map;
   }, [ambientes]);
 
+  const filterEliminar = (opts) => opts.filter((o) => !String(o.label).toUpperCase().includes("(ELIMINAR)"));
+
   const ciudadOptions = useMemo(
-    () => createOptionsList(ciudades || [], "codigociudad", "descripcion"),
+    () => filterEliminar(createOptionsList(ciudades || [], "codigociudad", "descripcion")),
     [ciudades],
   );
 
   const inmuebleOptionsByCiudad = useMemo(() => {
-    const all = createOptionsList(inmuebles || [], "codigoinmueble", "inmueble");
+    const all = filterEliminar(createOptionsList(inmuebles || [], "codigoinmueble", "inmueble"));
     const ciudad = String(selectionCiudad).trim();
     if (!ciudad) return all;
     return all.filter((o) => inmuebleCiudadMap[String(o.value).trim()] === ciudad);
   }, [inmuebles, inmuebleCiudadMap, selectionCiudad]);
 
   const nivelOptionsByInmueble = useMemo(() => {
-    const all = createOptionsList(niveles || [], "codigonivel", "nivel");
+    const all = filterEliminar(createOptionsList(niveles || [], "codigonivel", "nivel"));
     const inmueble = String(selectionInmueble).trim();
     if (!inmueble) return all;
     return all.filter((o) => nivelInmuebleMap[String(o.value).trim()] === inmueble);
   }, [niveles, nivelInmuebleMap, selectionInmueble]);
 
   const ambienteOptionsByNivel = useMemo(() => {
-    const all = createOptionsList(ambientes || [], "codigoambiente", "ambiente");
+    const all = filterEliminar(createOptionsList(ambientes || [], "codigoambiente", "ambiente"));
     const nivel = String(selectionNivel).trim();
     if (!nivel) return all;
     return all.filter((o) => ambienteNivelMap[String(o.value).trim()] === nivel);
@@ -224,6 +226,7 @@ const AmbienteEditor = memo(() => {
                 emptyMessage="Sin resultados"
                 loading={isLoading}
                 disabled={searching}
+                wrapText
               />
             </div>
           ))}

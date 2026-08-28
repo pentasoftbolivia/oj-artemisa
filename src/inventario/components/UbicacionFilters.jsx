@@ -54,6 +54,7 @@ const UbicacionFilters = memo(
           placeholder="Seleccionar inmueble..."
           searchPlaceholder="Buscar inmueble..."
           emptyMessage="Sin resultados"
+          wrapText
         />
         <ComboboxField
           label="Nivel"

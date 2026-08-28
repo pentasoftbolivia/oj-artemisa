@@ -90,11 +90,12 @@ export const useActivosFijosCatalogs = ({
     return map;
   }, [tipoRubros]);
 
-  const rubroOptions = useMemo(() => createOptionsList(rubros || [], "codigorubroact", "descripcionrubroact"), [rubros]);
-  const ciudadOptions = useMemo(() => createOptionsList(ciudades || [], "codigociudad", "descripcion"), [ciudades]);
-  const ambienteOptions = useMemo(() => createOptionsList(ambientes || [], "codigoambiente", "ambiente"), [ambientes]);
-  const inmuebleOptions = useMemo(() => createOptionsList(inmuebles || [], "codigoinmueble", "inmueble"), [inmuebles]);
-  const nivelOptions = useMemo(() => createOptionsList(niveles || [], "codigonivel", "nivel"), [niveles]);
+  const filterEliminar = (opts) => opts.filter((o) => !String(o.label).toUpperCase().includes("(ELIMINAR)"));
+  const rubroOptions = useMemo(() => filterEliminar(createOptionsList(rubros || [], "codigorubroact", "descripcionrubroact")), [rubros]);
+  const ciudadOptions = useMemo(() => filterEliminar(createOptionsList(ciudades || [], "codigociudad", "descripcion")), [ciudades]);
+  const ambienteOptions = useMemo(() => filterEliminar(createOptionsList(ambientes || [], "codigoambiente", "ambiente")), [ambientes]);
+  const inmuebleOptions = useMemo(() => filterEliminar(createOptionsList(inmuebles || [], "codigoinmueble", "inmueble")), [inmuebles]);
+  const nivelOptions = useMemo(() => filterEliminar(createOptionsList(niveles || [], "codigonivel", "nivel")), [niveles]);
 
   const inmuebleOptionsByCiudad = useMemo(() => {
     if (!filters?.ciudad) return inmuebleOptions;

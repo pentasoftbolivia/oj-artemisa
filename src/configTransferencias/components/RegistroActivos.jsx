@@ -88,21 +88,23 @@ const RegistroActivos = ({ onSuccess }) => {
     return m;
   }, [ambientes]);
 
-  const ciudadOptions = useMemo(() => createOptionsList(ciudades || [], "codigociudad", "descripcion"), [ciudades]);
+  const filterEliminar = (opts) => opts.filter((o) => !String(o.label).toUpperCase().includes("(ELIMINAR)"));
+
+  const ciudadOptions = useMemo(() => filterEliminar(createOptionsList(ciudades || [], "codigociudad", "descripcion")), [ciudades]);
   const inmuebleOptionsByCiudad = useMemo(() => {
-    const all = createOptionsList(inmuebles || [], "codigoinmueble", "inmueble");
+    const all = filterEliminar(createOptionsList(inmuebles || [], "codigoinmueble", "inmueble"));
     const c = String(selCiudad).trim();
     if (!c) return all;
     return all.filter((o) => inmuebleCiudadMap[String(o.value).trim()] === c);
   }, [inmuebles, inmuebleCiudadMap, selCiudad]);
   const nivelOptionsByInmueble = useMemo(() => {
-    const all = createOptionsList(niveles || [], "codigonivel", "nivel");
+    const all = filterEliminar(createOptionsList(niveles || [], "codigonivel", "nivel"));
     const im = String(selInmueble).trim();
     if (!im) return all;
     return all.filter((o) => nivelInmuebleMap[String(o.value).trim()] === im);
   }, [niveles, nivelInmuebleMap, selInmueble]);
   const ambienteOptionsByNivel = useMemo(() => {
-    const all = createOptionsList(ambientes || [], "codigoambiente", "ambiente");
+    const all = filterEliminar(createOptionsList(ambientes || [], "codigoambiente", "ambiente"));
     const nv = String(selNivel).trim();
     if (!nv) return all;
     return all.filter((o) => ambienteNivelMap[String(o.value).trim()] === nv);
@@ -266,22 +268,22 @@ const RegistroActivos = ({ onSuccess }) => {
           <div className="rounded-lg border p-4 bg-muted/20 space-y-3">
             <p className="text-sm font-semibold">Ubicación — Código Ambiente *</p>
             <p className="text-xs text-muted-foreground">Seleccion en cascada </p>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Ciudad</Label>
-                <ComboboxField value={selCiudad} onValueChange={(v) => handleSelectUbicacion("ciudad", v)} options={ciudadOptions} placeholder="Ciudad..." searchPlaceholder="Buscar ciudad..." emptyMessage="Sin resultados" loading={isLoading} disabled={saving} />
+                <ComboboxField value={selCiudad} onValueChange={(v) => handleSelectUbicacion("ciudad", v)} options={ciudadOptions} placeholder="Ciudad..." searchPlaceholder="Buscar ciudad..." emptyMessage="Sin resultados" loading={isLoading} disabled={saving} wrapText />
               </div>
               <div className="space-y-1.5">
                 <Label>Inmueble</Label>
-                <ComboboxField value={selInmueble} onValueChange={(v) => handleSelectUbicacion("inmueble", v)} options={inmuebleOptionsByCiudad} placeholder="Inmueble..." searchPlaceholder="Buscar inmueble..." emptyMessage="Sin resultados" loading={isLoading} disabled={saving} />
+                <ComboboxField value={selInmueble} onValueChange={(v) => handleSelectUbicacion("inmueble", v)} options={inmuebleOptionsByCiudad} placeholder="Inmueble..." searchPlaceholder="Buscar inmueble..." emptyMessage="Sin resultados" loading={isLoading} disabled={saving} wrapText />
               </div>
               <div className="space-y-1.5">
                 <Label>Nivel</Label>
-                <ComboboxField value={selNivel} onValueChange={(v) => handleSelectUbicacion("nivel", v)} options={nivelOptionsByInmueble} placeholder="Nivel..." searchPlaceholder="Buscar nivel..." emptyMessage="Sin resultados" loading={isLoading} disabled={saving} />
+                <ComboboxField value={selNivel} onValueChange={(v) => handleSelectUbicacion("nivel", v)} options={nivelOptionsByInmueble} placeholder="Nivel..." searchPlaceholder="Buscar nivel..." emptyMessage="Sin resultados" loading={isLoading} disabled={saving} wrapText />
               </div>
               <div className="space-y-1.5">
                 <Label>Ambiente *</Label>
-                <ComboboxField value={selAmbiente} onValueChange={(v) => handleSelectUbicacion("ambiente", v)} options={ambienteOptionsByNivel} placeholder="Ambiente..." searchPlaceholder="Buscar ambiente..." emptyMessage="Sin resultados" loading={isLoading} disabled={saving} />
+                <ComboboxField value={selAmbiente} onValueChange={(v) => handleSelectUbicacion("ambiente", v)} options={ambienteOptionsByNivel} placeholder="Ambiente..." searchPlaceholder="Buscar ambiente..." emptyMessage="Sin resultados" loading={isLoading} disabled={saving} wrapText />
               </div>
             </div>
             {selAmbiente && <p className="text-xs text-muted-foreground">Código ambiente seleccionado: <span className="font-mono font-semibold">{selAmbiente}</span></p>}

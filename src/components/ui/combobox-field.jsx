@@ -81,7 +81,7 @@ const ComboboxField = ({
                 Cargando...
               </span>
             ) : value && selectedLabel ? (
-              <span className={wrapText ? "whitespace-normal text-left" : "truncate"}>
+              <span className={wrapText ? "whitespace-normal break-words text-left" : "truncate"}>
                 {selectedLabel}
               </span>
             ) : (
@@ -137,7 +137,7 @@ const ComboboxField = ({
                         value === opt.value ? "opacity-100" : "opacity-0"
                       )}
                     />
-                    <span className={wrapText ? "whitespace-normal" : "truncate"}>
+                    <span className={wrapText ? "whitespace-normal break-words" : "truncate"}>
                       {opt.label}
                     </span>
                   </div>

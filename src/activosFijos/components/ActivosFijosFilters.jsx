@@ -104,6 +104,7 @@ const ActivosFijosFilters = memo(({
                 placeholder="Seleccionar inmueble..."
                 searchPlaceholder="Buscar inmueble..."
                 emptyMessage="Sin resultados"
+                wrapText
               />
             </div>
             <div className="space-y-2">

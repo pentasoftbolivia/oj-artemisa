@@ -351,6 +351,7 @@ const InventarioInmuebleModal = ({
               placeholder="Seleccionar ciudad..."
               searchPlaceholder="Buscar ciudad..."
               emptyMessage="Sin resultados"
+              wrapText
             />
             <ComboboxField
               label="Inmueble"
@@ -360,6 +361,7 @@ const InventarioInmuebleModal = ({
               placeholder="Seleccionar inmueble..."
               searchPlaceholder="Buscar inmueble..."
               emptyMessage="Sin resultados"
+              wrapText
             />
           </div>
 

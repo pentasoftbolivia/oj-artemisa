@@ -74,6 +74,7 @@ const ResponsableFilters = memo(({
               emptyMessage="Sin resultados"
               loading={isLoadingCatalogos}
               disabled={isSearching}
+              wrapText
             />
             <ComboboxField
               label="Nivel"
