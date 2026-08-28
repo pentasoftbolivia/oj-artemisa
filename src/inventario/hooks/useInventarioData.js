@@ -21,9 +21,14 @@ const aggregateActivosPorFecha = (rows) => {
   rows.forEach((r) => {
     const email = r.usuarioinventario;
     if (!email) return;
-    if (!acc[email]) acc[email] = { enProceso: 0, inventariado: 0, revisado: 0 };
+    if (!acc[email]) acc[email] = { enProceso: 0, inventariado: 0, revisado: 0, primerRegistro: null, ultimoRegistro: null };
     const key = ESTADO_FECHA_KEYS[String(r.estadoinventario || "").trim().toUpperCase()];
     if (key) acc[email][key] += 1;
+    const fecha = r.fecharegistro ? String(r.fecharegistro) : null;
+    if (fecha) {
+      if (!acc[email].primerRegistro || fecha < acc[email].primerRegistro) acc[email].primerRegistro = fecha;
+      if (!acc[email].ultimoRegistro || fecha > acc[email].ultimoRegistro) acc[email].ultimoRegistro = fecha;
+    }
   });
   return Object.entries(acc)
     .map(([email, c]) => ({

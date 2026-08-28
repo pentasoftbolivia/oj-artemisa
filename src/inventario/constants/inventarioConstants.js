@@ -50,6 +50,8 @@ export const RUBRO_FIELDS_RAW = {
     { key: "chapa", label: "Chapa" },
     { key: "abatible", label: "Abatible" },
     { key: "deslizable", label: "Deslizable" },
+    { key: "caracteristicas", label: "Características" },
+    { key: "categoria", label: "Categoría" },
   ],
   "EQUIPOS DE COMPUTACIÓN": [
     { key: "ram", label: "RAM" },

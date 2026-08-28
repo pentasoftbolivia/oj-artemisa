@@ -65,6 +65,17 @@ const InventarioFechaModal = ({
     [result],
   );
 
+  const formatFecha = (iso) => {
+    if (!iso) return "—";
+    try {
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return String(iso).split("T")[0];
+      return d.toLocaleString("es-BO", { dateStyle: "short", timeStyle: "short" });
+    } catch {
+      return String(iso);
+    }
+  };
+
   const totalEnProceso = sortedResult ? sortedResult.reduce((acc, r) => acc + r.enProceso, 0) : 0;
   const totalInventariado = sortedResult ? sortedResult.reduce((acc, r) => acc + r.inventariado, 0) : 0;
   const totalRevisado = sortedResult ? sortedResult.reduce((acc, r) => acc + r.revisado, 0) : 0;
@@ -90,22 +101,26 @@ const InventarioFechaModal = ({
         stat.inventariado,
         stat.revisado,
         stat.total,
+        formatFecha(stat.primerRegistro),
+        formatFecha(stat.ultimoRegistro),
       ]);
-      body.push(["", "TOTAL GENERAL", totalEnProceso, totalInventariado, totalRevisado, totalGeneral]);
+      body.push(["", "TOTAL GENERAL", totalEnProceso, totalInventariado, totalRevisado, totalGeneral, "", ""]);
 
       autoTable(doc, {
         startY: 28,
-        head: [["N°", "INVENTARIADOR", "EN PROCESO", "INVENTARIADO", "REVISADO", "TOTAL DE ACTIVOS"]],
+        head: [["N°", "INVENTARIADOR", "EN PROCESO", "INVENTARIADO", "REVISADO", "TOTAL DE ACTIVOS", "PRIMER REGISTRO", "ULTIMO REGISTRO"]],
         body,
-        styles: { fontSize: 10, cellPadding: 2.5 },
-        headStyles: { fillColor: [33, 115, 70], textColor: 255, halign: "center" },
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [33, 115, 70], textColor: 255, halign: "center", fontSize: 7 },
         columnStyles: {
-          0: { halign: "center", cellWidth: 15 },
-          1: { halign: "left" },
-          2: { halign: "center", cellWidth: 32, textColor: [128, 128, 128] },
-          3: { halign: "center", cellWidth: 32, fontStyle: "bold" },
-          4: { halign: "center", cellWidth: 32, fontStyle: "bold" },
-          5: { halign: "center", cellWidth: 40, fontStyle: "bold" },
+          0: { halign: "center", cellWidth: 12 },
+          1: { halign: "left", cellWidth: 38 },
+          2: { halign: "center", cellWidth: 24, textColor: [128, 128, 128] },
+          3: { halign: "center", cellWidth: 24, fontStyle: "bold" },
+          4: { halign: "center", cellWidth: 24, fontStyle: "bold" },
+          5: { halign: "center", cellWidth: 28, fontStyle: "bold" },
+          6: { halign: "center", cellWidth: 32, fontSize: 7 },
+          7: { halign: "center", cellWidth: 32, fontSize: 7 },
         },
         didParseCell: (data) => {
           if (data.row.index === body.length - 1 && data.section === "body") {
@@ -254,7 +269,7 @@ const InventarioFechaModal = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-[96vw] sm:max-w-[720px] max-h-[90vh] flex flex-col p-6">
+      <DialogContent className="max-w-[96vw] sm:max-w-[960px] max-h-[90vh] flex flex-col p-6">
         <DialogHeader>
           <DialogTitle className="text-xl flex items-center gap-2">
             <CalendarDays className="h-5 w-5" />
@@ -343,21 +358,21 @@ const InventarioFechaModal = ({
             <Table>
               <TableHeader className="bg-muted/50 sticky top-0">
                 <TableRow>
-                  <TableHead className="w-[60px]">N°</TableHead>
+                  <TableHead className="w-[50px]">N°</TableHead>
                   <TableHead>Inventariador</TableHead>
                   <TableHead className="text-center">En Proceso</TableHead>
                   <TableHead className="text-center">Inventariado</TableHead>
                   <TableHead className="text-center">Revisado</TableHead>
-                  <TableHead className="w-[160px] text-right">
-                    Total de Activos
-                  </TableHead>
+                  <TableHead className="text-center">Total</TableHead>
+                  <TableHead className="text-center whitespace-nowrap">Primer Registro</TableHead>
+                  <TableHead className="text-center whitespace-nowrap">Último Registro</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {sortedResult.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={6}
+                      colSpan={8}
                       className="text-center text-muted-foreground py-8"
                     >
                       No se encontraron activos en el rango de fechas seleccionado.
@@ -373,9 +388,11 @@ const InventarioFechaModal = ({
                       <TableCell className="text-center">{stat.enProceso}</TableCell>
                       <TableCell className="text-center">{stat.inventariado}</TableCell>
                       <TableCell className="text-center">{stat.revisado}</TableCell>
-                      <TableCell className="text-right font-bold">
+                      <TableCell className="text-center font-bold">
                         {stat.total}
                       </TableCell>
+                      <TableCell className="text-center text-xs whitespace-nowrap">{formatFecha(stat.primerRegistro)}</TableCell>
+                      <TableCell className="text-center text-xs whitespace-nowrap">{formatFecha(stat.ultimoRegistro)}</TableCell>
                     </TableRow>
                   ))
                 )}
@@ -395,9 +412,10 @@ const InventarioFechaModal = ({
                     <TableCell className="text-center font-bold">
                       {totalRevisado}
                     </TableCell>
-                    <TableCell className="text-right font-bold text-blue-600 dark:text-blue-400">
+                    <TableCell className="text-center font-bold text-blue-600 dark:text-blue-400">
                       {totalGeneral}
                     </TableCell>
+                    <TableCell colSpan={2} className="text-center text-xs text-muted-foreground">—</TableCell>
                   </TableRow>
                 </TableFooter>
               )}

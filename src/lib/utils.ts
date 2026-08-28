@@ -45,8 +45,14 @@ export const buildDenominacion = (activo: Record<string, unknown>, rubroName: st
   };
 
   const fieldsToConcat: string[] = [];
+  const getVal = (obj: Record<string, unknown>, key: string) => {
+    if (key in obj) return obj[key];
+    const lower = key.toLowerCase();
+    const found = Object.keys(obj).find((k) => k.toLowerCase() === lower);
+    return found ? obj[found] : undefined;
+  };
   const add = (key: string, prefix: string = "") => {
-    const val = activo[key] !== undefined ? activo[key] : activo[key.toLowerCase()];
+    const val = getVal(activo, key);
     if (valid(val)) {
       const strVal = String(val).trim();
       fieldsToConcat.push(`${prefix}${strVal}`);
@@ -61,7 +67,7 @@ export const buildDenominacion = (activo: Record<string, unknown>, rubroName: st
   } else if (rn.includes("EQUIPO DE COMUNICAC") || rn.includes("EQUIPOS DE COMUNICAC")) {
     add("marcaMaterial", "MARCA: "); add("modelo", "MOD: "); add("serie", "S/N: "); add("alcancecobertura", "ALCANCE: ");
   } else if (rn.includes("EQUIPO DE OFICINA") || rn.includes("EQUIPOS DE OFICINA")) {
-    add("medidas", "MEDIDAS: "); add("color", "COLOR: "); add("divisionescajonesbandejas", "DIVISIONES: "); add("chapa", "CHAPA: "); add("abatible", "ABATIBLE: "); add("deslizable", "DESLIZABLE: ");
+    add("marcaMaterial", "MARCA: "); add("modelo", "MOD: "); add("serie", "S/N: "); add("medidas", "MEDIDAS: "); add("color", "COLOR: "); add("divisionescajonesbandejas", "DIVISIONES: "); add("chapa", "CHAPA: "); add("abatible", "ABATIBLE: "); add("deslizable", "DESLIZABLE: "); add("caracteristicas", "CARACTERÍSTICAS: "); add("categoria", "CATEGORÍA: ");
   } else if (rn.includes("EQUIPO DE COMPUTAC") || rn.includes("EQUIPOS DE COMPUTAC")) {
     add("marcaMaterial", "MARCA: "); add("modelo", "MOD: "); add("serie", "S/N: "); add("ram", "RAM: "); add("procesador", "CPU: "); add("discoduro", "HDD/SSD: ");
   } else if (rn.includes("OTRA MAQUINARIA Y EQUIPO")) {
