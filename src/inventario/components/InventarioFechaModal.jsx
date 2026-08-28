@@ -101,26 +101,22 @@ const InventarioFechaModal = ({
         stat.inventariado,
         stat.revisado,
         stat.total,
-        formatFecha(stat.primerRegistro),
-        formatFecha(stat.ultimoRegistro),
       ]);
-      body.push(["", "TOTAL GENERAL", totalEnProceso, totalInventariado, totalRevisado, totalGeneral, "", ""]);
+      body.push(["", "TOTAL GENERAL", totalEnProceso, totalInventariado, totalRevisado, totalGeneral]);
 
       autoTable(doc, {
         startY: 28,
-        head: [["N°", "INVENTARIADOR", "EN PROCESO", "INVENTARIADO", "REVISADO", "TOTAL DE ACTIVOS", "PRIMER REGISTRO", "ULTIMO REGISTRO"]],
+        head: [["N°", "INVENTARIADOR", "EN PROCESO", "INVENTARIADO", "REVISADO", "TOTAL DE ACTIVOS"]],
         body,
-        styles: { fontSize: 8, cellPadding: 2 },
-        headStyles: { fillColor: [33, 115, 70], textColor: 255, halign: "center", fontSize: 7 },
+        styles: { fontSize: 10, cellPadding: 2.5 },
+        headStyles: { fillColor: [33, 115, 70], textColor: 255, halign: "center" },
         columnStyles: {
-          0: { halign: "center", cellWidth: 12 },
-          1: { halign: "left", cellWidth: 38 },
-          2: { halign: "center", cellWidth: 24, textColor: [128, 128, 128] },
-          3: { halign: "center", cellWidth: 24, fontStyle: "bold" },
-          4: { halign: "center", cellWidth: 24, fontStyle: "bold" },
-          5: { halign: "center", cellWidth: 28, fontStyle: "bold" },
-          6: { halign: "center", cellWidth: 32, fontSize: 7 },
-          7: { halign: "center", cellWidth: 32, fontSize: 7 },
+          0: { halign: "center", cellWidth: 15 },
+          1: { halign: "left" },
+          2: { halign: "center", cellWidth: 32, textColor: [128, 128, 128] },
+          3: { halign: "center", cellWidth: 32, fontStyle: "bold" },
+          4: { halign: "center", cellWidth: 32, fontStyle: "bold" },
+          5: { halign: "center", cellWidth: 40, fontStyle: "bold" },
         },
         didParseCell: (data) => {
           if (data.row.index === body.length - 1 && data.section === "body") {
