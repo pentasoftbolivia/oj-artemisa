@@ -15,6 +15,14 @@ const SI_NO_OPTIONS = [
   { value: "0", label: "Inactivo" },
 ];
 
+const ESTADO_INVENTARIO_OPTIONS = [
+  { value: "PENDIENTE", label: "Pendiente" },
+  { value: "EN PROCESO", label: "En Proceso" },
+  { value: "INVENTARIADO", label: "Inventariado" },
+  { value: "REVISADO", label: "Revisado" },
+  { value: "ENVIADO", label: "Enviado" },
+];
+
 const EDITORS = [
   {
     title: "Activos",
@@ -29,6 +37,7 @@ const EDITORS = [
       { id: "codigotransaccion", label: "Código Transacción", type: "number" },
       { id: "codigoambiente", label: "Código Ambiente" },
       { id: "cirun", label: "Carnet" },
+      { id: "estadoinventario", label: "Estado", type: "select", options: ESTADO_INVENTARIO_OPTIONS },
     ],
   },
   {
