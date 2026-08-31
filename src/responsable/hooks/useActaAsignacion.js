@@ -306,14 +306,17 @@ export const useActaAsignacion = () => {
 
       const { tableStartY } = await drawActaHeader(doc, { numeroActa, responsable });
 
+      const sanitize = (s) => String(s ?? "").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "").replace(/\s+/g, " ").trim();
       const tableData = assets.map(a => {
         const trId = a.tipoRubroAct || a.tiporubroact;
-        const rn = (tipoRubroMap[trId] || "").trim();
-        const tn = (descTipoRubroMap[trId] || "").trim();
-        const desc = (buildDenominacion(a, rn) || "").trim();
-        const obs = (a.observaciones || "").toString().trim();
-        const codigoFormateado = `OJ-02-${(a.codigoActivo || a.codigoactivo || "").toString().trim()}`;
-        const ubicacion = (resolveUbicacion(a.codigoAmbiente || a.codigoambiente) || "").trim();
+        const rn = sanitize(tipoRubroMap[trId] || "");
+        const tn = sanitize(descTipoRubroMap[trId] || "");
+        const desc = sanitize(buildDenominacion(a, rn) || "");
+        const rawObs = sanitize(a.observaciones || "");
+        const rawDescActivo = sanitize(a.descripcionActivo || a.descripcionactivo || "");
+        const obs = rawObs && (rawObs === "0" || rawObs === rawDescActivo || rawObs === desc) ? "" : rawObs;
+        const codigoFormateado = `OJ-02-${sanitize(a.codigoActivo || a.codigoactivo || "")}`;
+        const ubicacion = sanitize(resolveUbicacion(a.codigoAmbiente || a.codigoambiente) || "");
 
         return [
           codigoFormateado,
@@ -322,44 +325,63 @@ export const useActaAsignacion = () => {
           desc,
           obs,
           ubicacion,
-          (a.estadoConservacion || a.estadoconservacion || "REGULAR").toString().trim().toUpperCase()
+          sanitize(a.estadoConservacion || a.estadoconservacion || "REGULAR").toUpperCase() || "REGULAR"
         ];
       });
 
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
+      doc.setFontSize(7.5);
 
       autoTable(doc, {
         startY: tableStartY,
         head: [['CÓDIGO', 'RUBRO', 'TIPO', 'DESCRIPCIÓN', 'OBSERVACIONES', 'UBICACIÓN', 'ESTADO']],
         body: tableData,
         theme: 'plain',
+        tableWidth: 'wrap',
         styles: {
           font: 'helvetica',
-          fontSize: 8,
+          fontSize: 7.5,
           fontStyle: 'normal',
           cellPadding: 1.2,
           minCellHeight: 4.5,
           overflow: 'linebreak',
           lineColor: [0, 0, 0],
           lineWidth: 0.1,
+          valign: 'top',
         },
         headStyles: {
           fontStyle: 'bold',
           fillColor: [240, 240, 240],
           textColor: [0, 0, 0],
-          halign: 'center'
+          halign: 'center',
+          valign: 'middle',
+        },
+        bodyStyles: {
+          overflow: 'linebreak',
+          valign: 'top',
         },
         columnStyles: {
-          0: { cellWidth: 22 },
-          1: { cellWidth: 30 },
-          2: { cellWidth: 22 },
-          3: { cellWidth: 'auto' },
-          4: { cellWidth: 38 },
-          5: { cellWidth: 48 },
-          6: { cellWidth: 20, halign: 'center' }
+          0: { cellWidth: 20, overflow: 'linebreak' },
+          1: { cellWidth: 26, overflow: 'linebreak' },
+          2: { cellWidth: 20, overflow: 'linebreak' },
+          3: { cellWidth: 78, overflow: 'linebreak' },
+          4: { cellWidth: 38, overflow: 'linebreak' },
+          5: { cellWidth: 42, overflow: 'linebreak' },
+          6: { cellWidth: 18, halign: 'center', overflow: 'linebreak' }
         },
-        margin: { top: 20, left: 14, right: 14 }
+        margin: { top: 20, left: 14, right: 14 },
+        horizontalPageBreak: false,
+        didParseCell: (hookData) => {
+          // Fuerza wrap mid-word para columnas que pueden desbordar (RUBRO,TIPO,DESCRIPCIÓN,OBSERVACIONES,UBICACIÓN)
+          if ([1, 2, 3, 4, 5].includes(hookData.column.index)) {
+            const colWidth = (hookData.column.width || hookData.cell.width || 0);
+            const maxWidth = colWidth > 5 ? colWidth - 2.4 - 0.5 : 0;
+            const raw = hookData.cell.text.join(' ');
+            if (raw && maxWidth > 5) {
+              hookData.cell.text = doc.splitTextToSize(raw, maxWidth);
+            }
+          }
+        },
       });
 
       const finalY = doc.lastAutoTable.finalY;
@@ -420,15 +442,18 @@ export const useActaAsignacion = () => {
 
       const { tableStartY, pageWidth } = await drawActaHeader(doc, { numeroActa, responsable });
 
+      const sanitize2 = (s) => String(s ?? "").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "").replace(/\s+/g, " ").trim();
       const lineas = assets.map(a => {
         const trId = a.tipoRubroAct || a.tiporubroact;
-        const rn = (tipoRubroMap[trId] || "").trim();
-        const tn = (descTipoRubroMap[trId] || "").trim();
-        const desc = (buildDenominacion(a, rn) || "").trim();
-        const obs = (a.observaciones || "").toString().trim();
-        const codigo = `OJ-02-${(a.codigoActivo || a.codigoactivo || "").toString().trim()}`;
-        const ubicacion = (resolveUbicacion(a.codigoAmbiente || a.codigoambiente) || "").trim();
-        const estado = (a.estadoConservacion || a.estadoconservacion || "REGULAR").toString().trim().toUpperCase();
+        const rn = sanitize2(tipoRubroMap[trId] || "");
+        const tn = sanitize2(descTipoRubroMap[trId] || "");
+        const desc = sanitize2(buildDenominacion(a, rn) || "");
+        const rawObs = sanitize2(a.observaciones || "");
+        const rawDescActivo = sanitize2(a.descripcionActivo || a.descripcionactivo || "");
+        const obs = rawObs && (rawObs === "0" || rawObs === rawDescActivo || rawObs === desc) ? "" : rawObs;
+        const codigo = `OJ-02-${sanitize2(a.codigoActivo || a.codigoactivo || "")}`;
+        const ubicacion = sanitize2(resolveUbicacion(a.codigoAmbiente || a.codigoambiente) || "");
+        const estado = sanitize2(a.estadoConservacion || a.estadoconservacion || "REGULAR").toUpperCase() || "REGULAR";
         return [codigo, rn, tn, desc, obs, ubicacion, estado].join(";");
       });
 

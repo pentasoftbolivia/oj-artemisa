@@ -125,15 +125,18 @@ const ActaPreviewModal = ({ isOpen, onClose, onAccept, responsable, type, locati
                       </TableHeader>
                       <TableBody>
                         {data.assets.map((a, i) => {
+                          const sanitize = (s) => String(s ?? "").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "").replace(/\s+/g, " ").trim();
                           const trId = a.tipoRubroAct || a.tiporubroact;
-                          const rn = (data.tipoRubroMap[trId] || "").trim();
-                          const tn = (data.descTipoRubroMap[trId] || "").trim();
-                          const desc = (buildDenominacion(a, rn) || "").trim();
-                          const obs = (a.observaciones || "").toString().trim();
-                          const codBase = (a.codigoActivo || a.codigoactivo || "").toString().trim();
+                          const rn = sanitize(data.tipoRubroMap[trId] || "");
+                          const tn = sanitize(data.descTipoRubroMap[trId] || "");
+                          const desc = sanitize(buildDenominacion(a, rn) || "");
+                          const rawObs = sanitize(a.observaciones || "");
+                          const rawDescActivo = sanitize(a.descripcionActivo || a.descripcionactivo || "");
+                          const obs = rawObs && (rawObs === "0" || rawObs === rawDescActivo || rawObs === desc) ? "" : rawObs;
+                          const codBase = sanitize(a.codigoActivo || a.codigoactivo || "");
                           const codigoFormateado = codBase ? `OJ-02-${codBase}` : "—";
-                          const ubicacion = (data.resolveUbicacion(a.codigoAmbiente || a.codigoambiente) || "").trim();
-                          const estadoCons = (a.estadoConservacion || a.estadoconservacion || "REGULAR").toString().trim().toUpperCase();
+                          const ubicacion = sanitize(data.resolveUbicacion(a.codigoAmbiente || a.codigoambiente) || "");
+                          const estadoCons = sanitize(a.estadoConservacion || a.estadoconservacion || "REGULAR").toUpperCase() || "REGULAR";
 
                           return (
                             <TableRow key={i}>

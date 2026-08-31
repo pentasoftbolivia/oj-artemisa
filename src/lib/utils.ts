@@ -33,13 +33,19 @@ export function createOptionsList<T extends Record<string, unknown>>(
   }))
 }
 
+const sanitizeText = (s: unknown): string =>
+  String(s ?? "")
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
 export const buildDenominacion = (activo: Record<string, unknown>, rubroName: string): string => {
-  let baseText = (activo.descripcionActivo as string) || "";
+  let baseText = sanitizeText((activo.descripcionActivo as string) || "");
   if (!rubroName) return baseText;
 
   const valid = (val: unknown) => {
     if (val === null || val === undefined) return false;
-    const str = String(val).trim();
+    const str = sanitizeText(String(val));
     if (str === "" || str === "0") return false;
     return true;
   };
@@ -54,7 +60,7 @@ export const buildDenominacion = (activo: Record<string, unknown>, rubroName: st
   const add = (key: string, prefix: string = "") => {
     const val = getVal(activo, key);
     if (valid(val)) {
-      const strVal = String(val).trim();
+      const strVal = sanitizeText(String(val));
       fieldsToConcat.push(`${prefix}${strVal}`);
     }
   };
