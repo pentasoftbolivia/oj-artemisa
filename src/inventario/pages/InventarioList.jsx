@@ -66,6 +66,7 @@ const InventarioList = () => {
     loadInmueblePendientes,
     loadInmuebleInventariados,
     loadInmuebleEnProceso,
+    loadCiudadInmueblesStats,
     loadActivosPorFecha,
     page,
     pageSize,
@@ -861,6 +862,7 @@ const InventarioList = () => {
         loadInmueblePendientes={loadInmueblePendientes}
         loadInmuebleInventariados={loadInmuebleInventariados}
         loadInmuebleEnProceso={loadInmuebleEnProceso}
+        loadCiudadInmueblesStats={loadCiudadInmueblesStats}
         getAmbienteName={getAmbienteName}
         getResponsableName={getResponsableName}
         rubroFromTipo={rubroFromTipo}

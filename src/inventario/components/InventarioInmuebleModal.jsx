@@ -128,6 +128,7 @@ const InventarioInmuebleModal = ({
   loadInmueblePendientes,
   loadInmuebleInventariados,
   loadInmuebleEnProceso,
+  loadCiudadInmueblesStats,
   getAmbienteName,
   getResponsableName,
   rubroFromTipo,
@@ -156,6 +157,9 @@ const InventarioInmuebleModal = ({
   const [enProcesoPage, setEnProcesoPage] = useState(1);
   const [isLoadingEnProceso, setIsLoadingEnProceso] = useState(false);
   const [enProcesoTitle, setEnProcesoTitle] = useState("");
+
+  const [ciudadInmueblesStats, setCiudadInmueblesStats] = useState([]);
+  const [isLoadingCiudadStats, setIsLoadingCiudadStats] = useState(false);
 
   const filteredInmuebleOptions = useMemo(() => {
     if (!ciudad) return inmuebleOptions;
@@ -209,20 +213,34 @@ const InventarioInmuebleModal = ({
 
   const handleBuscar = async () => {
     setIsLoading(true);
-    try {
-      const data = await loadInmuebleSummary({ ciudad, inmueble });
-      setResult(data);
-    } catch (e) {
-      console.error("Error loading inmueble summary:", e);
-      setResult({ totalInmueble: 0, totalInventariado: 0, perUser: [] });
-    }
-    try {
-      const pend = await loadInmueblePendientes({ ciudad, inmueble });
-      setPendientes(pend || []);
-      setPendientesPage(1);
-    } catch (e) {
+    const shouldLoadCiudadStats = Boolean(ciudad && !inmueble && loadCiudadInmueblesStats);
+    if (shouldLoadCiudadStats) setIsLoadingCiudadStats(true);
+    else setCiudadInmueblesStats([]);
+
+    const summaryPromise = loadInmuebleSummary({ ciudad, inmueble })
+      .catch((e) => {
+        console.error("Error loading inmueble summary:", e);
+        return { totalInmueble: 0, totalInventariado: 0, totalEnProceso: 0, perUser: [] };
+      });
+    const pendientesPromise = loadInmueblePendientes({ ciudad, inmueble }).catch((e) => {
       console.error("Error loading pendientes:", e);
-      setPendientes([]);
+      return [];
+    });
+    const ciudadStatsPromise = shouldLoadCiudadStats
+      ? loadCiudadInmueblesStats({ ciudad }).catch((e) => {
+          console.error("Error loading ciudad inmuebles stats:", e);
+          return [];
+        })
+      : Promise.resolve(null);
+
+    const [data, pend, stats] = await Promise.all([summaryPromise, pendientesPromise, ciudadStatsPromise]);
+
+    setResult(data);
+    setPendientes(pend || []);
+    setPendientesPage(1);
+    if (shouldLoadCiudadStats) {
+      setCiudadInmueblesStats(stats || []);
+      setIsLoadingCiudadStats(false);
     }
     setIsLoading(false);
   };
@@ -233,6 +251,7 @@ const InventarioInmuebleModal = ({
     setResult(null);
     setPendientes([]);
     setPendientesPage(1);
+    setCiudadInmueblesStats([]);
   };
 
   const handleClose = () => {
@@ -245,6 +264,7 @@ const InventarioInmuebleModal = ({
     setEnProcesoList([]);
     setEnProcesoPage(1);
     setEnProcesoTitle("");
+    setCiudadInmueblesStats([]);
     onClose();
   };
 
@@ -788,6 +808,47 @@ const InventarioInmuebleModal = ({
                 <div className="text-center text-muted-foreground py-8 border rounded-md">
                   <Users className="mx-auto h-10 w-10 opacity-20 mb-2" />
                   No hay inventariadores con activos en este inmueble.
+                </div>
+              )}
+
+              {ciudad && !inmueble && result && (
+                <div className="space-y-3">
+                  {isLoadingCiudadStats ? (
+                    <div className="flex flex-col justify-center items-center py-8 border rounded-md">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                      <p className="mt-2 text-sm text-muted-foreground animate-pulse">
+                        Cargando detalle por inmueble...
+                      </p>
+                    </div>
+                  ) : ciudadInmueblesStats.length > 0 ? (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <Building2 className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-semibold tracking-wide">
+                          DETALLE POR INMUEBLE — {ciudadOptions.find((o) => String(o.value).trim() === String(ciudad).trim())?.label || ciudad}
+                        </span>
+                        <span className="text-xs text-muted-foreground">({ciudadInmueblesStats.length} inmuebles)</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {ciudadInmueblesStats.map((stat) => (
+                          <div
+                            key={stat.codigoinmueble}
+                            className="rounded-lg border p-4 bg-card space-y-2 shadow-sm"
+                          >
+                            <div className="text-sm font-semibold truncate" title={stat.inmueble}>
+                              {stat.inmueble}
+                            </div>
+                            <div className="text-xs text-muted-foreground">Código: {stat.codigoinmueble}</div>
+                            <div className="rounded bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 p-2 text-center">
+                              <div className="text-xs text-blue-600 dark:text-blue-400 font-medium">Total activos</div>
+                              <div className="text-lg font-bold text-blue-700 dark:text-blue-300">{stat.totalInmueble}</div>
+                            </div>
+                            <BarraAvance inventariado={stat.totalInventariado} total={stat.totalInmueble} />
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ) : null}
                 </div>
               )}
 

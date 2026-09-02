@@ -531,6 +531,80 @@ export const useInventarioData = () => {
     return { totalInmueble, totalInventariado, totalEnProceso, perUser };
   }, []);
 
+  const loadCiudadInmueblesStats = useCallback(async ({ ciudad = "" } = {}) => {
+    const ciudadCode = String(ciudad || "").trim();
+    if (!ciudadCode) return [];
+    try {
+      const srcInmuebles = (inmuebles && inmuebles.length > 0) ? inmuebles : (inmueblesRef.current || []);
+      const srcNiveles = (niveles && niveles.length > 0) ? niveles : (nivelesRef.current || []);
+      const srcAmbientes = (ambientes && ambientes.length > 0) ? ambientes : (ambientesRef.current || []);
+      const inmueblesRows = srcInmuebles.filter((r) => String(r.codigociudad ?? "").trim() === ciudadCode);
+      if (inmueblesRows.length === 0) return [];
+      const inmuebleCodes = inmueblesRows.map((r) => String(r.codigoinmueble).trim()).filter(Boolean);
+      const inmuebleLabelMap = {};
+      inmueblesRows.forEach((r) => { inmuebleLabelMap[String(r.codigoinmueble).trim()] = r.inmueble; });
+      const nivelToInmueble = {};
+      const nivelCodes = [];
+      srcNiveles.forEach((r) => {
+        const inm = String(r.codigoinmueble ?? "").trim();
+        const niv = String(r.codigonivel ?? "").trim();
+        if (inmuebleCodes.includes(inm) && niv) { nivelToInmueble[niv] = inm; nivelCodes.push(niv); }
+      });
+      if (nivelCodes.length === 0) return [];
+      const ambienteToInmueble = {};
+      const allAmbienteCodes = [];
+      srcAmbientes.forEach((r) => {
+        const niv = String(r.codigonivel ?? "").trim();
+        const amb = String(r.codigoambiente ?? "").trim();
+        const inm = nivelToInmueble[niv];
+        if (amb && inm) { ambienteToInmueble[amb] = inm; allAmbienteCodes.push(amb); }
+      });
+      if (allAmbienteCodes.length === 0) return [];
+      const CHUNK = 1000;
+      let activosRows = [];
+      let start = 0;
+      for (;;) {
+        const { data, error } = await supabase
+          .from("act_activos")
+          .select("codigoambiente,estadoinventario")
+          .eq("ultimoregistro", 1)
+          .in("codigoambiente", allAmbienteCodes)
+          .range(start, start + CHUNK - 1);
+        if (error) throw error;
+        activosRows = activosRows.concat(data || []);
+        if (!data || data.length < CHUNK) break;
+        start += CHUNK;
+      }
+      const acc = {};
+      inmuebleCodes.forEach((code) => { acc[code] = { totalInmueble: 0, totalInventariado: 0, totalEnProceso: 0 }; });
+      (activosRows || []).forEach((r) => {
+        const amb = String(r.codigoambiente || "").trim();
+        const inm = ambienteToInmueble[amb];
+        if (!inm || !acc[inm]) return;
+        acc[inm].totalInmueble += 1;
+        const est = normalizarEstado(r.estadoinventario);
+        if (est === "EN PROCESO") acc[inm].totalEnProceso += 1;
+        const isInventariado = Boolean(est && est !== "PENDIENTE" && est !== "EN PROCESO");
+        if (isInventariado) acc[inm].totalInventariado += 1;
+      });
+      return inmuebleCodes.map((code) => {
+        const { totalInmueble, totalInventariado, totalEnProceso } = acc[code];
+        const porcentaje = totalInmueble > 0 ? (totalInventariado / totalInmueble) * 100 : 0;
+        return {
+          codigoinmueble: code,
+          inmueble: inmuebleLabelMap[code] || code,
+          totalInmueble,
+          totalInventariado,
+          totalEnProceso,
+          porcentaje: Number(porcentaje.toFixed(2)),
+        };
+      }).filter((s) => s.totalInmueble > 0).sort((a, b) => a.inmueble.localeCompare(b.inmueble));
+    } catch (e) {
+      console.error("Error loading ciudad inmuebles stats:", e);
+      return [];
+    }
+  }, [inmuebles, niveles, ambientes]);
+
   const loadActivosPorFecha = useCallback(async ({ fechaDesde, fechaHasta } = {}) => {
     const start = `${fechaDesde}T00:00:00`;
     const end = `${fechaHasta}T23:59:59.999`;
@@ -680,6 +754,7 @@ export const useInventarioData = () => {
     loadInmueblePendientes,
     loadInmuebleInventariados,
     loadInmuebleEnProceso,
+    loadCiudadInmueblesStats,
     loadActivosPorFecha,
     page,
     pageSize,
