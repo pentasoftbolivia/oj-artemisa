@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Building2, Users, Loader2, Search, X, ChevronLeft, ChevronRight, FileDown } from "lucide-react";
+import { Building2, Users, Loader2, Search, X, ChevronLeft, ChevronRight, FileDown, Package } from "lucide-react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
@@ -126,6 +126,8 @@ const InventarioInmuebleModal = ({
   getDisplayName,
   loadInmuebleSummary,
   loadInmueblePendientes,
+  loadInmuebleInventariados,
+  loadInmuebleEnProceso,
   getAmbienteName,
   getResponsableName,
   rubroFromTipo,
@@ -139,6 +141,21 @@ const InventarioInmuebleModal = ({
   const [pendientesPage, setPendientesPage] = useState(1);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isGeneratingExcel, setIsGeneratingExcel] = useState(false);
+
+  const [isGeneratingPdfInventariados, setIsGeneratingPdfInventariados] = useState(false);
+  const [generatingUser, setGeneratingUser] = useState("");
+
+  const [inventariadosOpen, setInventariadosOpen] = useState(false);
+  const [inventariados, setInventariados] = useState([]);
+  const [inventariadosPage, setInventariadosPage] = useState(1);
+  const [isLoadingInventariados, setIsLoadingInventariados] = useState(false);
+  const [inventariadosTitle, setInventariadosTitle] = useState("");
+
+  const [enProcesoOpen, setEnProcesoOpen] = useState(false);
+  const [enProcesoList, setEnProcesoList] = useState([]);
+  const [enProcesoPage, setEnProcesoPage] = useState(1);
+  const [isLoadingEnProceso, setIsLoadingEnProceso] = useState(false);
+  const [enProcesoTitle, setEnProcesoTitle] = useState("");
 
   const filteredInmuebleOptions = useMemo(() => {
     if (!ciudad) return inmuebleOptions;
@@ -155,6 +172,26 @@ const InventarioInmuebleModal = ({
     const start = (pendientesPage - 1) * PAGE_SIZE;
     return pendientes.slice(start, start + PAGE_SIZE);
   }, [pendientes, pendientesPage]);
+
+  const inventariadosTotalPages = useMemo(
+    () => Math.max(1, Math.ceil(inventariados.length / PAGE_SIZE)),
+    [inventariados],
+  );
+  const inventariadosPageData = useMemo(() => {
+    const start = (inventariadosPage - 1) * PAGE_SIZE;
+    return inventariados.slice(start, start + PAGE_SIZE);
+  }, [inventariados, inventariadosPage]);
+
+  const enProcesoTotalPages = useMemo(
+    () => Math.max(1, Math.ceil(enProcesoList.length / PAGE_SIZE)),
+    [enProcesoList],
+  );
+  const enProcesoPageData = useMemo(() => {
+    const start = (enProcesoPage - 1) * PAGE_SIZE;
+    return enProcesoList.slice(start, start + PAGE_SIZE);
+  }, [enProcesoList, enProcesoPage]);
+
+
 
   const mapActivoRow = (a) => {
     const trId = a.tipoRubroAct || a.tiporubroact;
@@ -200,7 +237,159 @@ const InventarioInmuebleModal = ({
 
   const handleClose = () => {
     handleLimpiar();
+    setInventariadosOpen(false);
+    setInventariados([]);
+    setInventariadosPage(1);
+    setInventariadosTitle("");
+    setEnProcesoOpen(false);
+    setEnProcesoList([]);
+    setEnProcesoPage(1);
+    setEnProcesoTitle("");
     onClose();
+  };
+
+  const handleShowInventariados = async ({ usuario = "", displayName = "" } = {}) => {
+    if (!result || result.totalInventariado === 0) return;
+    setInventariadosTitle(
+      displayName ? `Activos Inventariados — ${displayName}` : "Activos Inventariados — Todos",
+    );
+    setInventariados([]);
+    setInventariadosPage(1);
+    setInventariadosOpen(true);
+    setIsLoadingInventariados(true);
+    try {
+      const data = await loadInmuebleInventariados({ ciudad, inmueble, usuario });
+      setInventariados(data || []);
+    } catch (e) {
+      console.error("Error loading inventariados:", e);
+      setInventariados([]);
+    } finally {
+      setIsLoadingInventariados(false);
+    }
+  };
+
+  const handleCloseInventariados = () => {
+    setInventariadosOpen(false);
+    setInventariados([]);
+    setInventariadosPage(1);
+  };
+
+  const handleShowEnProceso = async ({ usuario = "", displayName = "" } = {}) => {
+    if (!result || result.totalEnProceso === 0) return;
+    setEnProcesoTitle(
+      displayName ? `Activos En Proceso — ${displayName}` : "Activos En Proceso — Todos",
+    );
+    setEnProcesoList([]);
+    setEnProcesoPage(1);
+    setEnProcesoOpen(true);
+    setIsLoadingEnProceso(true);
+    try {
+      const data = await loadInmuebleEnProceso({ ciudad, inmueble, usuario });
+      setEnProcesoList(data || []);
+    } catch (e) {
+      console.error("Error loading en proceso:", e);
+      setEnProcesoList([]);
+    } finally {
+      setIsLoadingEnProceso(false);
+    }
+  };
+
+  const handleCloseEnProceso = () => {
+    setEnProcesoOpen(false);
+    setEnProcesoList([]);
+    setEnProcesoPage(1);
+  };
+
+  const handleGenerarPdfInventariados = async ({ usuario = "", displayName = "" } = {}) => {
+    if (!result || result.totalInventariado === 0) return;
+    if (isGeneratingPdfInventariados) return;
+    setIsGeneratingPdfInventariados(true);
+    setGeneratingUser(usuario || "__all__");
+    try {
+      const data = await loadInmuebleInventariados({ ciudad, inmueble, usuario });
+      if (!data || data.length === 0) {
+        console.warn("No hay activos inventariados para generar PDF");
+        return;
+      }
+      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "letter" });
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      const pageWidth = doc.internal.pageSize.getWidth();
+      doc.text("ACTIVOS INVENTARIADOS", pageWidth / 2, 15, { align: "center" });
+
+      doc.setFontSize(9);
+      const selectedCiudad = ciudadOptions.find((o) => String(o.value).trim() === String(ciudad).trim())?.label || "";
+      const selectedInmueble = inmuebleOptions.find((o) => String(o.value).trim() === String(inmueble).trim())?.label || "";
+
+      const drawCenteredBoldLabel = (label, value, xCenter, y) => {
+        doc.setFont("helvetica", "bold");
+        const labelWidth = doc.getTextWidth(label);
+        doc.setFont("helvetica", "normal");
+        const valueWidth = doc.getTextWidth(value);
+        const totalWidth = labelWidth + valueWidth;
+        const startX = xCenter - totalWidth / 2;
+        doc.setFont("helvetica", "bold");
+        doc.text(label, startX, y);
+        doc.setFont("helvetica", "normal");
+        doc.text(value, startX + labelWidth, y);
+      };
+
+      drawCenteredBoldLabel("CIUDAD: ", `${selectedCiudad || "Todas"}`, pageWidth / 4, 21);
+      drawCenteredBoldLabel("INMUEBLE: ", `${selectedInmueble || "Todos"}`, (pageWidth * 3) / 4, 21);
+
+      let startY;
+      if (displayName) {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.text(`INVENTARIADOR: ${displayName}`, pageWidth / 2, 25, { align: "center" });
+        doc.setFontSize(8);
+        doc.text(`Total de activos inventariados: ${data.length}`, pageWidth / 2, 29, { align: "center" });
+        startY = 32;
+      } else {
+        doc.setFontSize(8);
+        doc.text(`Total de activos inventariados: ${data.length}`, pageWidth / 2, 25, { align: "center" });
+        startY = 28;
+      }
+
+      const body = data.map(mapActivoRow);
+
+      autoTable(doc, {
+        startY,
+        head: [["Código", "Rubro", "Tipo Rubro", "Descripción", "Ambiente", "Responsable", "CI Responsable"]],
+        body,
+        theme: "striped",
+        styles: { font: "helvetica", fontSize: 7, cellPadding: 1.2, overflow: "linebreak" },
+        headStyles: { fillColor: [22, 163, 74], textColor: [255, 255, 255], halign: "center" },
+        columnStyles: {
+          0: { cellWidth: 28 },
+          1: { cellWidth: 30 },
+          2: { cellWidth: 30 },
+          3: { cellWidth: "auto" },
+          4: { cellWidth: 45 },
+          5: { cellWidth: 38 },
+          6: { cellWidth: 22, halign: "center" },
+        },
+        margin: { left: 14, right: 14 },
+      });
+
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const totalPages = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Página ${i} de ${totalPages}`, pageWidth / 2, pageHeight - 8, { align: "center" });
+      }
+
+      const safeInmueble = (selectedInmueble || "Inmueble").replace(/[^a-zA-Z0-9]+/g, "_");
+      const safeUser = displayName ? `_${displayName.replace(/[^a-zA-Z0-9]+/g, "_")}` : "";
+      doc.save(`Activos_Inventariados_${safeInmueble}${safeUser}.pdf`);
+    } catch (e) {
+      console.error("Error generando PDF inventariados:", e);
+    } finally {
+      setIsGeneratingPdfInventariados(false);
+      setGeneratingUser("");
+    }
   };
 
   const handleGenerarPdf = () => {
@@ -326,7 +515,8 @@ const InventarioInmuebleModal = ({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
+    <>
+      <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
       <DialogContent className="w-full max-w-[96vw] sm:max-w-[1200px] max-h-[90vh] flex flex-col p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="text-xl flex items-center gap-2">
@@ -469,15 +659,46 @@ const InventarioInmuebleModal = ({
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="rounded-lg border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/20 p-4 text-center shadow-sm">
+                <div
+                  className={`rounded-lg border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/20 p-4 text-center shadow-sm ${result.totalInventariado > 0 ? "cursor-pointer hover:shadow-md hover:border-green-400 transition-all" : "opacity-70"}`}
+                  onClick={() => result.totalInventariado > 0 && !isGeneratingPdfInventariados && handleGenerarPdfInventariados({ usuario: "", displayName: "" })}
+                  role={result.totalInventariado > 0 ? "button" : undefined}
+                  tabIndex={result.totalInventariado > 0 ? 0 : undefined}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && result.totalInventariado > 0) handleGenerarPdfInventariados({ usuario: "", displayName: "" });
+                  }}
+                  title={result.totalInventariado > 0 ? "Click para generar PDF de inventariados" : undefined}
+                >
                   <div className="text-sm font-semibold text-green-600 dark:text-green-400 tracking-wide">
                     TOTAL DE ACTIVOS INVENTARIADOS
                   </div>
                   <div className="text-3xl font-bold text-green-700 dark:text-green-300">
                     {result.totalInventariado}
                   </div>
+                  {result.totalInventariado > 0 && (
+                    <div className="text-xs text-green-600 dark:text-green-400 mt-1 underline underline-offset-2 flex items-center justify-center gap-1">
+                      {isGeneratingPdfInventariados && generatingUser === "__all__" ? (
+                        <>
+                          <Loader2 className="h-3 w-3 animate-spin" /> Generando PDF...
+                        </>
+                      ) : (
+                        <>
+                          <FileDown className="h-3 w-3" /> Ver listado
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <div className="rounded-lg border border-yellow-200 dark:border-yellow-900 bg-yellow-50 dark:bg-yellow-950/20 p-4 text-center shadow-sm">
+                <div
+                  className={`rounded-lg border border-yellow-200 dark:border-yellow-900 bg-yellow-50 dark:bg-yellow-950/20 p-4 text-center shadow-sm ${result.totalEnProceso > 0 ? "cursor-pointer hover:shadow-md hover:border-yellow-400 transition-all" : "opacity-70"}`}
+                  onClick={() => result.totalEnProceso > 0 && handleShowEnProceso({ usuario: "", displayName: "" })}
+                  role={result.totalEnProceso > 0 ? "button" : undefined}
+                  tabIndex={result.totalEnProceso > 0 ? 0 : undefined}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && result.totalEnProceso > 0) handleShowEnProceso({ usuario: "", displayName: "" });
+                  }}
+                  title={result.totalEnProceso > 0 ? "Click para ver listado en proceso" : undefined}
+                >
                   <div className="text-sm font-semibold text-yellow-600 dark:text-yellow-400 tracking-wide">
                     TOTAL DE ACTIVOS EN PROCESO
                   </div>
@@ -501,7 +722,26 @@ const InventarioInmuebleModal = ({
                         {getDisplayName(stat.email)}
                       </div>
                       <div className="grid grid-cols-2 gap-2">
-                        <div className="min-w-0 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-900 rounded p-2 text-center">
+                        <div
+                          className={`min-w-0 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-900 rounded p-2 text-center ${stat.enProceso > 0 ? "cursor-pointer hover:border-yellow-400 hover:shadow-sm transition-all" : "opacity-70"}`}
+                          onClick={() =>
+                            stat.enProceso > 0 &&
+                            handleShowEnProceso({
+                              usuario: stat.email,
+                              displayName: getDisplayName(stat.email),
+                            })
+                          }
+                          role={stat.enProceso > 0 ? "button" : undefined}
+                          tabIndex={stat.enProceso > 0 ? 0 : undefined}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && stat.enProceso > 0)
+                              handleShowEnProceso({
+                                usuario: stat.email,
+                                displayName: getDisplayName(stat.email),
+                              });
+                          }}
+                          title={stat.enProceso > 0 ? "Click para ver listado en proceso" : undefined}
+                        >
                           <div className="text-xs text-yellow-600 dark:text-yellow-400 font-medium whitespace-nowrap">
                             En Proceso
                           </div>
@@ -509,7 +749,26 @@ const InventarioInmuebleModal = ({
                             {stat.enProceso}
                           </div>
                         </div>
-                        <div className="min-w-0 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded p-2 text-center">
+                        <div
+                          className={`min-w-0 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded p-2 text-center ${stat.inventariado > 0 ? "cursor-pointer hover:border-green-400 hover:shadow-sm transition-all" : "opacity-70"}`}
+                          onClick={() =>
+                            stat.inventariado > 0 &&
+                            handleShowInventariados({
+                              usuario: stat.email,
+                              displayName: getDisplayName(stat.email),
+                            })
+                          }
+                          role={stat.inventariado > 0 ? "button" : undefined}
+                          tabIndex={stat.inventariado > 0 ? 0 : undefined}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && stat.inventariado > 0)
+                              handleShowInventariados({
+                                usuario: stat.email,
+                                displayName: getDisplayName(stat.email),
+                              });
+                          }}
+                          title={stat.inventariado > 0 ? "Click para ver listado" : undefined}
+                        >
                           <div className="text-xs text-green-600 dark:text-green-400 font-medium whitespace-nowrap">
                             Inventariados
                           </div>
@@ -568,6 +827,115 @@ const InventarioInmuebleModal = ({
         </div>
       </DialogContent>
     </Dialog>
+
+      <Dialog open={inventariadosOpen} onOpenChange={(open) => !open && handleCloseInventariados()}>
+        <DialogContent className="w-full max-w-[96vw] sm:max-w-[1200px] max-h-[85vh] flex flex-col p-4 sm:p-6">
+          <DialogHeader>
+            <DialogTitle className="text-lg flex items-center gap-2">
+              <Package className="h-5 w-5 text-green-600" />
+              {inventariadosTitle || "Activos Inventariados"}
+            </DialogTitle>
+            <DialogDescription>
+              {inventariados.length > 0
+                ? `Mostrando ${inventariados.length} activo(s) inventariado(s) en el inmueble seleccionado.`
+                : "Listado de activos con estado inventariado."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 min-h-0 flex flex-col">
+            {isLoadingInventariados ? (
+              <div className="flex flex-col justify-center items-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                <p className="mt-4 text-muted-foreground animate-pulse">Cargando inventariados...</p>
+              </div>
+            ) : inventariados.length > 0 ? (
+              <SeccionActivos
+                titulo="ACTIVOS INVENTARIADOS"
+                count={inventariados.length}
+                tituloClass="text-green-600 dark:text-green-400"
+                headerClass="bg-green-50 dark:bg-green-950/20"
+              >
+                <TablaActivos items={inventariadosPageData} mapRow={mapActivoRow} />
+                <PaginacionTabla
+                  count={inventariados.length}
+                  mostrados={inventariadosPageData.length}
+                  page={inventariadosPage}
+                  totalPages={inventariadosTotalPages}
+                  onPrev={() => setInventariadosPage((p) => Math.max(1, p - 1))}
+                  onNext={() => setInventariadosPage((p) => Math.min(inventariadosTotalPages, p + 1))}
+                />
+              </SeccionActivos>
+            ) : (
+              <div className="text-center text-muted-foreground py-8 border rounded-md">
+                <Package className="mx-auto h-10 w-10 opacity-20 mb-2" />
+                No se encontraron activos inventariados para el filtro seleccionado.
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end pt-4">
+            <Button variant="outline" onClick={handleCloseInventariados}>
+              <X className="h-4 w-4 mr-2" />
+              Cerrar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={enProcesoOpen} onOpenChange={(open) => !open && handleCloseEnProceso()}>
+        <DialogContent className="w-full max-w-[96vw] sm:max-w-[1200px] max-h-[85vh] flex flex-col p-4 sm:p-6">
+          <DialogHeader>
+            <DialogTitle className="text-lg flex items-center gap-2">
+              <Package className="h-5 w-5 text-yellow-600" />
+              {enProcesoTitle || "Activos En Proceso"}
+            </DialogTitle>
+            <DialogDescription>
+              {enProcesoList.length > 0
+                ? `Mostrando ${enProcesoList.length} activo(s) en proceso en el inmueble seleccionado.`
+                : "Listado de activos con estado EN PROCESO."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 min-h-0 flex flex-col">
+            {isLoadingEnProceso ? (
+              <div className="flex flex-col justify-center items-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                <p className="mt-4 text-muted-foreground animate-pulse">Cargando en proceso...</p>
+              </div>
+            ) : enProcesoList.length > 0 ? (
+              <SeccionActivos
+                titulo="ACTIVOS EN PROCESO"
+                count={enProcesoList.length}
+                tituloClass="text-yellow-600 dark:text-yellow-400"
+                headerClass="bg-yellow-50 dark:bg-yellow-950/20"
+              >
+                <TablaActivos items={enProcesoPageData} mapRow={mapActivoRow} />
+                <PaginacionTabla
+                  count={enProcesoList.length}
+                  mostrados={enProcesoPageData.length}
+                  page={enProcesoPage}
+                  totalPages={enProcesoTotalPages}
+                  onPrev={() => setEnProcesoPage((p) => Math.max(1, p - 1))}
+                  onNext={() => setEnProcesoPage((p) => Math.min(enProcesoTotalPages, p + 1))}
+                />
+              </SeccionActivos>
+            ) : (
+              <div className="text-center text-muted-foreground py-8 border rounded-md">
+                <Package className="mx-auto h-10 w-10 opacity-20 mb-2" />
+                No se encontraron activos en proceso para el filtro seleccionado.
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end pt-4">
+            <Button variant="outline" onClick={handleCloseEnProceso}>
+              <X className="h-4 w-4 mr-2" />
+              Cerrar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 

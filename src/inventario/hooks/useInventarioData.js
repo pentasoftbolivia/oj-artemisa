@@ -595,6 +595,46 @@ export const useInventarioData = () => {
     [fetchActivosPorAmbientes],
   );
 
+  const loadInmuebleInventariados = useCallback(
+    async ({ ciudad = "", inmueble = "", usuario = "" } = {}) => {
+      const ambienteCodes = await resolveAmbienteCodes({ ciudad, inmueble });
+      if (!ambienteCodes || ambienteCodes.length === 0) {
+        return [];
+      }
+      const rows = await fetchActivosPorAmbientes({
+        ambienteCodes,
+        applyFilters: (q) => {
+          let fq = q;
+          if (usuario) fq = fq.eq("usuarioinventario", usuario);
+          return fq;
+        },
+      });
+      return rows.filter((r) => {
+        const est = normalizarEstado(r.estadoinventario ?? r.estadoInventario);
+        return Boolean(est && est !== "PENDIENTE" && est !== "EN PROCESO");
+      });
+    },
+    [fetchActivosPorAmbientes],
+  );
+
+  const loadInmuebleEnProceso = useCallback(
+    async ({ ciudad = "", inmueble = "", usuario = "" } = {}) => {
+      const ambienteCodes = await resolveAmbienteCodes({ ciudad, inmueble });
+      if (!ambienteCodes || ambienteCodes.length === 0) {
+        return [];
+      }
+      return fetchActivosPorAmbientes({
+        ambienteCodes,
+        applyFilters: (q) => {
+          let fq = q.eq("estadoinventario", "EN PROCESO");
+          if (usuario) fq = fq.eq("usuarioinventario", usuario);
+          return fq;
+        },
+      });
+    },
+    [fetchActivosPorAmbientes],
+  );
+
   const clearSummary = useCallback(() => {
     setSummaryStats(null);
     setSummaryInmuebleCount(0);
@@ -638,6 +678,8 @@ export const useInventarioData = () => {
     clearSummary,
     loadInmuebleSummary,
     loadInmueblePendientes,
+    loadInmuebleInventariados,
+    loadInmuebleEnProceso,
     loadActivosPorFecha,
     page,
     pageSize,
