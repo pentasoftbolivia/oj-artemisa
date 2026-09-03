@@ -26,6 +26,16 @@ export const RUBRO_ALIAS = {
   "otro activos fijos": "otros activos fijos",
 };
 
+export const INMUEBLE_ACTIVO_COLUMNAS = [
+  { head: "Código", headClass: "w-[90px]", cellClass: "font-mono text-xs" },
+  { head: "Rubro", headClass: "w-[110px]", cellClass: "text-xs whitespace-normal break-words max-w-[110px]" },
+  { head: "Tipo Rubro", headClass: "w-[110px]", cellClass: "text-xs whitespace-normal break-words max-w-[110px]" },
+  { head: "Descripción", headClass: "w-[200px]", cellClass: "text-xs whitespace-normal break-words max-w-[200px]" },
+  { head: "Ambiente", headClass: "w-[180px]", cellClass: "text-xs whitespace-normal break-words max-w-[180px]" },
+  { head: "Responsable", headClass: "w-[150px]", cellClass: "text-xs whitespace-normal break-words max-w-[150px]" },
+  { head: "CI Responsable", headClass: "w-[90px]", cellClass: "font-mono text-xs" },
+];
+
 export const RUBRO_FIELDS_RAW = {
   "EQUIPO EDUCACIONAL Y RECREATIVO": [
     { key: "modelo", label: "Modelo" },

@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSelector } from "react-redux";
 import { Package } from "lucide-react";
-import { supabase } from "@/lib/supabase";
 import { selectUser } from "@/store/auth/authSlice";
-import { useToast } from "@/hooks/use-toast";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import LoadingSpinner from "@/components/ui/loading-spinner";
@@ -20,10 +18,10 @@ import { exportPanelesToExcel } from "../services/inventarioExport";
 
 import { useInventarioData } from "../hooks/useInventarioData";
 import { useInventarioState } from "../hooks/useInventarioState";
+import { useInventarioActions } from "../hooks/useInventarioActions";
 import { useUbicacionOptions } from "@/hooks/useUbicacionOptions";
 import { useUserDisplayNames } from "@/hooks/useUserDisplayNames";
 import {
-  getRubroFields,
   normalizeCi,
   normalizeCiLoose,
   getCiPrefix,
@@ -34,7 +32,6 @@ import {
 } from "../components/InventarioModals";
 
 const InventarioList = () => {
-  const { toast } = useToast();
   const currentUser = useSelector(selectUser);
   const { getDisplayName } = useUserDisplayNames();
 
@@ -132,6 +129,42 @@ const InventarioList = () => {
     },
   });
 
+  const {
+    handleEdit,
+    handleEditChange,
+    handleEditSelectChange,
+    handleEditSave,
+    handleRegistrar,
+    handleToggleAprobado,
+    handleEnviar,
+    handleOpenImages,
+  } = useInventarioActions({
+    currentUser,
+    rubroFromTipo,
+    tipoRubroDescMap,
+    loadActivos,
+    getUbicacionFilters,
+    filtroCodigoActivo,
+    filtroInventariador,
+    filtroCarnet,
+    filtroEstado,
+    searchCarnet,
+    searchNombre,
+    showSearch,
+    setActivos,
+    adjustStatsLocal,
+    setEditActivo,
+    setIsEditOpen,
+    setEditForm,
+    setIsSaving,
+    editActivo,
+    editForm,
+    setSelectedActivoImages,
+    setIsLoadingImages,
+    setIsImageModalOpen,
+    setImageFiles,
+  });
+
   const [isInmuebleModalOpen, setIsInmuebleModalOpen] = useState(false);
   const [isFechaModalOpen, setIsFechaModalOpen] = useState(false);
   const [isGeneratingExcel, setIsGeneratingExcel] = useState(false);
@@ -157,285 +190,6 @@ const InventarioList = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtroEstado]);
 
-  const getConservacion = (a) => {
-    const val =
-      a.estadoConservacion ??
-      a.estadoconservacion ??
-      a.estado_conservacion ??
-      "";
-    return String(val).trim().toUpperCase();
-  };
-
-  const handleEdit = (activo) => {
-    const rubroDesc = rubroFromTipo[activo.tipoRubroAct] || "";
-    const tipoDesc = tipoRubroDescMap[activo.tipoRubroAct] || "";
-    const consVal = getConservacion(activo);
-    setEditActivo(activo);
-    setEditForm({
-      codigoActivo:
-        activo.codigoActivo != null ? String(activo.codigoActivo) : "",
-      rubro: rubroDesc,
-      tipoRubro: tipoDesc,
-      descripcionActivo: (activo.descripcionActivo || "").trim(),
-      observaciones: (activo.observaciones || "").trim(),
-      codigoAmbiente: String(activo.codigoAmbiente ?? "").trim(),
-      estadoConservacion: consVal,
-      marcamaterial:
-        activo.marcaMaterial != null
-          ? String(activo.marcaMaterial)
-          : activo.marcamaterial != null
-            ? String(activo.marcamaterial)
-            : "",
-      modelo: activo.modelo != null ? String(activo.modelo) : "",
-      serie: activo.serie != null ? String(activo.serie) : "",
-      ...getRubroFieldValues(activo, rubroDesc),
-    });
-    setIsEditOpen(true);
-  };
-
-  const getRubroFieldValues = (activo, rubroDesc) => {
-    const fields = getRubroFields(rubroDesc);
-    const values = {};
-    fields.forEach((f) => {
-      values[f.key] = activo[f.key] != null ? String(activo[f.key]) : "";
-    });
-    return values;
-  };
-
-  const getEditFieldsForRubro = (rubroDesc) => {
-    return getRubroFields(rubroDesc);
-  };
-
-  const handleEditChange = (e) => {
-    const { id, value } = e.target;
-    setEditForm((p) => ({ ...p, [id]: value }));
-  };
-
-  const handleEditSelectChange = (field, value) => {
-    setEditForm((p) => ({ ...p, [field]: value }));
-  };
-
-  const handleEditSave = async () => {
-    if (!editActivo) return;
-    setIsSaving(true);
-    try {
-      const rubroDesc = rubroFromTipo[editActivo.tipoRubroAct] || "";
-      const fieldsToUpdate = {};
-      fieldsToUpdate.descripcionactivo = editForm.descripcionActivo;
-      fieldsToUpdate.observaciones = editForm.observaciones || null;
-      const ambValue = editForm.codigoAmbiente;
-      if (ambValue) fieldsToUpdate.codigoambiente = ambValue;
-      const rubroFields = getEditFieldsForRubro(rubroDesc);
-      if (editForm.estadoConservacion) {
-        fieldsToUpdate.estadoconservacion = editForm.estadoConservacion;
-      }
-      fieldsToUpdate.marcamaterial = editForm.marcamaterial || null;
-      fieldsToUpdate.modelo = editForm.modelo || null;
-      fieldsToUpdate.serie = editForm.serie || null;
-      rubroFields.forEach((f) => {
-        const val = editForm[f.key];
-        fieldsToUpdate[f.key] = val || null;
-      });
-
-      if (showSearch) {
-        fieldsToUpdate.estado = 1;
-      }
-
-      const { error } = await supabase
-        .from("act_activos")
-        .update(fieldsToUpdate)
-        .eq("codigoactivointerno", editActivo.codigoActivoInterno);
-
-      if (error) throw error;
-
-      toast({
-        title: "Éxito",
-        description: "Activo actualizado correctamente.",
-      });
-      setIsEditOpen(false);
-      setEditActivo(null);
-      loadActivos({
-        codigoActivo: filtroCodigoActivo,
-        inventariador: filtroInventariador,
-        carnet: filtroCarnet,
-        estado: filtroEstado,
-        ...getUbicacionFilters(),
-      });
-    } catch (err) {
-      toast({
-        title: "Error",
-        description: `Error al actualizar: ${err.message} ${err.details || ""} ${err.hint || ""}`,
-        variant: "destructive",
-      });
-      console.error("Supabase error:", err);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleRegistrar = async () => {
-    if (!editActivo) return;
-    const confirmed = window.confirm(
-      "¿Está seguro de registrar y transferir la información?",
-    );
-    if (!confirmed) return;
-    setIsSaving(true);
-    try {
-      const rubroDesc = rubroFromTipo[editActivo.tipoRubroAct] || "";
-      const rubroFields = getEditFieldsForRubro(rubroDesc);
-      const userEmail = currentUser?.email || "unknown";
-
-      const { error: updateError } = await supabase
-        .from("act_activos")
-        .update({ ultimoregistro: 0, estadoinventario: "INVENTARIADO" })
-        .eq("codigoactivointerno", editActivo.codigoActivoInterno);
-
-      if (updateError) throw updateError;
-
-      const newRecord = {
-        codigoactivo: editActivo.codigoActivo,
-        codigotransaccion: editActivo.codigoTransaccion,
-        codigoambiente: editForm.codigoAmbiente || editActivo.codigoAmbiente,
-        cirun: normalizeCi(editActivo.cirun),
-        descripcionactivo: editForm.descripcionActivo,
-        tiporubroact: editActivo.tipoRubroAct,
-        serie: editActivo.serie,
-        marcamaterial: editActivo.marcaMaterial,
-        estado: editActivo.estado,
-        observaciones: editForm.observaciones || editActivo.observaciones,
-        valoractual: editActivo.valorActual,
-        ultimoregistro: 1,
-        estadoconservacion:
-          editForm.estadoConservacion || editActivo.estadoconservacion,
-        usuarioinventario: userEmail,
-        estadoinventario: "PENDIENTE",
-      };
-
-      rubroFields.forEach((f) => {
-        const val = editForm[f.key];
-        if (val) newRecord[f.key] = val;
-      });
-
-      const { error: insertError } = await supabase
-        .from("act_activos")
-        .insert(newRecord);
-
-      if (insertError) throw insertError;
-
-      toast({
-        title: "Éxito",
-        description: "Activo registrado y transferido correctamente.",
-      });
-      setIsEditOpen(false);
-      setEditActivo(null);
-      loadActivos({
-        carnet: searchCarnet,
-        nombre: searchNombre,
-        all: true,
-        ...getUbicacionFilters(),
-      });
-    } catch (err) {
-      toast({
-        title: "Error",
-        description: `Error al registrar: ${err.message} ${err.details || ""} ${err.hint || ""}`,
-        variant: "destructive",
-      });
-      console.error("Supabase error:", err);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleToggleAprobado = async (activo) => {
-    try {
-      const isRevisado = activo.estadoinventario === "REVISADO";
-      const updateData = isRevisado
-        ? { estadoinventario: "INVENTARIADO", aprobadorinventario: null }
-        : {
-            estadoinventario: "REVISADO",
-            aprobadorinventario: currentUser?.email || "unknown",
-          };
-
-      const { error } = await supabase
-        .from("act_activos")
-        .update(updateData)
-        .eq("codigoactivointerno", activo.codigoActivoInterno);
-
-      if (error) throw error;
-
-      toast({
-        title: "Éxito",
-        description: isRevisado
-          ? "Estado de inventario cambiado a INVENTARIADO."
-          : "Estado de inventario cambiado a REVISADO.",
-      });
-      setActivos((prev) =>
-        prev.map((a) =>
-          a.codigoActivoInterno === activo.codigoActivoInterno
-            ? { ...a, ...updateData }
-            : a,
-        ),
-      );
-      adjustStatsLocal(activo, updateData.estadoinventario);
-    } catch (err) {
-      toast({
-        title: "Error",
-        description: `Error al actualizar: ${err.message}`,
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleEnviar = async (activo) => {
-    try {
-      const { error } = await supabase
-        .from("act_activos")
-        .update({ estadoinventario: "ENVIADO" })
-        .eq("codigoactivointerno", activo.codigoActivoInterno);
-
-      if (error) throw error;
-
-      toast({ title: "Éxito", description: "Estado cambiado a ENVIADO." });
-      setActivos((prev) =>
-        prev.map((a) =>
-          a.codigoActivoInterno === activo.codigoActivoInterno
-            ? { ...a, estadoinventario: "ENVIADO" }
-            : a,
-        ),
-      );
-      adjustStatsLocal(activo, "ENVIADO");
-    } catch (err) {
-      toast({
-        title: "Error",
-        description: `Error al actualizar: ${err.message}`,
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleOpenImages = async (activo) => {
-    setSelectedActivoImages(activo);
-    setIsLoadingImages(true);
-    setIsImageModalOpen(true);
-    const prefix = `${activo.codigoActivo}_`;
-    const { data, error } = await supabase.storage
-      .from("imagenes")
-      .list("", { search: prefix, sortBy: { column: "name", order: "asc" } });
-    if (!error && data) {
-      const files = data
-        .filter((f) => f.name.startsWith(prefix))
-        .map((f) => ({
-          name: f.name,
-          url: supabase.storage.from("imagenes").getPublicUrl(f.name).data
-            .publicUrl,
-        }));
-      setImageFiles(files);
-    } else {
-      setImageFiles([]);
-    }
-    setIsLoadingImages(false);
-  };
-
   const ambMap =
     Object.keys(directAmbMap).length > 0 ? directAmbMap : directAmbRef.current;
   const ambCatMap =
@@ -443,9 +197,9 @@ const InventarioList = () => {
       ? ambienteMap
       : (() => {
           const m = {};
-          ambientesRef.current.forEach((a) => {
-            const c = String(a.codigoambiente ?? "").trim();
-            if (c) m[c] = a.ambiente;
+          (ambientesRef.current || []).forEach((a) => {
+            const code = String(a.codigoambiente ?? "").trim();
+            if (code) m[code] = a.ambiente;
           });
           return m;
         })();

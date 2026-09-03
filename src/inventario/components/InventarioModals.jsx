@@ -19,9 +19,12 @@ import { useRef, useState } from "react";
 import { Upload, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import LoadingSpinner from "@/components/ui/loading-spinner";
-import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { getRubroFields } from "../constants/inventarioConstants";
+import {
+  fetchActivoImages,
+  uploadActivoImages,
+} from "../services/inventarioService";
 
 export const InventarioEditModal = ({
   isEditOpen,
@@ -33,8 +36,9 @@ export const InventarioEditModal = ({
   handleEditSelectChange,
   isSaving,
   handleEditSave,
-  ambientes,
-  rubroFromTipo,
+  ambientes = [],
+  rubroFromTipo = {},
+  saveText = "GUARDAR",
 }) => {
   const renderEditFields = () => {
     if (!editActivo) return null;
@@ -243,7 +247,7 @@ export const InventarioEditModal = ({
             Cancelar
           </Button>
           <Button onClick={handleEditSave} disabled={isSaving}>
-            {isSaving ? "Guardando..." : "GUARDAR"}
+            {isSaving ? "Guardando..." : (saveText || "GUARDAR")}
           </Button>
         </div>
       </DialogContent>
@@ -264,19 +268,11 @@ export const InventarioImagesModal = ({
   const [isUploading, setIsUploading] = useState(false);
 
   const refreshImages = async (codigo) => {
-    const prefix = `${codigo}_`;
-    const { data, error } = await supabase.storage
-      .from("imagenes")
-      .list("", { search: prefix, sortBy: { column: "name", order: "asc" } });
-    if (!error && data) {
-      const refreshed = data
-        .filter((f) => f.name.startsWith(prefix))
-        .map((f) => ({
-          name: f.name,
-          url: supabase.storage.from("imagenes").getPublicUrl(f.name).data
-            .publicUrl,
-        }));
+    try {
+      const refreshed = await fetchActivoImages(codigo);
       setImageFiles(refreshed);
+    } catch (err) {
+      console.error("Error refrescando imágenes:", err);
     }
   };
 
@@ -289,16 +285,7 @@ export const InventarioImagesModal = ({
 
     setIsUploading(true);
     try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-        const fileName = `${codigo}_${Date.now()}_${i}.${ext}`;
-        const { error } = await supabase.storage
-          .from("imagenes")
-          .upload(fileName, file);
-        if (error) throw error;
-      }
-
+      await uploadActivoImages(codigo, files);
       await refreshImages(codigo);
 
       toast({

@@ -535,8 +535,8 @@ export const useInventarioData = () => {
     const ciudadCode = String(ciudad || "").trim();
     if (!ciudadCode) return [];
     try {
-      const srcInmuebles = (inmuebles && inmuebles.length > 0) ? inmuebles : (inmueblesRef.current || []);
-      const srcNiveles = (niveles && niveles.length > 0) ? niveles : (nivelesRef.current || []);
+      const srcInmuebles = (inmuebles && inmuebles.length > 0) ? inmuebles : [];
+      const srcNiveles = (niveles && niveles.length > 0) ? niveles : [];
       const srcAmbientes = (ambientes && ambientes.length > 0) ? ambientes : (ambientesRef.current || []);
       const inmueblesRows = srcInmuebles.filter((r) => String(r.codigociudad ?? "").trim() === ciudadCode);
       if (inmueblesRows.length === 0) return [];
