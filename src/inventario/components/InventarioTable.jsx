@@ -37,6 +37,7 @@ const InventarioTable = memo(
               <TableHead>CI</TableHead>
               <TableHead>Inventariador</TableHead>
               <TableHead>Revisor</TableHead>
+              <TableHead className="text-center">Revalúo</TableHead>
               {currentUser?.role !== "Usuario" && (
                 <TableHead className="text-center">Acciones</TableHead>
               )}
@@ -92,6 +93,19 @@ const InventarioTable = memo(
                     >
                       {displayRevisor}
                     </TableCell>
+                    <TableCell className="text-center">
+                      {(() => {
+                        const raw = a.pararevaluo ?? a.paraRevaluo ?? a.pararevaluo ?? false;
+                        const isTrue = raw === true || raw === 1 || raw === "1" || String(raw).toLowerCase() === "true" || String(raw).toLowerCase() === "t" || String(raw).toLowerCase() === "si" || String(raw).toLowerCase() === "sí";
+                        return isTrue ? (
+                          <span className="inline-flex items-center justify-center w-8 h-8 bg-orange-500 text-white text-xs font-bold rounded" title="SI">
+                            SI
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">NO</span>
+                        );
+                      })()}
+                    </TableCell>
                     {currentUser?.role !== "Usuario" && (
                       <TableCell className="text-right">
                         <div className="flex space-x-1 justify-end">
@@ -132,7 +146,7 @@ const InventarioTable = memo(
             ) : (
               <TableRow>
                 <TableCell
-                  colSpan={10}
+                  colSpan={11}
                   className="text-center py-12 text-muted-foreground"
                 >
                   <Package className="mx-auto h-12 w-12 opacity-20 mb-2" />

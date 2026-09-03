@@ -6,6 +6,7 @@ export const useInventarioState = (loadActivos) => {
   const [filtroInventariador, setFiltroInventariador] = useState("");
   const [filtroCarnet, setFiltroCarnet] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("all");
+  const [filtroRevaluo, setFiltroRevaluo] = useState("all");
   const [filtroCiudad, setFiltroCiudad] = useState("");
   const [filtroInmueble, setFiltroInmueble] = useState("");
   const [filtroNivel, setFiltroNivel] = useState("");
@@ -40,15 +41,17 @@ export const useInventarioState = (loadActivos) => {
       inventariador: filtroInventariador,
       carnet: filtroCarnet,
       estado: filtroEstado,
+      revaluo: filtroRevaluo,
       ...getUbicacionFilters(),
     });
-  }, [loadActivos, filtroCodigoActivo, filtroInventariador, filtroCarnet, filtroEstado, getUbicacionFilters]);
+  }, [loadActivos, filtroCodigoActivo, filtroInventariador, filtroCarnet, filtroEstado, filtroRevaluo, getUbicacionFilters]);
 
   const clearFilters = useCallback(() => {
     setFiltroCodigoActivo("");
     setFiltroInventariador("");
     setFiltroCarnet("");
     setFiltroEstado("all");
+    setFiltroRevaluo("all");
     setFiltroCiudad("");
     setFiltroInmueble("");
     setFiltroNivel("");
@@ -77,6 +80,7 @@ export const useInventarioState = (loadActivos) => {
       filtroInventariador, setFiltroInventariador,
       filtroCarnet, setFiltroCarnet,
       filtroEstado, setFiltroEstado,
+      filtroRevaluo, setFiltroRevaluo,
       filtroCiudad, setFiltroCiudad,
       filtroInmueble, setFiltroInmueble,
       filtroNivel, setFiltroNivel,

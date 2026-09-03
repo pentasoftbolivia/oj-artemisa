@@ -186,6 +186,7 @@ export const useInventarioData = () => {
       nivel = "",
       ambiente = "",
       estado = "all",
+      revaluo = "all",
     } = filters;
 
     setIsLoading(true);
@@ -261,6 +262,13 @@ export const useInventarioData = () => {
             q = q.eq("estadoinventario", "REVISADO");
           } else if (estado === "pendiente") {
             q = q.or("estadoinventario.is.null,estadoinventario.neq.REVISADO");
+          }
+        }
+        if (revaluo !== "all") {
+          if (revaluo === "si") {
+            q = q.eq("pararevaluo", true);
+          } else if (revaluo === "no") {
+            q = q.or("pararevaluo.is.null,pararevaluo.eq.false");
           }
         }
         return q;
@@ -396,6 +404,17 @@ export const useInventarioData = () => {
       return Promise.resolve();
     }
     filtersRef.current = { ...current, estado };
+    pageRef.current = 1;
+    setPageState(1);
+    return fetchData(filtersRef.current, 1, pageSizeRef.current);
+  }, [fetchData]);
+
+  const applyRevaluo = useCallback((revaluo) => {
+    const current = filtersRef.current;
+    if ((current.revaluo || "all") === revaluo) {
+      return Promise.resolve();
+    }
+    filtersRef.current = { ...current, revaluo };
     pageRef.current = 1;
     setPageState(1);
     return fetchData(filtersRef.current, 1, pageSizeRef.current);
@@ -761,6 +780,7 @@ export const useInventarioData = () => {
     setPage,
     setPageSize,
     applyEstado,
+    applyRevaluo,
     adjustStatsLocal,
     totalCount,
     totalPages,

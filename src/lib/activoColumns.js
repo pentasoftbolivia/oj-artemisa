@@ -40,4 +40,5 @@ export const ACTIVO_COLUMNS = [
   "funcion",
   "categoria",
   "caracteristicas",
+  "pararevaluo",
 ].join(", ");

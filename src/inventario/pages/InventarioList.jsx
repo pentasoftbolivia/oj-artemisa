@@ -70,6 +70,7 @@ const InventarioList = () => {
     setPage,
     setPageSize,
     applyEstado,
+    applyRevaluo,
     adjustStatsLocal,
     totalCount,
     totalPages,
@@ -83,6 +84,7 @@ const InventarioList = () => {
       filtroInventariador, setFiltroInventariador,
       filtroCarnet, setFiltroCarnet,
       filtroEstado, setFiltroEstado,
+      filtroRevaluo, setFiltroRevaluo,
       filtroCiudad, setFiltroCiudad,
       filtroInmueble, setFiltroInmueble,
       filtroNivel, setFiltroNivel,
@@ -170,6 +172,7 @@ const InventarioList = () => {
   const [isGeneratingExcel, setIsGeneratingExcel] = useState(false);
 
   const firstEstadoRef = useRef(true);
+  const firstRevaluoRef = useRef(true);
 
   useEffect(() => {
     loadInitialData();
@@ -189,6 +192,15 @@ const InventarioList = () => {
     applyEstado(filtroEstado);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtroEstado]);
+
+  useEffect(() => {
+    if (firstRevaluoRef.current) {
+      firstRevaluoRef.current = false;
+      return;
+    }
+    applyRevaluo(filtroRevaluo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtroRevaluo]);
 
   const ambMap =
     Object.keys(directAmbMap).length > 0 ? directAmbMap : directAmbRef.current;
@@ -485,6 +497,8 @@ const InventarioList = () => {
         setFiltroCarnet={setFiltroCarnet}
         filtroEstado={filtroEstado}
         setFiltroEstado={setFiltroEstado}
+        filtroRevaluo={filtroRevaluo}
+        setFiltroRevaluo={setFiltroRevaluo}
         onFilter={handleFilter}
         onClearFilters={clearFilters}
         filtroCiudad={filtroCiudad}

@@ -23,6 +23,8 @@ const InventarioFilters = memo(
     setFiltroCarnet,
     filtroEstado,
     setFiltroEstado,
+    filtroRevaluo,
+    setFiltroRevaluo,
     onFilter,
     onClearFilters,
     filtroCiudad,
@@ -44,6 +46,7 @@ const InventarioFilters = memo(
       !!filtroInventariador ||
       !!filtroCarnet ||
       filtroEstado !== "all" ||
+      filtroRevaluo !== "all" ||
       !!filtroCiudad ||
       !!filtroInmueble ||
       !!filtroNivel ||
@@ -59,7 +62,7 @@ const InventarioFilters = memo(
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="filtroCodigoActivo">Código Activo</Label>
                 <Input
@@ -102,6 +105,22 @@ const InventarioFilters = memo(
                     <SelectItem value="all">Todos</SelectItem>
                     <SelectItem value="pendiente">Pendientes</SelectItem>
                     <SelectItem value="revisado">Revisados</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="filtroRevaluo">Revalúo</Label>
+                <Select
+                  value={filtroRevaluo}
+                  onValueChange={(v) => setFiltroRevaluo(v)}
+                >
+                  <SelectTrigger id="filtroRevaluo" className="w-full">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="si">SI</SelectItem>
+                    <SelectItem value="no">NO</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
