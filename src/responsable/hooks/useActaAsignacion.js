@@ -43,7 +43,7 @@ export const loadActaData = async (responsable, locationFilters = {}) => {
     .select(ASSET_SELECT)
     .eq("cirun", responsable.cirun)
     .eq("ultimoregistro", 1)
-    .not("estadoinventario", "is", null);
+    .eq("estadoinventario", "INVENTARIADO");
 
   if (hasLocation) {
     const codes = await resolveAmbienteCodes({ ciudad, inmueble, nivel, ambiente });
