@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Building2, Users, Loader2, Search, X, FileDown, Package } from "lucide-react";
+import { Building2, Users, Loader2, Search, X, FileDown, FileSpreadsheet, Package } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -45,6 +45,7 @@ const InventarioInmuebleModal = ({
   const [pendientesPage, setPendientesPage] = useState(1);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isGeneratingExcel, setIsGeneratingExcel] = useState(false);
+  const [isGeneratingExcelPendientes, setIsGeneratingExcelPendientes] = useState(false);
 
   const [isGeneratingPdfInventariados, setIsGeneratingPdfInventariados] = useState(false);
   const [generatingUser, setGeneratingUser] = useState("");
@@ -296,6 +297,24 @@ const InventarioInmuebleModal = ({
       console.error("Error generando PDF pendientes:", e);
     } finally {
       setIsGeneratingPdf(false);
+    }
+  };
+
+  const handleGenerarExcelPendientes = () => {
+    if (pendientes.length === 0) return;
+    setIsGeneratingExcelPendientes(true);
+    try {
+      exportInmuebleExcel({
+        items: pendientes,
+        ciudadName: selectedCiudadName,
+        inmuebleName: selectedInmuebleName,
+        mapActivoRow,
+        fileNamePrefix: "Activos_Por_Inventariar",
+      });
+    } catch (e) {
+      console.error("Error generando Excel pendientes:", e);
+    } finally {
+      setIsGeneratingExcelPendientes(false);
     }
   };
 
@@ -640,6 +659,19 @@ const InventarioInmuebleModal = ({
                           <FileDown className="h-4 w-4 mr-2" />
                         )}
                         Reporte Activos No Inventariados en PDF
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200 dark:bg-green-950/30 dark:hover:bg-green-950/50 dark:text-green-300 dark:border-green-800"
+                        onClick={handleGenerarExcelPendientes}
+                        disabled={isGeneratingExcelPendientes}
+                      >
+                        {isGeneratingExcelPendientes ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <FileSpreadsheet className="h-4 w-4 mr-2" />
+                        )}
+                        Reporte Activos No Inventariados en EXCEL
                       </Button>
                     </div>
                   </SeccionActivos>
