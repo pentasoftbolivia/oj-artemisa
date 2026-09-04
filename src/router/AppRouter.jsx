@@ -147,10 +147,8 @@ export const AppRouter = () => {
           path="/activos/*"
           element={
             <PrivateRoute>
-              <AdminRoute>
-                <Navbar />
-                <ActivosFijosRoutes />
-              </AdminRoute>
+              <Navbar />
+              <ActivosFijosRoutes />
             </PrivateRoute>
           }
         />
@@ -169,10 +167,8 @@ export const AppRouter = () => {
           path="/responsables/*"
           element={
             <PrivateRoute>
-              <AdminRoute>
-                <Navbar />
-                <ResponsableRoutes />
-              </AdminRoute>
+              <Navbar />
+              <ResponsableRoutes />
             </PrivateRoute>
           }
         />

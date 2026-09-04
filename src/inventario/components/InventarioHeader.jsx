@@ -11,7 +11,7 @@ const InventarioHeader = memo(() => {
           INVENTARIO DE ACTIVOS FIJOS
         </h1>
         <p className="text-sm text-muted-foreground">
-          Revisión e Impresión de Actas de Asignación y Etiquetas
+          Revisa e Imprime Actas de Asignación y Etiquetas
         </p>
       </div>
     </div>

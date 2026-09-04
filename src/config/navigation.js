@@ -15,8 +15,8 @@ export const DEFAULT_NAV_ITEMS = [
       { title: "Registro Activos", href: "/registro-activos" },
     ],
   },
-  { title: "Activos fijos", href: "/activos", adminOnly: true },
-  { title: "Responsables", href: "/responsables", adminOnly: true },
+  { title: "Activos fijos", href: "/activos" },
+  { title: "Responsables", href: "/responsables" },
   { title: "Inventario", href: "/inventario" },
   { title: "Asignaciones", href: "/asignaciones" },
 /*   { title: "Movimientos", href: "/movimientos" }, */
