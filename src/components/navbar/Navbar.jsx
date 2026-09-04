@@ -55,7 +55,7 @@ export const Navbar = () => {
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
           <Link
-            to="/"
+            to={user?.role === "Inventariador" ? "/inventario" : "/inicio"}
             className="flex items-center space-x-2 transition-transform hover:scale-105"
             aria-label="Ir a la página de inicio"
           >

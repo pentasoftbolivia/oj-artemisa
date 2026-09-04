@@ -63,8 +63,14 @@ export const LoginPage = () => {
       );
 
       if (result.ok) {
-        const lastPath = localStorage.getItem("lastPath") || "/";
-        navigate(lastPath, { replace: true });
+        if (result.role === "Inventariador") {
+          localStorage.setItem("lastPath", "/inventario");
+          navigate("/inventario", { replace: true });
+        } else {
+          const lastPath = localStorage.getItem("lastPath") || "/inicio";
+          const targetPath = (lastPath === "/auth" || lastPath.startsWith("/auth/")) ? "/inicio" : lastPath;
+          navigate(targetPath, { replace: true });
+        }
       } else {
         console.error("Login failed:", result.error);
         setIsSubmitting(false);

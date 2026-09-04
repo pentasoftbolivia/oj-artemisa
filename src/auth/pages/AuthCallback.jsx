@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+import { getRoleForUser } from "@/lib/supabaseAuth";
 
 export const AuthCallback = () => {
   const navigate = useNavigate();
@@ -17,8 +18,15 @@ export const AuthCallback = () => {
         return;
       }
 
-      const lastPath = localStorage.getItem("lastPath") || "/";
-      navigate(lastPath, { replace: true });
+      const role = await getRoleForUser(session.user.id);
+      if (role === "Inventariador") {
+        localStorage.setItem("lastPath", "/inventario");
+        navigate("/inventario", { replace: true });
+      } else {
+        const lastPath = localStorage.getItem("lastPath") || "/inicio";
+        const targetPath = (lastPath === "/auth" || lastPath.startsWith("/auth/")) ? "/inicio" : lastPath;
+        navigate(targetPath, { replace: true });
+      }
     };
 
     handleCallback();

@@ -2,13 +2,14 @@
 import { useSelector } from "react-redux";
 import { Navigate } from "react-router-dom";
 
-import { selectIsAuthenticated, selectAuthStatus } from "@/store/auth/authSlice";
+import { selectIsAuthenticated, selectAuthStatus, selectUserRole } from "@/store/auth/authSlice";
 import LoadingSpinner from "@/components/ui/loading-spinner";
 
 export const PublicRoute = ({ children }) => {
 
   const isAuthenticated = useSelector(selectIsAuthenticated);
   const authStatus = useSelector(selectAuthStatus);
+  const userRole = useSelector(selectUserRole);
 
   if (authStatus === 'checking') {
     return (
@@ -21,6 +22,6 @@ export const PublicRoute = ({ children }) => {
   return (
     !isAuthenticated
       ? children
-      : <Navigate to="/" replace />
+      : <Navigate to={userRole === "Inventariador" ? "/inventario" : "/inicio"} replace />
   )
 }

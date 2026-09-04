@@ -8,7 +8,7 @@ const LOGO_H = LOGO_W * (57 / 256);
 const addLogo = (doc) => {
   try {
     doc.addImage(LOGO_JPG_DATA_URL, "JPEG", 14, 8, LOGO_W, LOGO_H);
-  } catch (_) {
+  } catch {
     // ignore logo errors
   }
 };

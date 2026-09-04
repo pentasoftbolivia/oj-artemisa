@@ -5,56 +5,10 @@ import { getCachedCatalog } from "@/lib/catalogCache";
 import { ACTIVO_COLUMNS } from "@/lib/activoColumns";
 import { resolveAmbienteCodes, countActivosByUbicacion } from "@/lib/ubicacionFilters";
 import { useToast } from "@/hooks/use-toast";
-import { normalizeCi, normalizeCiLoose, getCiPrefix, normalizarEstado } from "../constants/inventarioConstants";
+import { normalizeCi, normalizeCiLoose, getCiPrefix } from "../constants/inventarioConstants";
 
 const DEFAULT_PAGE_SIZE = 50;
 const MIN_LOADING_MS = 400;
-
-const ESTADO_FECHA_KEYS = {
-  "EN PROCESO": "enProceso",
-  INVENTARIADO: "inventariado",
-  REVISADO: "revisado",
-};
-
-const aggregateActivosPorFecha = (rows) => {
-  const acc = {};
-  rows.forEach((r) => {
-    const email = r.usuarioinventario;
-    if (!email) return;
-    if (!acc[email]) acc[email] = { enProceso: 0, inventariado: 0, revisado: 0, primerRegistro: null, ultimoRegistro: null };
-    const key = ESTADO_FECHA_KEYS[String(r.estadoinventario || "").trim().toUpperCase()];
-    if (key) acc[email][key] += 1;
-    const fecha = r.fecharegistro ? String(r.fecharegistro) : null;
-    if (fecha) {
-      if (!acc[email].primerRegistro || fecha < acc[email].primerRegistro) acc[email].primerRegistro = fecha;
-      if (!acc[email].ultimoRegistro || fecha > acc[email].ultimoRegistro) acc[email].ultimoRegistro = fecha;
-    }
-  });
-  return Object.entries(acc)
-    .map(([email, c]) => ({
-      email,
-      ...c,
-      total: c.inventariado + c.revisado,
-    }))
-    .sort((a, b) => b.total - a.total);
-};
-
-const aggregatePerUserRows = (userRows) => {
-  const acc = {};
-  userRows.forEach(r => {
-    const email = r.usuarioinventario;
-    if (!email) return;
-    if (!acc[email]) acc[email] = { revisado: 0, pendiente: 0 };
-    if (String(r.estadoinventario || "") === "REVISADO") {
-      acc[email].revisado += 1;
-    } else {
-      acc[email].pendiente += 1;
-    }
-  });
-  return Object.entries(acc)
-    .map(([email, counts]) => ({ email, ...counts }))
-    .sort((a, b) => b.revisado - a.revisado);
-};
 
 export const useInventarioData = () => {
   const { toast } = useToast();
@@ -79,13 +33,7 @@ export const useInventarioData = () => {
   const [page, setPageState] = useState(1);
   const [pageSize, setPageSizeState] = useState(DEFAULT_PAGE_SIZE);
   const [totalCount, setTotalCount] = useState(0);
-  const [totalStats, setTotalStats] = useState({ total: 0, revisados: 0, noRevisados: 0 });
-  const [universoTotal, setUniversoTotal] = useState(0);
-  const [inventariadorStats, setInventariadorStats] = useState([]);
   const [inmuebleCount, setInmuebleCount] = useState(0);
-  const [summaryStats, setSummaryStats] = useState(null);
-  const [summaryInmuebleCount, setSummaryInmuebleCount] = useState(0);
-  const [isLoadingSummary, setIsLoadingSummary] = useState(false);
 
   const pageRef = useRef(1);
   const pageSizeRef = useRef(DEFAULT_PAGE_SIZE);
@@ -93,7 +41,7 @@ export const useInventarioData = () => {
 
   const rubroDescMap = useMemo(() => {
     const map = {};
-    (rubros || []).forEach(r => {
+    (rubros || []).forEach((r) => {
       map[r.codigorubroact] = r.descripcionrubroact;
       map[String(r.codigorubroact)] = r.descripcionrubroact;
     });
@@ -102,7 +50,7 @@ export const useInventarioData = () => {
 
   const rubroFromTipo = useMemo(() => {
     const map = {};
-    (tipoRubros || []).forEach(t => {
+    (tipoRubros || []).forEach((t) => {
       map[t.tiporubroact] = rubroDescMap[t.codigorubroact];
       map[String(t.tiporubroact)] = rubroDescMap[t.codigorubroact];
     });
@@ -111,7 +59,7 @@ export const useInventarioData = () => {
 
   const tipoRubroDescMap = useMemo(() => {
     const map = {};
-    (tipoRubros || []).forEach(t => {
+    (tipoRubros || []).forEach((t) => {
       map[t.tiporubroact] = t.descripciontiporubroact;
       map[String(t.tiporubroact)] = t.descripciontiporubroact;
     });
@@ -120,7 +68,7 @@ export const useInventarioData = () => {
 
   const ambienteMap = useMemo(() => {
     const map = {};
-    (ambientes.length > 0 ? ambientes : ambientesRef.current).forEach(a => {
+    (ambientes.length > 0 ? ambientes : ambientesRef.current).forEach((a) => {
       const code = String(a.codigoambiente ?? "").trim();
       if (code) { map[code] = a.ambiente; }
     });
@@ -129,7 +77,7 @@ export const useInventarioData = () => {
 
   const responsableMap = useMemo(() => {
     const map = {};
-    (responsables.length > 0 ? responsables : responsablesRef.current).forEach(r => {
+    (responsables.length > 0 ? responsables : responsablesRef.current).forEach((r) => {
       const raw = String(r.cirun ?? "").trim();
       map[raw] = r;
       const norm = normalizeCi(r.cirun);
@@ -152,7 +100,7 @@ export const useInventarioData = () => {
       }
     };
 
-    const [rubros, tipoRubros, ambientes, responsables, ciudades, inmuebles, niveles] =
+    const [rubrosData, tipoRubrosData, ambientesData, responsablesData, ciudadesData, inmueblesData, nivelesData] =
       await Promise.all([
         safeGet("act_rubro"),
         safeGet("act_tiporubro"),
@@ -163,15 +111,15 @@ export const useInventarioData = () => {
         safeGet("act_nivel"),
       ]);
 
-    setRubros(rubros || []);
-    setTipoRubros(tipoRubros || []);
-    setAmbientes(ambientes || []);
-    ambientesRef.current = ambientes || [];
-    setResponsables(responsables || []);
-    responsablesRef.current = responsables || [];
-    setCiudades(ciudades || []);
-    setInmuebles(inmuebles || []);
-    setNiveles(niveles || []);
+    setRubros(rubrosData || []);
+    setTipoRubros(tipoRubrosData || []);
+    setAmbientes(ambientesData || []);
+    ambientesRef.current = ambientesData || [];
+    setResponsables(responsablesData || []);
+    responsablesRef.current = responsablesData || [];
+    setCiudades(ciudadesData || []);
+    setInmuebles(inmueblesData || []);
+    setNiveles(nivelesData || []);
   }, []);
 
   const fetchData = useCallback(async (filters, p, ps) => {
@@ -197,7 +145,7 @@ export const useInventarioData = () => {
       if (nombre.trim()) {
         const words = nombre.trim().split(/\s+/).filter(Boolean);
         let respQuery = supabase.from("act_responsable").select("cirun");
-        words.forEach(word => {
+        words.forEach((word) => {
           respQuery = respQuery.or(`nombre1.ilike.%${word}%,nombre2.ilike.%${word}%,paterno.ilike.%${word}%,materno.ilike.%${word}%`);
         });
 
@@ -208,8 +156,6 @@ export const useInventarioData = () => {
         if (!matchingResp || matchingResp.length === 0) {
           setActivos([]);
           setTotalCount(0);
-          setTotalStats({ total: 0, revisados: 0, noRevisados: 0 });
-          setInventariadorStats([]);
           setInmuebleCount(0);
           setDirectAmbMap({});
           directAmbRef.current = {};
@@ -217,7 +163,7 @@ export const useInventarioData = () => {
           directRespRef.current = {};
           return;
         }
-        ciFilter = matchingResp.map(r => normalizeCi(r.cirun));
+        ciFilter = matchingResp.map((r) => normalizeCi(r.cirun));
       }
 
       let ambienteCodes = null;
@@ -288,52 +234,17 @@ export const useInventarioData = () => {
       ).range(from, to);
       if (batchError) throw batchError;
 
-      let revisados = 0;
-      try {
-        const { count: revisadosCount, error: estadoError } = await applyFilters(
-          supabase.from("act_activos").select("codigoactivointerno", { count: "exact", head: true }),
-          true,
-        ).eq("estadoinventario", "REVISADO");
-        if (!estadoError) {
-          revisados = revisadosCount || 0;
-        }
-      } catch (e) {
-        console.error("Error loading estado stats:", e);
-      }
-
-      let perUser = [];
-      try {
-        const CHUNK = 1000;
-        let userRows = [];
-        let start = 0;
-        for (;;) {
-          const { data, error } = await applyFilters(
-            supabase.from("act_activos").select("usuarioinventario,estadoinventario"),
-            false,
-          ).range(start, start + CHUNK - 1);
-          if (error) throw error;
-          userRows = userRows.concat(data || []);
-          if (!data || data.length < CHUNK) break;
-          start += CHUNK;
-        }
-        perUser = aggregatePerUserRows(userRows);
-      } catch (e) {
-        console.error("Error loading per-user stats:", e);
-      }
-
       const pageData = toCamelCaseArray(batch || []);
       setActivos(pageData);
       setTotalCount(count || 0);
       setInmuebleCount(inmuebleTotal);
-      setTotalStats({ total: count || 0, revisados, noRevisados: (count || 0) - revisados });
-      setInventariadorStats(perUser);
 
       const directAmb = {};
       const ambList = ambientes.length > 0 ? ambientes : ambientesRef.current;
-      pageData.forEach(a => {
+      pageData.forEach((a) => {
         const code = String(a.codigoambiente ?? "").trim();
         if (code) {
-          const found = ambList.find(x => String(x.codigoambiente ?? "").trim() === code);
+          const found = ambList.find((x) => String(x.codigoambiente ?? "").trim() === code);
           if (found) directAmb[code] = found.ambiente;
         }
       });
@@ -342,10 +253,10 @@ export const useInventarioData = () => {
 
       const directResp = {};
       const respList = responsables.length > 0 ? responsables : responsablesRef.current;
-      pageData.forEach(a => {
+      pageData.forEach((a) => {
         const raw = String(a.cirun ?? "").trim();
         if (!raw) return;
-        const resp = respList.find(r => {
+        const resp = respList.find((r) => {
           const rr = String(r.cirun ?? "").trim();
           return (
             rr === raw ||
@@ -420,318 +331,15 @@ export const useInventarioData = () => {
     return fetchData(filtersRef.current, 1, pageSizeRef.current);
   }, [fetchData]);
 
-  const adjustStatsLocal = useCallback((activo, newEstado) => {
-    const wasRevisado = String(activo.estadoinventario ?? "").toUpperCase() === "REVISADO";
-    const isRevisado = String(newEstado ?? "").toUpperCase() === "REVISADO";
-    if (wasRevisado === isRevisado) return;
-
-    setTotalStats((prev) => ({
-      ...prev,
-      revisados: Math.max(0, prev.revisados + (isRevisado ? 1 : -1)),
-      noRevisados: Math.max(0, prev.noRevisados + (isRevisado ? -1 : 1)),
-    }));
-
-    const email = activo.usuarioinventario;
-    if (!email) return;
-    setInventariadorStats((prev) =>
-      prev
-        .map((s) => {
-          if (s.email !== email) return s;
-          return {
-            ...s,
-            revisado: Math.max(0, s.revisado + (isRevisado ? 1 : -1)),
-            pendiente: Math.max(0, s.pendiente + (isRevisado ? -1 : 1)),
-          };
-        })
-        .sort((a, b) => b.revisado - a.revisado),
-    );
+  const adjustStatsLocal = useCallback(() => {
+    // No-op for table stats adjustment
   }, []);
 
   const loadInitialData = useCallback(async () => {
     setIsLoading(true);
     await loadCatalogos();
-    // universo real para cálculo de PROGRESO: SELECT COUNT(*) FROM act_activos WHERE ultimoregistro=1
-    try {
-      const { count, error } = await supabase
-        .from("act_activos")
-        .select("codigoactivointerno", { count: "exact", head: true })
-        .eq("ultimoregistro", 1);
-      if (!error && typeof count === "number" && count > 0) {
-        setUniversoTotal(count);
-      }
-    } catch (e) {
-      console.error("Error loading universo total:", e);
-    }
     setIsLoading(false);
   }, [loadCatalogos]);
-
-  const loadSummaryByUbicacion = useCallback(async ({ ciudad = "", inmueble = "" } = {}) => {
-    setIsLoadingSummary(true);
-    try {
-      let ambienteCodes = null;
-      if (ciudad || inmueble) {
-        ambienteCodes = await resolveAmbienteCodes({ ciudad, inmueble });
-      }
-
-      const inmuebleTotal = await countActivosByUbicacion({ ciudad, inmueble });
-      setSummaryInmuebleCount(inmuebleTotal);
-
-      if (ambienteCodes == null) {
-        setSummaryStats([]);
-        return;
-      }
-
-      const CHUNK = 1000;
-      let userRows = [];
-      let start = 0;
-      for (;;) {
-        const { data, error } = await supabase
-          .from("act_activos")
-          .select("usuarioinventario,estadoinventario")
-          .eq("ultimoregistro", 1)
-          .in("codigoambiente", ambienteCodes.length > 0 ? ambienteCodes : [-1])
-          .range(start, start + CHUNK - 1);
-        if (error) throw error;
-        userRows = userRows.concat(data || []);
-        if (!data || data.length < CHUNK) break;
-        start += CHUNK;
-      }
-      setSummaryStats(aggregatePerUserRows(userRows));
-    } catch (e) {
-      console.error("Error loading summary by ubicacion:", e);
-      setSummaryStats([]);
-    } finally {
-      setIsLoadingSummary(false);
-    }
-  }, []);
-
-  const loadInmuebleSummary = useCallback(async ({ ciudad = "", inmueble = "" } = {}) => {
-    const ambienteCodes = await resolveAmbienteCodes({ ciudad, inmueble });
-    const totalInmueble = await countActivosByUbicacion({ ciudad, inmueble });
-    if (!ambienteCodes || ambienteCodes.length === 0) {
-      return { totalInmueble, totalInventariado: 0, totalEnProceso: 0, perUser: [] };
-    }
-
-    const CHUNK = 1000;
-    let userRows = [];
-    let start = 0;
-    for (;;) {
-      const { data, error } = await supabase
-        .from("act_activos")
-        .select("usuarioinventario,estadoinventario")
-        .eq("ultimoregistro", 1)
-        .in("codigoambiente", ambienteCodes)
-        .order("codigoactivointerno", { ascending: true })
-        .range(start, start + CHUNK - 1);
-      if (error) throw error;
-      userRows = userRows.concat(data || []);
-      if (!data || data.length < CHUNK) break;
-      start += CHUNK;
-    }
-
-    const acc = {};
-    let totalInventariado = 0;
-    let totalEnProceso = 0;
-    userRows.forEach((r) => {
-      const est = normalizarEstado(r.estadoinventario);
-      if (est === "EN PROCESO") totalEnProceso += 1;
-      const isInventariado = Boolean(est && est !== "PENDIENTE" && est !== "EN PROCESO");
-      if (isInventariado) totalInventariado += 1;
-      const email = r.usuarioinventario;
-      if (!email) return;
-      if (!acc[email]) acc[email] = { total: 0, inventariado: 0, enProceso: 0 };
-      acc[email].total += 1;
-      if (isInventariado) acc[email].inventariado += 1;
-      if (est === "EN PROCESO") acc[email].enProceso += 1;
-    });
-    const perUser = Object.entries(acc)
-      .map(([email, counts]) => ({ email, ...counts }))
-      .sort((a, b) => b.inventariado - a.inventariado);
-    return { totalInmueble, totalInventariado, totalEnProceso, perUser };
-  }, []);
-
-  const loadCiudadInmueblesStats = useCallback(async ({ ciudad = "" } = {}) => {
-    const ciudadCode = String(ciudad || "").trim();
-    if (!ciudadCode) return [];
-    try {
-      const srcInmuebles = (inmuebles && inmuebles.length > 0) ? inmuebles : [];
-      const srcNiveles = (niveles && niveles.length > 0) ? niveles : [];
-      const srcAmbientes = (ambientes && ambientes.length > 0) ? ambientes : (ambientesRef.current || []);
-      const inmueblesRows = srcInmuebles.filter((r) => String(r.codigociudad ?? "").trim() === ciudadCode);
-      if (inmueblesRows.length === 0) return [];
-      const inmuebleCodes = inmueblesRows.map((r) => String(r.codigoinmueble).trim()).filter(Boolean);
-      const inmuebleLabelMap = {};
-      inmueblesRows.forEach((r) => { inmuebleLabelMap[String(r.codigoinmueble).trim()] = r.inmueble; });
-      const nivelToInmueble = {};
-      const nivelCodes = [];
-      srcNiveles.forEach((r) => {
-        const inm = String(r.codigoinmueble ?? "").trim();
-        const niv = String(r.codigonivel ?? "").trim();
-        if (inmuebleCodes.includes(inm) && niv) { nivelToInmueble[niv] = inm; nivelCodes.push(niv); }
-      });
-      if (nivelCodes.length === 0) return [];
-      const ambienteToInmueble = {};
-      const allAmbienteCodes = [];
-      srcAmbientes.forEach((r) => {
-        const niv = String(r.codigonivel ?? "").trim();
-        const amb = String(r.codigoambiente ?? "").trim();
-        const inm = nivelToInmueble[niv];
-        if (amb && inm) { ambienteToInmueble[amb] = inm; allAmbienteCodes.push(amb); }
-      });
-      if (allAmbienteCodes.length === 0) return [];
-      const CHUNK = 1000;
-      let activosRows = [];
-      let start = 0;
-      for (;;) {
-        const { data, error } = await supabase
-          .from("act_activos")
-          .select("codigoambiente,estadoinventario")
-          .eq("ultimoregistro", 1)
-          .in("codigoambiente", allAmbienteCodes)
-          .range(start, start + CHUNK - 1);
-        if (error) throw error;
-        activosRows = activosRows.concat(data || []);
-        if (!data || data.length < CHUNK) break;
-        start += CHUNK;
-      }
-      const acc = {};
-      inmuebleCodes.forEach((code) => { acc[code] = { totalInmueble: 0, totalInventariado: 0, totalEnProceso: 0 }; });
-      (activosRows || []).forEach((r) => {
-        const amb = String(r.codigoambiente || "").trim();
-        const inm = ambienteToInmueble[amb];
-        if (!inm || !acc[inm]) return;
-        acc[inm].totalInmueble += 1;
-        const est = normalizarEstado(r.estadoinventario);
-        if (est === "EN PROCESO") acc[inm].totalEnProceso += 1;
-        const isInventariado = Boolean(est && est !== "PENDIENTE" && est !== "EN PROCESO");
-        if (isInventariado) acc[inm].totalInventariado += 1;
-      });
-      return inmuebleCodes.map((code) => {
-        const { totalInmueble, totalInventariado, totalEnProceso } = acc[code];
-        const porcentaje = totalInmueble > 0 ? (totalInventariado / totalInmueble) * 100 : 0;
-        return {
-          codigoinmueble: code,
-          inmueble: inmuebleLabelMap[code] || code,
-          totalInmueble,
-          totalInventariado,
-          totalEnProceso,
-          porcentaje: Number(porcentaje.toFixed(2)),
-        };
-      }).filter((s) => s.totalInmueble > 0).sort((a, b) => a.inmueble.localeCompare(b.inmueble));
-    } catch (e) {
-      console.error("Error loading ciudad inmuebles stats:", e);
-      return [];
-    }
-  }, [inmuebles, niveles, ambientes]);
-
-  const loadActivosPorFecha = useCallback(async ({ fechaDesde, fechaHasta } = {}) => {
-    const start = `${fechaDesde}T00:00:00`;
-    const end = `${fechaHasta}T23:59:59.999`;
-    const CHUNK = 1000;
-    let rows = [];
-    let offset = 0;
-    for (;;) {
-      const { data, error } = await supabase
-        .from("act_activos")
-        .select("usuarioinventario, estadoinventario, fecharegistro")
-        .eq("ultimoregistro", 1)
-        .gte("fecharegistro", start)
-        .lte("fecharegistro", end)
-        .range(offset, offset + CHUNK - 1);
-      if (error) throw error;
-      rows = rows.concat(data || []);
-      if (!data || data.length < CHUNK) break;
-      offset += CHUNK;
-    }
-
-    return {
-      aggregated: aggregateActivosPorFecha(rows),
-      rawRows: rows,
-    };
-  }, []);
-
-  const fetchActivosPorAmbientes = useCallback(async ({ ambienteCodes, applyFilters }) => {
-    const CHUNK = 1000;
-    let rows = [];
-    let start = 0;
-    for (;;) {
-      const baseQuery = supabase
-        .from("act_activos")
-        .select(ACTIVO_COLUMNS)
-        .eq("ultimoregistro", 1)
-        .in("codigoambiente", ambienteCodes);
-      const { data, error } = await applyFilters(baseQuery)
-        .order("codigoactivo", { ascending: true })
-        .range(start, start + CHUNK - 1);
-      if (error) throw error;
-      rows = rows.concat(data || []);
-      if (!data || data.length < CHUNK) break;
-      start += CHUNK;
-    }
-    return toCamelCaseArray(rows);
-  }, []);
-
-  const loadInmueblePendientes = useCallback(
-    async ({ ciudad = "", inmueble = "" } = {}) => {
-      const ambienteCodes = await resolveAmbienteCodes({ ciudad, inmueble });
-      if (!ambienteCodes || ambienteCodes.length === 0) {
-        return [];
-      }
-      return fetchActivosPorAmbientes({
-        ambienteCodes,
-        applyFilters: (q) =>
-          q.or(
-            'estadoinventario.is.null,estadoinventario.not.in.("INVENTARIADO","REVISADO","ENVIADO")',
-          ),
-      });
-    },
-    [fetchActivosPorAmbientes],
-  );
-
-  const loadInmuebleInventariados = useCallback(
-    async ({ ciudad = "", inmueble = "", usuario = "" } = {}) => {
-      const ambienteCodes = await resolveAmbienteCodes({ ciudad, inmueble });
-      if (!ambienteCodes || ambienteCodes.length === 0) {
-        return [];
-      }
-      const rows = await fetchActivosPorAmbientes({
-        ambienteCodes,
-        applyFilters: (q) => {
-          let fq = q;
-          if (usuario) fq = fq.eq("usuarioinventario", usuario);
-          return fq;
-        },
-      });
-      return rows.filter((r) => {
-        const est = normalizarEstado(r.estadoinventario ?? r.estadoInventario);
-        return Boolean(est && est !== "PENDIENTE" && est !== "EN PROCESO");
-      });
-    },
-    [fetchActivosPorAmbientes],
-  );
-
-  const loadInmuebleEnProceso = useCallback(
-    async ({ ciudad = "", inmueble = "", usuario = "" } = {}) => {
-      const ambienteCodes = await resolveAmbienteCodes({ ciudad, inmueble });
-      if (!ambienteCodes || ambienteCodes.length === 0) {
-        return [];
-      }
-      return fetchActivosPorAmbientes({
-        ambienteCodes,
-        applyFilters: (q) => {
-          let fq = q.eq("estadoinventario", "EN PROCESO");
-          if (usuario) fq = fq.eq("usuarioinventario", usuario);
-          return fq;
-        },
-      });
-    },
-    [fetchActivosPorAmbientes],
-  );
-
-  const clearSummary = useCallback(() => {
-    setSummaryStats(null);
-    setSummaryInmuebleCount(0);
-  }, []);
 
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil(totalCount / pageSize)),
@@ -758,23 +366,9 @@ export const useInventarioData = () => {
     rubroDescMap,
     rubroFromTipo,
     tipoRubroDescMap,
-    inventariadorStats,
     ambienteMap,
     responsableMap,
-    totalStats,
-    universoTotal,
     inmuebleCount,
-    summaryStats,
-    summaryInmuebleCount,
-    isLoadingSummary,
-    loadSummaryByUbicacion,
-    clearSummary,
-    loadInmuebleSummary,
-    loadInmueblePendientes,
-    loadInmuebleInventariados,
-    loadInmuebleEnProceso,
-    loadCiudadInmueblesStats,
-    loadActivosPorFecha,
     page,
     pageSize,
     setPage,

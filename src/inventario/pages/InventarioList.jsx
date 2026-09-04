@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useSelector } from "react-redux";
 import { Package } from "lucide-react";
 import { selectUser } from "@/store/auth/authSlice";
@@ -9,12 +9,8 @@ import LoadingSpinner from "@/components/ui/loading-spinner";
 import InventarioFilters from "../components/InventarioFilters";
 import InventarioTable from "../components/InventarioTable";
 import InventarioBusqueda from "../components/InventarioBusqueda";
-import InventarioSummary from "../components/InventarioSummary";
 import InventarioHeader from "../components/InventarioHeader";
-import InventarioInmuebleModal from "../components/InventarioInmuebleModal";
-import InventarioFechaModal from "../components/InventarioFechaModal";
 import DataPagination from "@/components/ui/data-pagination";
-import { exportPanelesToExcel } from "../services/inventarioExport";
 
 import { useInventarioData } from "../hooks/useInventarioData";
 import { useInventarioState } from "../hooks/useInventarioState";
@@ -51,20 +47,11 @@ const InventarioList = () => {
     rubroDescMap,
     rubroFromTipo,
     tipoRubroDescMap,
-    inventariadorStats,
     ambienteMap,
     responsableMap,
     ciudades,
     inmuebles,
     niveles,
-    totalStats: rawTotalStats,
-    universoTotal,
-    loadInmuebleSummary,
-    loadInmueblePendientes,
-    loadInmuebleInventariados,
-    loadInmuebleEnProceso,
-    loadCiudadInmueblesStats,
-    loadActivosPorFecha,
     page,
     pageSize,
     setPage,
@@ -114,8 +101,6 @@ const InventarioList = () => {
 
   const {
     ciudadOptions,
-    inmuebleOptions,
-    inmuebleCiudadMap,
     inmuebleOptionsByCiudad,
     nivelOptionsByInmueble,
     ambienteOptionsByNivel,
@@ -166,10 +151,6 @@ const InventarioList = () => {
     setIsImageModalOpen,
     setImageFiles,
   });
-
-  const [isInmuebleModalOpen, setIsInmuebleModalOpen] = useState(false);
-  const [isFechaModalOpen, setIsFechaModalOpen] = useState(false);
-  const [isGeneratingExcel, setIsGeneratingExcel] = useState(false);
 
   const firstEstadoRef = useRef(true);
   const firstRevaluoRef = useRef(true);
@@ -372,38 +353,6 @@ const InventarioList = () => {
     [page, totalPages],
   );
 
-  const totalStats = useMemo(
-    () => ({
-      ...rawTotalStats,
-      progreso: universoTotal > 0 ? (rawTotalStats.total / universoTotal) * 100 : 0,
-    }),
-    [rawTotalStats, universoTotal],
-  );
-
-  const progressLevel = useMemo(() => {
-    if (totalStats.progreso >= 80) return "high";
-    if (totalStats.progreso >= 50) return "mid";
-    return "low";
-  }, [totalStats.progreso]);
-
-  const progressTextColors = {
-    low: "#dc2626",
-    mid: "#ca8a04",
-    high: "#16a34a",
-  };
-
-  const ubicacionLabel = useMemo(() => {
-    const ciudad =
-      ciudadOptions.find(
-        (o) => String(o.value).trim() === String(filtroCiudad).trim(),
-      )?.label || "";
-    const inmueble =
-      inmuebleOptionsByCiudad.find(
-        (o) => String(o.value).trim() === String(filtroInmueble).trim(),
-      )?.label || "";
-    return [ciudad, inmueble].filter(Boolean).join(" - ");
-  }, [ciudadOptions, inmuebleOptionsByCiudad, filtroCiudad, filtroInmueble]);
-
   if (isLoading && activos.length === 0 && rubros.length === 0) {
     return <LoadingSpinner />;
   }
@@ -458,35 +407,9 @@ const InventarioList = () => {
     );
   }
 
-  const handleGenerarExcelPaneles = () => {
-    setIsGeneratingExcel(true);
-    try {
-      exportPanelesToExcel({ totalStats, inventariadorStats, getDisplayName });
-    } catch (e) {
-      console.error("Error generando Excel de paneles:", e);
-    } finally {
-      setIsGeneratingExcel(false);
-    }
-  };
-
   return (
     <div className="space-y-6">
-      <InventarioHeader
-        onOpenInmueble={() => setIsInmuebleModalOpen(true)}
-        onOpenFecha={() => setIsFechaModalOpen(true)}
-        onExportPaneles={handleGenerarExcelPaneles}
-        isGeneratingExcel={isGeneratingExcel}
-      />
-
-      <InventarioSummary
-        totalStats={totalStats}
-        progressLevel={progressLevel}
-        progressTextColors={progressTextColors}
-        inventariadorStats={inventariadorStats}
-        getDisplayName={getDisplayName}
-        ubicacionLabel={ubicacionLabel}
-        universoTotal={universoTotal}
-      />
+      <InventarioHeader />
 
       <InventarioFilters
         filtroCodigoActivo={filtroCodigoActivo}
@@ -571,33 +494,9 @@ const InventarioList = () => {
         imageFiles={imageFiles}
         setImageFiles={setImageFiles}
       />
-
-      <InventarioInmuebleModal
-        isOpen={isInmuebleModalOpen}
-        onClose={() => setIsInmuebleModalOpen(false)}
-        ciudadOptions={ciudadOptions}
-        inmuebleOptions={inmuebleOptions}
-        inmuebleCiudadMap={inmuebleCiudadMap}
-        getDisplayName={getDisplayName}
-        loadInmuebleSummary={loadInmuebleSummary}
-        loadInmueblePendientes={loadInmueblePendientes}
-        loadInmuebleInventariados={loadInmuebleInventariados}
-        loadInmuebleEnProceso={loadInmuebleEnProceso}
-        loadCiudadInmueblesStats={loadCiudadInmueblesStats}
-        getAmbienteName={getAmbienteName}
-        getResponsableName={getResponsableName}
-        rubroFromTipo={rubroFromTipo}
-        tipoRubroDescMap={tipoRubroDescMap}
-      />
-
-      <InventarioFechaModal
-        isOpen={isFechaModalOpen}
-        onClose={() => setIsFechaModalOpen(false)}
-        getDisplayName={getDisplayName}
-        loadActivosPorFecha={loadActivosPorFecha}
-      />
     </div>
   );
 };
 
 export default InventarioList;
+

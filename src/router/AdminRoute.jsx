@@ -6,5 +6,5 @@ export const AdminRoute = ({ children }) => {
   const role = useSelector(selectUserRole);
   const isAdmin = role === "Administrador";
 
-  return isAdmin ? children : <Navigate to="/inventario" />;
+  return isAdmin ? children : <Navigate to="/inventario" replace />;
 };

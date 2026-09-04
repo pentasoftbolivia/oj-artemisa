@@ -87,7 +87,9 @@ const InventarioFechaModal = ({
     setIsGeneratingPdf(true);
     try {
       const doc = new jsPDF("landscape", "mm", "letter");
-      try { doc.addImage(LOGO_JPG_DATA_URL, "JPEG", 14, 8, 48, 48 * (57/256)); } catch(_){}
+      try { doc.addImage(LOGO_JPG_DATA_URL, "JPEG", 14, 8, 48, 48 * (57/256)); } catch {
+        // ignore logo errors
+      }
       const pageWidth = doc.internal.pageSize.getWidth();
       doc.setFontSize(12);
       doc.setFont("helvetica", "bold");
@@ -132,7 +134,11 @@ const InventarioFechaModal = ({
       const totalPages = doc.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
-        if (i > 1) { try { doc.addImage(LOGO_JPG_DATA_URL, "JPEG", 14, 8, 48, 48 * (57/256)); } catch(_){} }
+        if (i > 1) {
+          try { doc.addImage(LOGO_JPG_DATA_URL, "JPEG", 14, 8, 48, 48 * (57/256)); } catch {
+            // ignore logo errors
+          }
+        }
         doc.setFontSize(8);
         doc.setFont("helvetica", "normal");
         doc.text(`Página ${i} de ${totalPages}`, pageWidth / 2, pageH - 8, { align: "center" });

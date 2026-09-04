@@ -1,6 +1,7 @@
 import { Suspense } from "react";
-import { Routes, Route, useLocation } from "react-router-dom";
-import InicioPage from "@/inicio/pages/InicioPage";
+import { Routes, Route, Navigate } from "react-router-dom";
+import { useSelector } from "react-redux";
+import { selectUserRole } from "@/store/auth/authSlice";
 
 import { PrivateRoute } from "./PrivateRoute";
 import { PublicRoute } from "./PublicRoute";
@@ -25,12 +26,17 @@ const ResponsableRoutes = lazyWithRetry(() => import("@/responsable/routes/Respo
 const ConfigResponsableRoutes = lazyWithRetry(() => import("@/configResponsable/routes/ConfigResponsableRoutes").then(m => ({ default: m.ConfigResponsableRoutes })));
 const ConfigTransferenciaRoutes = lazyWithRetry(() => import("@/configTransferencias/routes/ConfigTransferenciaRoutes").then(m => ({ default: m.ConfigTransferenciaRoutes })));
 const RegistroActivosRoutes = lazyWithRetry(() => import("@/registroActivos/routes/RegistroActivosRoutes").then(m => ({ default: m.RegistroActivosRoutes })));
+const InicioRoutes = lazyWithRetry(() => import("@/inicio/routes/InicioRoutes").then(m => ({ default: m.InicioRoutes })));
 const InventarioRoutes = lazyWithRetry(() => import("@/inventario/routes/InventarioRoutes").then(m => ({ default: m.InventarioRoutes })));
+
+const RootRedirect = () => {
+  const role = useSelector(selectUserRole);
+  return <Navigate to={role === "Inventariador" ? "/inventario" : "/inicio"} replace />;
+};
 
 export const AppRouter = () => {
   useCheckAuth();
   useSupabaseRealtime();
-  const location = useLocation();
 
   return (
     <Suspense fallback={<div className="h-screen w-full flex items-center justify-center"><LoadingSpinner /></div>}>
@@ -45,11 +51,22 @@ export const AppRouter = () => {
         />
 
         <Route
-          path="/*"
+          path="/"
           element={
             <PrivateRoute>
-              <Navbar />
-              {location.pathname === "/" && <InicioPage />}
+              <RootRedirect />
+            </PrivateRoute>
+          }
+        />
+
+        <Route
+          path="/inicio/*"
+          element={
+            <PrivateRoute>
+              <AdminRoute>
+                <Navbar />
+                <InicioRoutes />
+              </AdminRoute>
             </PrivateRoute>
           }
         />
@@ -148,8 +165,6 @@ export const AppRouter = () => {
           }
         />
 
-
-
         <Route
           path="/responsables/*"
           element={
@@ -204,6 +219,15 @@ export const AppRouter = () => {
             <PrivateRoute>
               <Navbar />
               <InventarioRoutes />
+            </PrivateRoute>
+          }
+        />
+
+        <Route
+          path="*"
+          element={
+            <PrivateRoute>
+              <RootRedirect />
             </PrivateRoute>
           }
         />
