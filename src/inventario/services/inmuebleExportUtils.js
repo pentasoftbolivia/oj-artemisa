@@ -24,7 +24,7 @@ export const exportInmueblePdf = ({
   displayName = "",
   mapActivoRow,
   fileNamePrefix = "Activos_Inmueble",
-  headerColor = [22, 163, 74],
+  headerColor = [37, 99, 235],
 }) => {
   if (!items || items.length === 0) return;
 

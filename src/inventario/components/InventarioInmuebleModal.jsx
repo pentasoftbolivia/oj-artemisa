@@ -269,7 +269,7 @@ const InventarioInmuebleModal = ({
         displayName,
         mapActivoRow,
         fileNamePrefix: "Activos_Inventariados",
-        headerColor: [22, 163, 74],
+        headerColor: [37, 99, 235],
       });
     } catch (e) {
       console.error("Error generando PDF inventariados:", e);

@@ -111,7 +111,7 @@ const InventarioFechaModal = ({
         head: [["N°", "INVENTARIADOR", "EN PROCESO", "INVENTARIADO", "REVISADO", "TOTAL DE ACTIVOS"]],
         body,
         styles: { fontSize: 10, cellPadding: 2.5 },
-        headStyles: { fillColor: [33, 115, 70], textColor: 255, halign: "center" },
+        headStyles: { fillColor: [37, 99, 235], textColor: 255, halign: "center" },
         columnStyles: {
           0: { halign: "center", cellWidth: 15 },
           1: { halign: "left" },
@@ -123,7 +123,7 @@ const InventarioFechaModal = ({
         didParseCell: (data) => {
           if (data.row.index === body.length - 1 && data.section === "body") {
             data.cell.styles.fontStyle = "bold";
-            data.cell.styles.fillColor = [226, 239, 218];
+            data.cell.styles.fillColor = [219, 234, 254];
           }
         },
       });
