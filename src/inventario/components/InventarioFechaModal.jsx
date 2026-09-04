@@ -3,6 +3,7 @@ import { CalendarDays, Loader2, Search, X, FileDown, FileSpreadsheet } from "luc
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
+import { LOGO_JPG_DATA_URL } from "@/lib/logoJpgBase64";
 import {
   Dialog,
   DialogContent,
@@ -86,6 +87,7 @@ const InventarioFechaModal = ({
     setIsGeneratingPdf(true);
     try {
       const doc = new jsPDF("landscape", "mm", "letter");
+      try { doc.addImage(LOGO_JPG_DATA_URL, "JPEG", 14, 8, 48, 48 * (57/256)); } catch(_){}
       const pageWidth = doc.internal.pageSize.getWidth();
       doc.setFontSize(12);
       doc.setFont("helvetica", "bold");
@@ -125,6 +127,16 @@ const InventarioFechaModal = ({
           }
         },
       });
+
+      const pageH = doc.internal.pageSize.getHeight();
+      const totalPages = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        if (i > 1) { try { doc.addImage(LOGO_JPG_DATA_URL, "JPEG", 14, 8, 48, 48 * (57/256)); } catch(_){} }
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Página ${i} de ${totalPages}`, pageWidth / 2, pageH - 8, { align: "center" });
+      }
 
       const safeLabel = `${fechaDesde}_${fechaHasta}`.replace(/[^a-zA-Z0-9]+/g, "_");
       doc.save(`Activos_Por_Inventariador_${safeLabel}.pdf`);

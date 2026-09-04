@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { resolveAmbienteCodes } from "../services/responsableUbicacionService";
 import { getNumeroActa } from "../services/responsableActaService";
 import { fetchResponsable } from "@/store/responsable/responsableThunks";
+import { LOGO_JPG_DATA_URL } from "@/lib/logoJpgBase64";
 
 const formatError = (err) => {
   if (!err) return "Error desconocido";
@@ -138,17 +139,25 @@ const drawActaHeader = async (doc, { numeroActa, responsable }) => {
 
   const fullName = `${responsable.nombre1 || ""} ${responsable.nombre2 || ""} ${responsable.paterno || ""} ${responsable.materno || ""}`.replace(/\s+/g, ' ').trim();
 
-  const logoUrl = `${window.location.origin}/logo-oj.png`;
-  const logoImg = await loadImage(logoUrl);
-  if (logoImg) {
-    const canvas = document.createElement("canvas");
-    canvas.width = logoImg.naturalWidth;
-    canvas.height = logoImg.naturalHeight;
-    canvas.getContext("2d").drawImage(logoImg, 0, 0);
-    const logoDataUrl = canvas.toDataURL("image/png");
-    const logoWidth = 30;
-    const logoHeight = logoWidth * (logoImg.naturalHeight / logoImg.naturalWidth);
-    doc.addImage(logoDataUrl, "PNG", 14, 8, logoWidth, logoHeight);
+  // Logo principal Órgano Judicial (public/logo.jpg) superior izquierda
+  try {
+    const logoWidth = 48;
+    const logoHeight = logoWidth * (57 / 256);
+    doc.addImage(LOGO_JPG_DATA_URL, "JPEG", 14, 8, logoWidth, logoHeight);
+  } catch (_) {
+    // fallback: intentar logo-oj.png si falla jpg
+    const logoUrl = `${window.location.origin}/logo-oj.png`;
+    const logoImg = await loadImage(logoUrl);
+    if (logoImg) {
+      const canvas = document.createElement("canvas");
+      canvas.width = logoImg.naturalWidth;
+      canvas.height = logoImg.naturalHeight;
+      canvas.getContext("2d").drawImage(logoImg, 0, 0);
+      const logoDataUrl = canvas.toDataURL("image/png");
+      const logoWidth = 48;
+      const logoHeight = logoWidth * (logoImg.naturalHeight / logoImg.naturalWidth);
+      doc.addImage(logoDataUrl, "PNG", 14, 8, logoWidth, logoHeight);
+    }
   }
 
   doc.setFontSize(14);
@@ -260,6 +269,9 @@ const drawPageNumbers = (doc) => {
 
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
+    if (i > 1) {
+      try { doc.addImage(LOGO_JPG_DATA_URL, "JPEG", 14, 8, 48, 48 * (57/256)); } catch(_){}
+    }
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
     doc.text(`Página ${i} de ${totalPages}`, pageWidth / 2, pageHeight - 8, { align: "center" });
@@ -471,6 +483,7 @@ export const useActaAsignacion = () => {
         const blockHeight = wrapped.length * lineHeight + 3;
         if (y + blockHeight > pageHeight - 20) {
           doc.addPage();
+          try { doc.addImage(LOGO_JPG_DATA_URL, "JPEG", 14, 8, 48, 48 * (57/256)); } catch(_){}
           y = 40;
         }
         doc.text(wrapped, marginX, y);

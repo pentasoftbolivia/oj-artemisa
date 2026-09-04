@@ -1,6 +1,17 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
+import { LOGO_JPG_DATA_URL } from "@/lib/logoJpgBase64";
+
+const LOGO_W = 48;
+const LOGO_H = LOGO_W * (57 / 256);
+const addLogo = (doc) => {
+  try {
+    doc.addImage(LOGO_JPG_DATA_URL, "JPEG", 14, 8, LOGO_W, LOGO_H);
+  } catch (_) {
+    // ignore logo errors
+  }
+};
 
 /**
  * Genera y descarga un reporte en PDF para los activos de un inmueble.
@@ -18,6 +29,7 @@ export const exportInmueblePdf = ({
   if (!items || items.length === 0) return;
 
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "letter" });
+  addLogo(doc);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -80,6 +92,8 @@ export const exportInmueblePdf = ({
   const totalPages = doc.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
+    // logo en cada página
+    if (i > 1) addLogo(doc);
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
     doc.text(`Página ${i} de ${totalPages}`, pageWidth / 2, pageHeight - 8, { align: "center" });

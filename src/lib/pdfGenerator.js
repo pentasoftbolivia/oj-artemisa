@@ -9,6 +9,7 @@ export const generateMaterialsPDF = async (data) => {
     // Importación dinámica de las dependencias
     const { jsPDF } = await import('jspdf');
     const autoTable = (await import('jspdf-autotable')).default;
+    const { LOGO_JPG_DATA_URL } = await import('@/lib/logoJpgBase64');
     
     // Crear instancia de jsPDF
     const doc = new jsPDF({
@@ -16,6 +17,11 @@ export const generateMaterialsPDF = async (data) => {
       unit: 'mm',
       format: 'a4'
     });
+
+    const addLogo = () => {
+      try { doc.addImage(LOGO_JPG_DATA_URL, 'JPEG', 14, 8, 48, 48 * (57/256)); } catch(_){}
+    };
+    addLogo();
 
     // Estilos
     const primaryColor = [41, 128, 185];
@@ -98,6 +104,10 @@ export const generateMaterialsPDF = async (data) => {
       tableLineWidth: 0.2
     });
     
+    // Logo en cada página
+    const pageCountM = doc.internal.getNumberOfPages();
+    for (let i = 2; i <= pageCountM; i++) { doc.setPage(i); try { const { LOGO_JPG_DATA_URL: L } = await import('@/lib/logoJpgBase64'); doc.addImage(L, 'JPEG', 14, 8, 48, 48 * (57/256)); } catch(_){} }
+
     // Generar el blob del PDF
     const pdfBlob = doc.output('blob');
     return pdfBlob;
@@ -112,12 +122,18 @@ const generateMovementsPDF = async (data) => {
   try {
     const { jsPDF } = await import('jspdf');
     const autoTable = (await import('jspdf-autotable')).default;
+    const { LOGO_JPG_DATA_URL } = await import('@/lib/logoJpgBase64');
     
     const doc = new jsPDF({
       orientation: 'landscape',
       unit: 'mm',
       format: 'a4'
     });
+
+    const addLogo2 = () => {
+      try { doc.addImage(LOGO_JPG_DATA_URL, 'JPEG', 14, 8, 48, 48 * (57/256)); } catch(_){}
+    };
+    addLogo2();
 
     // Estilos
     const primaryColor = [41, 128, 185];
@@ -214,10 +230,11 @@ const generateMovementsPDF = async (data) => {
       tableLineWidth: 0.2
     });
     
-    // Pie de página
+    // Pie de página + logo en páginas adicionales
     const pageCount = doc.internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
+      if (i > 1) addLogo2();
       doc.setFontSize(8);
       doc.setTextColor(100, 100, 100);
       doc.text(

@@ -60,6 +60,8 @@ const InventarioInmuebleModal = ({
   const [enProcesoPage, setEnProcesoPage] = useState(1);
   const [isLoadingEnProceso, setIsLoadingEnProceso] = useState(false);
   const [enProcesoTitle, setEnProcesoTitle] = useState("");
+  const [isGeneratingPdfEnProceso, setIsGeneratingPdfEnProceso] = useState(false);
+  const [enProcesoDisplayName, setEnProcesoDisplayName] = useState("");
 
   const [ciudadInmueblesStats, setCiudadInmueblesStats] = useState([]);
   const [isLoadingCiudadStats, setIsLoadingCiudadStats] = useState(false);
@@ -165,6 +167,8 @@ const InventarioInmuebleModal = ({
     setEnProcesoList([]);
     setEnProcesoPage(1);
     setEnProcesoTitle("");
+    setEnProcesoDisplayName("");
+    setIsGeneratingPdfEnProceso(false);
     setCiudadInmueblesStats([]);
     onClose();
   };
@@ -200,6 +204,7 @@ const InventarioInmuebleModal = ({
     setEnProcesoTitle(
       displayName ? `Activos En Proceso — ${displayName}` : "Activos En Proceso — Todos",
     );
+    setEnProcesoDisplayName(displayName || "");
     setEnProcesoList([]);
     setEnProcesoPage(1);
     setEnProcesoOpen(true);
@@ -219,6 +224,29 @@ const InventarioInmuebleModal = ({
     setEnProcesoOpen(false);
     setEnProcesoList([]);
     setEnProcesoPage(1);
+    setEnProcesoDisplayName("");
+  };
+
+  const handleGenerarPdfEnProceso = async () => {
+    if (enProcesoList.length === 0) return;
+    if (isGeneratingPdfEnProceso) return;
+    setIsGeneratingPdfEnProceso(true);
+    try {
+      exportInmueblePdf({
+        title: "ACTIVOS EN PROCESO",
+        items: enProcesoList,
+        ciudadName: selectedCiudadName,
+        inmuebleName: selectedInmuebleName,
+        displayName: enProcesoDisplayName,
+        mapActivoRow,
+        fileNamePrefix: "Activos_En_Proceso",
+        headerColor: [202, 138, 4],
+      });
+    } catch (e) {
+      console.error("Error generando PDF en proceso:", e);
+    } finally {
+      setIsGeneratingPdfEnProceso(false);
+    }
   };
 
   const selectedCiudadName = ciudadOptions.find((o) => String(o.value).trim() === String(ciudad).trim())?.label || "";
@@ -721,7 +749,18 @@ const InventarioInmuebleModal = ({
             )}
           </div>
 
-          <div className="flex justify-end pt-4">
+          <div className="flex flex-wrap justify-between gap-2 pt-4">
+            <Button
+              onClick={handleGenerarPdfEnProceso}
+              disabled={isGeneratingPdfEnProceso || enProcesoList.length === 0}
+            >
+              {isGeneratingPdfEnProceso ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <FileDown className="h-4 w-4 mr-2" />
+              )}
+              Reporte Activos En Proceso en PDF
+            </Button>
             <Button variant="outline" onClick={handleCloseEnProceso}>
               <X className="h-4 w-4 mr-2" />
               Cerrar
