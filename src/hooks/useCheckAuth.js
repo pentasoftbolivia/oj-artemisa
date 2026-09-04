@@ -25,6 +25,19 @@ export const useCheckAuth = () => {
       try {
         const role = await getRoleForUser(session.user.id);
 
+        if (!role) {
+          localStorage.removeItem("user");
+          localStorage.removeItem("lastPath");
+          await supabase.auth.signOut();
+          dispatch(
+            logout({
+              errorMessage:
+                "Usuario no autorizado.",
+            }),
+          );
+          return;
+        }
+
         const userInfo = {
           uid: session.user.id,
           email: session.user.email,

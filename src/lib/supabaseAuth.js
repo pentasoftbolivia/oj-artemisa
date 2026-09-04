@@ -8,9 +8,9 @@ export const getRoleForUser = async (uid) => {
       .eq("UID", uid)
       .maybeSingle();
 
-    return roleData?.rol || "Usuario";
+    return roleData?.rol || null;
   } catch {
-    return "Usuario";
+    return null;
   }
 };
 
@@ -27,8 +27,17 @@ export const loginUserWithEmailPassword = async ({ email, password }) => {
 
     const { user } = data;
 
-    // Verificar si el usuario es administrador en la tabla "rol"
+    // Verificar si el usuario tiene rol asignado en la tabla "rol"
     const role = await getRoleForUser(user.id);
+
+    if (!role) {
+      await supabase.auth.signOut();
+      return {
+        ok: false,
+        errorMessage:
+          "Usuario no autorizado.",
+      };
+    }
 
     return {
       ok: true,

@@ -38,7 +38,7 @@ const InventarioTable = memo(
               <TableHead>Inventariador</TableHead>
               <TableHead>Revisor</TableHead>
               <TableHead className="text-center">Revalúo</TableHead>
-              {currentUser?.role !== "Usuario" && (
+              {Boolean(currentUser?.role) && (
                 <TableHead className="text-center">Acciones</TableHead>
               )}
             </TableRow>
@@ -106,7 +106,7 @@ const InventarioTable = memo(
                         );
                       })()}
                     </TableCell>
-                    {currentUser?.role !== "Usuario" && (
+                    {Boolean(currentUser?.role) && (
                       <TableCell className="text-right">
                         <div className="flex space-x-1 justify-end">
                           <Button

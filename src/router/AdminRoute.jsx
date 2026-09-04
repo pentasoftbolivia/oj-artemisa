@@ -4,7 +4,7 @@ import { selectUserRole } from "@/store/auth/authSlice";
 
 export const AdminRoute = ({ children }) => {
   const role = useSelector(selectUserRole);
-  const isAdmin = role !== "Usuario"; // Todos los que están en la tabla rol tienen un rol distinto a "Usuario"
+  const isAdmin = role === "Administrador";
 
   return isAdmin ? children : <Navigate to="/inventario" />;
 };
