@@ -35,6 +35,8 @@ const InventarioSummary = ({
   getDisplayName,
   ubicacionLabel = "",
   universoTotal = 0,
+  onSelectPendientes,
+  onSelectRevisados,
 }) => {
   const sortedStats = useMemo(
     () => [...(inventariadorStats || [])].sort((a, b) => b.revisado - a.revisado),
@@ -140,22 +142,34 @@ const InventarioSummary = ({
                     {getDisplayName(stat.email)}
                   </div>
                   <div className="flex gap-2">
-                    <div className="flex-1 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-900 rounded p-2 text-center">
+                    <button
+                      type="button"
+                      onClick={() => onSelectPendientes?.(stat.email)}
+                      disabled={!stat.pendiente}
+                      className={`flex-1 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-900 rounded p-2 text-center transition ${stat.pendiente ? "hover:bg-orange-100 dark:hover:bg-orange-900/30 cursor-pointer hover:shadow-sm" : "opacity-60 cursor-not-allowed"}`}
+                      title={stat.pendiente ? "Ver activos no revisados" : "Sin pendientes"}
+                    >
                       <div className="text-xs text-orange-600 dark:text-orange-400 font-medium">
-                        Pendientes
+                        No revisados
                       </div>
                       <div className="text-lg font-bold text-orange-700 dark:text-orange-300">
                         {stat.pendiente}
                       </div>
-                    </div>
-                    <div className="flex-1 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded p-2 text-center">
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onSelectRevisados?.(stat.email)}
+                      disabled={!stat.revisado}
+                      className={`flex-1 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded p-2 text-center transition ${stat.revisado ? "hover:bg-green-100 dark:hover:bg-green-900/30 cursor-pointer hover:shadow-sm" : "opacity-60 cursor-not-allowed"}`}
+                      title={stat.revisado ? "Ver activos revisados" : "Sin revisados"}
+                    >
                       <div className="text-xs text-green-600 dark:text-green-400 font-medium">
                         Revisados
                       </div>
                       <div className="text-lg font-bold text-green-700 dark:text-green-300">
                         {stat.revisado}
                       </div>
-                    </div>
+                    </button>
                   </div>
                   <BarraAvance revisado={stat.revisado} total={universoTotal} />
                 </div>

@@ -467,6 +467,34 @@ export const useInventarioData = () => {
     };
   }, []);
 
+  const loadActivosPorInventariador = useCallback(async ({ usuario = "", estado = "pendiente" } = {}) => {
+    const email = String(usuario || "").trim();
+    if (!email) return [];
+    const CHUNK = 1000;
+    let rows = [];
+    let start = 0;
+    for (;;) {
+      let q = supabase
+        .from("act_activos")
+        .select(ACTIVO_COLUMNS)
+        .eq("ultimoregistro", 1)
+        .gte("codigoactivointerno", 335774)
+        .neq("estadoinventario", "EN PROCESO")
+        .eq("usuarioinventario", email);
+      if (estado === "revisado") {
+        q = q.eq("estadoinventario", "REVISADO");
+      } else {
+        q = q.or("estadoinventario.is.null,estadoinventario.neq.REVISADO");
+      }
+      const { data, error } = await q.range(start, start + CHUNK - 1);
+      if (error) throw error;
+      rows = rows.concat(data || []);
+      if (!data || data.length < CHUNK) break;
+      start += CHUNK;
+    }
+    return rows;
+  }, []);
+
   return {
     isLoading,
     rubros,
@@ -489,6 +517,7 @@ export const useInventarioData = () => {
     loadInmuebleEnProceso,
     loadCiudadInmueblesStats,
     loadActivosPorFecha,
+    loadActivosPorInventariador,
     loadCatalogos,
     loadActivos,
     loadInitialData,
