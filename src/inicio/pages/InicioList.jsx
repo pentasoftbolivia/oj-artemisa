@@ -159,21 +159,6 @@ const InicioList = () => {
     high: "#16a34a",
   };
 
-  if (isLoading && !totalStats.total && inventariadorStats.length === 0) {
-    return <LoadingSpinner />;
-  }
-
-  const handleGenerarExcelPaneles = () => {
-    setIsGeneratingExcel(true);
-    try {
-      exportPanelesToExcel({ totalStats, inventariadorStats, getDisplayName });
-    } catch (e) {
-      console.error("Error generando Excel de paneles:", e);
-    } finally {
-      setIsGeneratingExcel(false);
-    }
-  };
-
   const usuarioTotalPages = useMemo(() => Math.max(1, Math.ceil(usuarioModalList.length / PAGE_SIZE)), [usuarioModalList]);
   const usuarioPageData = useMemo(() => {
     const start = (usuarioModalPage - 1) * PAGE_SIZE;
@@ -192,6 +177,17 @@ const InicioList = () => {
       getResponsableName(a.cirun),
       a.cirun || "—",
     ];
+  };
+
+  const handleGenerarExcelPaneles = () => {
+    setIsGeneratingExcel(true);
+    try {
+      exportPanelesToExcel({ totalStats, inventariadorStats, getDisplayName });
+    } catch (e) {
+      console.error("Error generando Excel de paneles:", e);
+    } finally {
+      setIsGeneratingExcel(false);
+    }
   };
 
   const handleShowPendientes = async (email) => {
@@ -236,6 +232,10 @@ const InicioList = () => {
     setUsuarioModalPage(1);
     setUsuarioModalTitle("");
   };
+
+  if (isLoading && !totalStats.total && inventariadorStats.length === 0) {
+    return <LoadingSpinner />;
+  }
 
   return (
     <div className="space-y-6">
