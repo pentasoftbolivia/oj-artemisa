@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import { getCachedCatalog } from "@/lib/catalogCache";
+import { ACTIVO_COLUMNS } from "@/lib/activoColumns";
 import { resolveAmbienteCodes, countActivosByUbicacion } from "@/lib/ubicacionFilters";
 import { useToast } from "@/hooks/use-toast";
 import { normalizeCi, normalizeCiLoose, getCiPrefix, normalizarEstado } from "../constants/inventarioConstants";
@@ -289,7 +290,7 @@ export const useInventarioData = () => {
     for (;;) {
       let q = supabase
         .from("act_activos")
-        .select("*, act_ambiente(ambiente), act_responsable(cirun, nombre1, nombre2, paterno, materno)")
+        .select(ACTIVO_COLUMNS)
         .eq("ultimoregistro", 1)
         .in("codigoambiente", ambienteCodes);
       if (applyFilters) {
