@@ -9,7 +9,6 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Edit, Image as ImageIcon, Package } from "lucide-react";
-import { buildDenominacion } from "@/lib/utils";
 
 const InventarioTable = memo(
   ({
@@ -70,7 +69,7 @@ const InventarioTable = memo(
                       {a._tipoRubro}
                     </TableCell>
                     <TableCell className="whitespace-normal break-words max-w-[250px]">
-                      {buildDenominacion(a, a._rubro)}
+                      {a.descripcionActivo ?? a.descripcionactivo ?? "—"}
                     </TableCell>
                     <TableCell className="font-mono text-xs whitespace-normal break-words max-w-[380px]">
                       {getAmbienteName(a._ambienteKey)}
