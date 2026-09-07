@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 
 import LoadingSpinner from "@/components/ui/loading-spinner";
-import { Loader2, Package, X } from "lucide-react";
+import { Loader2, Package, X, FileSpreadsheet } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { TablaActivos, SeccionActivos, PaginacionTabla } from "../components/InmuebleActivosTable";
+import * as XLSX from "xlsx";
 
 import InventarioSummary from "../components/InventarioSummary";
 import InventarioHeader from "../components/InventarioHeader";
@@ -69,6 +70,7 @@ const InicioList = () => {
   const [usuarioModalList, setUsuarioModalList] = useState([]);
   const [usuarioModalPage, setUsuarioModalPage] = useState(1);
   const [isLoadingUsuarioModal, setIsLoadingUsuarioModal] = useState(false);
+  const [isGeneratingUsuarioExcel, setIsGeneratingUsuarioExcel] = useState(false);
 
   useEffect(() => {
     loadInitialData();
@@ -233,6 +235,38 @@ const InicioList = () => {
     setUsuarioModalTitle("");
   };
 
+  const handleExportUsuarioExcel = () => {
+    if (!usuarioModalList.length) return;
+    setIsGeneratingUsuarioExcel(true);
+    try {
+      const isRevisados = usuarioModalTitle.includes("Revisados");
+      const headers = ["Código", "Rubro", "Tipo Rubro", "Descripción", "Ambiente", "Responsable", "CI Responsable"];
+      const dataRows = usuarioModalList.map(mapActivoRow);
+      const inventariador = usuarioModalTitle.replace("Activos Revisados — ", "").replace("Activos No Revisados — ", "").trim() || "Inventariador";
+      const titulo = isRevisados ? "ACTIVOS REVISADOS" : "ACTIVOS NO REVISADOS";
+      const sheetData = [
+        ["REPORTES DE ACTIVOS - ÓRGANO JUDICIAL"],
+        [titulo],
+        [`INVENTARIADOR: ${inventariador}`],
+        [`Total activos: ${usuarioModalList.length}`],
+        [],
+        headers,
+        ...dataRows,
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(sheetData);
+      ws["!cols"] = [{ wch: 14 }, { wch: 22 }, { wch: 22 }, { wch: 40 }, { wch: 30 }, { wch: 25 }, { wch: 14 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, isRevisados ? "Revisados" : "NoRevisados");
+      const safeName = inventariador.replace(/[^a-zA-Z0-9]+/g, "_").slice(0, 30) || "Inventariador";
+      const prefix = isRevisados ? "Activos_Revisados" : "Activos_NoRevisados";
+      XLSX.writeFile(wb, `${prefix}_${safeName}.xlsx`);
+    } catch (e) {
+      console.error("Error generando Excel inventariador:", e);
+    } finally {
+      setIsGeneratingUsuarioExcel(false);
+    }
+  };
+
   if (isLoading && !totalStats.total && inventariadorStats.length === 0) {
     return <LoadingSpinner />;
   }
@@ -327,7 +361,15 @@ const InicioList = () => {
             )}
           </div>
 
-          <div className="flex justify-end pt-4">
+          <div className="flex flex-wrap justify-between gap-2 pt-4">
+            <Button
+              onClick={handleExportUsuarioExcel}
+              disabled={!usuarioModalList.length || isGeneratingUsuarioExcel || isLoadingUsuarioModal}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              {isGeneratingUsuarioExcel ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileSpreadsheet className="h-4 w-4 mr-2" />}
+              Reporte en Excel
+            </Button>
             <Button variant="outline" onClick={handleCloseUsuarioModal}>
               <X className="h-4 w-4 mr-2" />
               Cerrar
