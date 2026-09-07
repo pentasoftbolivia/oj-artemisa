@@ -229,7 +229,12 @@ export const useInventarioData = () => {
       const from = (p - 1) * ps;
       const to = from + ps - 1;
       const { data: batch, error: batchError } = await applyFilters(
-        supabase.from("act_activos").select(ACTIVO_COLUMNS).order("codigoactivointerno", { ascending: false }),
+        supabase
+          .from("act_activos")
+          .select(ACTIVO_COLUMNS)
+          .order("estadoinventario", { ascending: true, nullsFirst: true })
+          .order("fecharegistro", { ascending: true, nullsFirst: true })
+          .order("codigoactivointerno", { ascending: true }),
         true,
       ).range(from, to);
       if (batchError) throw batchError;

@@ -108,8 +108,8 @@ const InventarioInmuebleModal = ({
       codBase ? `OJ-02-${codBase}` : "—",
       (rubroFromTipo[trId] || "").trim(),
       (tipoRubroDescMap[trId] || "").trim(),
-      a.descripcionActivo || "—",
-      getAmbienteName(String(a.codigoAmbiente ?? "").trim()),
+      a.descripcionActivo ?? a.descripcionactivo ?? "—",
+      getAmbienteName(String(a.codigoAmbiente ?? a.codigoambiente ?? "").trim()),
       getResponsableName(a.cirun),
       a.cirun || "—",
     ];

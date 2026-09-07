@@ -41,4 +41,5 @@ export const ACTIVO_COLUMNS = [
   "categoria",
   "caracteristicas",
   "pararevaluo",
+  "fecharegistro",
 ].join(", ");

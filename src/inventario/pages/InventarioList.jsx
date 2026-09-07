@@ -335,7 +335,23 @@ const InventarioList = () => {
         _ambienteKey: ambCodeCache,
       };
     });
-    return mapped.sort((a, b) => b.codigoActivoInterno - a.codigoActivoInterno);
+    return mapped.sort((a, b) => {
+      const estadoA = String(a.estadoinventario ?? a.estadoInventario ?? "").trim().toUpperCase();
+      const estadoB = String(b.estadoinventario ?? b.estadoInventario ?? "").trim().toUpperCase();
+      const prioA = estadoA === "REVISADO" ? 1 : 0;
+      const prioB = estadoB === "REVISADO" ? 1 : 0;
+      if (prioA !== prioB) return prioA - prioB;
+      const fechaA = a.fechaRegistro ?? a.fecharegistro ?? a.fechaRegistro ?? "";
+      const fechaB = b.fechaRegistro ?? b.fecharegistro ?? b.fechaRegistro ?? "";
+      const strA = String(fechaA || "");
+      const strB = String(fechaB || "");
+      if (strA && strB) {
+        const cmp = strA.localeCompare(strB);
+        if (cmp !== 0) return cmp;
+      } else if (strA && !strB) return -1;
+      else if (!strA && strB) return 1;
+      return (a.codigoActivoInterno ?? 0) - (b.codigoActivoInterno ?? 0);
+    });
   }, [
     activos,
     rubroDescMap,
