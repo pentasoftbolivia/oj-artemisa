@@ -194,7 +194,7 @@ const InicioList = () => {
 
   const handleShowPendientes = async (email) => {
     const display = getDisplayName(email);
-    setUsuarioModalTitle(`Activos No Revisados — ${display}`);
+    setUsuarioModalTitle(`NO REVISADOS — ${display}`);
     setUsuarioModalList([]);
     setUsuarioModalPage(1);
     setIsUsuarioModalOpen(true);
@@ -212,7 +212,7 @@ const InicioList = () => {
 
   const handleShowRevisados = async (email) => {
     const display = getDisplayName(email);
-    setUsuarioModalTitle(`Activos Revisados — ${display}`);
+    setUsuarioModalTitle(`REVISADOS — ${display}`);
     setUsuarioModalList([]);
     setUsuarioModalPage(1);
     setIsUsuarioModalOpen(true);
@@ -239,10 +239,10 @@ const InicioList = () => {
     if (!usuarioModalList.length) return;
     setIsGeneratingUsuarioExcel(true);
     try {
-      const isRevisados = usuarioModalTitle.includes("Revisados");
+      const isRevisados = usuarioModalTitle.startsWith("REVISADOS");
       const headers = ["Código", "Rubro", "Tipo Rubro", "Descripción", "Ambiente", "Responsable", "CI Responsable"];
       const dataRows = usuarioModalList.map(mapActivoRow);
-      const inventariador = usuarioModalTitle.replace("Activos Revisados — ", "").replace("Activos No Revisados — ", "").trim() || "Inventariador";
+      const inventariador = usuarioModalTitle.replace("REVISADOS — ", "").replace("NO REVISADOS — ", "").replace("Activos Revisados — ", "").replace("Activos No Revisados — ", "").trim() || "Inventariador";
       const titulo = isRevisados ? "ACTIVOS REVISADOS" : "ACTIVOS NO REVISADOS";
       const sheetData = [
         ["REPORTES DE ACTIVOS - ÓRGANO JUDICIAL"],
@@ -338,10 +338,10 @@ const InicioList = () => {
               </div>
             ) : usuarioModalList.length > 0 ? (
               <SeccionActivos
-                titulo={usuarioModalTitle.includes("Revisados") ? "ACTIVOS REVISADOS" : "ACTIVOS NO REVISADOS"}
+                titulo={usuarioModalTitle.startsWith("REVISADOS") ? "ACTIVOS REVISADOS" : "ACTIVOS NO REVISADOS"}
                 count={usuarioModalList.length}
-                tituloClass={usuarioModalTitle.includes("Revisados") ? "text-green-600 dark:text-green-400" : "text-orange-600 dark:text-orange-400"}
-                headerClass={usuarioModalTitle.includes("Revisados") ? "bg-green-50 dark:bg-green-950/20" : "bg-orange-50 dark:bg-orange-950/20"}
+                tituloClass={usuarioModalTitle.startsWith("REVISADOS") ? "text-green-600 dark:text-green-400" : "text-orange-600 dark:text-orange-400"}
+                headerClass={usuarioModalTitle.startsWith("REVISADOS") ? "bg-green-50 dark:bg-green-950/20" : "bg-orange-50 dark:bg-orange-950/20"}
               >
                 <TablaActivos items={usuarioPageData} mapRow={mapActivoRow} />
                 <PaginacionTabla
