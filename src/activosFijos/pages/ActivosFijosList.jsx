@@ -162,14 +162,24 @@ const ActivosFijosList = () => {
 
   const activosOrdenados = useMemo(() => {
     return [...activosFijos].sort((a, b) => {
-      const ciA = String(a.cirun || "").trim();
-      const ciB = String(b.cirun || "").trim();
-      const numA = Number(ciA);
-      const numB = Number(ciB);
-      if (!isNaN(numA) && !isNaN(numB) && ciA !== "" && ciB !== "") return numA - numB;
-      return ciA.localeCompare(ciB, "es", { numeric: true });
+      const tipoA = a.tiporubroact ?? a.tipoRubroAct ?? "";
+      const tipoB = b.tiporubroact ?? b.tipoRubroAct ?? "";
+      const rubroA = rubroMap[tipoA] ?? rubroMap[String(tipoA)] ?? String(tipoA);
+      const rubroB = rubroMap[tipoB] ?? rubroMap[String(tipoB)] ?? String(tipoB);
+      const rubroCmp = String(rubroA).localeCompare(String(rubroB), "es", { numeric: true, sensitivity: "base" });
+      if (rubroCmp !== 0) return rubroCmp;
+      const tipoStrA = tipoRubroMap[tipoA] ?? tipoRubroMap[String(tipoA)] ?? String(tipoA);
+      const tipoStrB = tipoRubroMap[tipoB] ?? tipoRubroMap[String(tipoB)] ?? String(tipoB);
+      const tipoCmp = String(tipoStrA).localeCompare(String(tipoStrB), "es", { numeric: true, sensitivity: "base" });
+      if (tipoCmp !== 0) return tipoCmp;
+      const codA = a.codigoActivo ?? a.codigoactivo ?? a.codigoactivo ?? 0;
+      const codB = b.codigoActivo ?? b.codigoactivo ?? b.codigoactivo ?? 0;
+      const numA = Number(codA);
+      const numB = Number(codB);
+      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+      return String(codA).localeCompare(String(codB), "es", { numeric: true });
     });
-  }, [activosFijos]);
+  }, [activosFijos, rubroMap, tipoRubroMap]);
 
   const handleExportExcel = useCallback(async () => {
     // Requiere al menos un filtro de ubicación para reporte completo por ambiente
@@ -212,7 +222,8 @@ const ActivosFijosList = () => {
           .from("act_activos")
           .select("*")
           .eq("ultimoregistro", 1)
-          .order("cirun", { ascending: true, nullsFirst: true })
+          .order("tiporubroact", { ascending: true, nullsFirst: true })
+          .order("codigoactivo", { ascending: true, nullsFirst: true })
           .order("codigoactivointerno", { ascending: true })
           .range(from, from + CHUNK - 1);
 
@@ -312,12 +323,22 @@ const ActivosFijosList = () => {
       };
 
       const sortedActivos = [...allData].sort((a, b) => {
-        const ciA = String(a.cirun || "").trim();
-        const ciB = String(b.cirun || "").trim();
-        const numA = Number(ciA);
-        const numB = Number(ciB);
-        if (!isNaN(numA) && !isNaN(numB) && ciA !== "" && ciB !== "") return numA - numB;
-        return ciA.localeCompare(ciB, "es", { numeric: true });
+        const tipoA = a.tiporubroact ?? a.tipoRubroAct ?? "";
+        const tipoB = b.tiporubroact ?? b.tipoRubroAct ?? "";
+        const rubroA = rubroMap[tipoA] ?? rubroMap[String(tipoA)] ?? String(tipoA);
+        const rubroB = rubroMap[tipoB] ?? rubroMap[String(tipoB)] ?? String(tipoB);
+        const rubroCmp = String(rubroA).localeCompare(String(rubroB), "es", { numeric: true, sensitivity: "base" });
+        if (rubroCmp !== 0) return rubroCmp;
+        const tipoStrA = tipoRubroMap[tipoA] ?? tipoRubroMap[String(tipoA)] ?? String(tipoA);
+        const tipoStrB = tipoRubroMap[tipoB] ?? tipoRubroMap[String(tipoB)] ?? String(tipoB);
+        const tipoCmp = String(tipoStrA).localeCompare(String(tipoStrB), "es", { numeric: true, sensitivity: "base" });
+        if (tipoCmp !== 0) return tipoCmp;
+        const codA = a.codigoActivo ?? a.codigoactivo ?? 0;
+        const codB = b.codigoActivo ?? b.codigoactivo ?? 0;
+        const numA = Number(codA);
+        const numB = Number(codB);
+        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+        return String(codA).localeCompare(String(codB), "es", { numeric: true });
       });
 
       const dataRows = sortedActivos.map((a, idx) => {

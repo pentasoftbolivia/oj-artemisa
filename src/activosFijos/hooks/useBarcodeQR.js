@@ -156,7 +156,8 @@ export const useBarcodeQR = ({ rubroMap, tipoRubroMap, activosFijos = [], applie
             .from("act_activos")
             .select("*")
             .eq("ultimoregistro", 1)
-            .order("cirun", { ascending: true, nullsFirst: true })
+            .order("tiporubroact", { ascending: true, nullsFirst: true })
+            .order("codigoactivo", { ascending: true, nullsFirst: true })
             .order("codigoactivointerno", { ascending: true })
             .range(from, from + CHUNK - 1);
 
@@ -227,6 +228,25 @@ export const useBarcodeQR = ({ rubroMap, tipoRubroMap, activosFijos = [], applie
       toast({ title: "Sin activos", description: "No hay activos para generar QRs.", variant: "destructive" });
       return;
     }
+    // Orden solicitado: Rubro -> Tipo Rubro -> Codigo Activo (asc)
+    itemsToPrint = [...itemsToPrint].sort((a, b) => {
+      const tipoA = a.tiporubroact ?? a.tipoRubroAct ?? "";
+      const tipoB = b.tiporubroact ?? b.tipoRubroAct ?? "";
+      const rubroA = rubroMap[tipoA] ?? rubroMap[String(tipoA)] ?? String(tipoA);
+      const rubroB = rubroMap[tipoB] ?? rubroMap[String(tipoB)] ?? String(tipoB);
+      const rubroCmp = String(rubroA).localeCompare(String(rubroB), "es", { numeric: true, sensitivity: "base" });
+      if (rubroCmp !== 0) return rubroCmp;
+      const tipoStrA = tipoRubroMap[tipoA] ?? tipoRubroMap[String(tipoA)] ?? String(tipoA);
+      const tipoStrB = tipoRubroMap[tipoB] ?? tipoRubroMap[String(tipoB)] ?? String(tipoB);
+      const tipoCmp = String(tipoStrA).localeCompare(String(tipoStrB), "es", { numeric: true, sensitivity: "base" });
+      if (tipoCmp !== 0) return tipoCmp;
+      const codA = a.codigoActivo ?? a.codigoactivo ?? 0;
+      const codB = b.codigoActivo ?? b.codigoactivo ?? 0;
+      const numA = Number(codA);
+      const numB = Number(codB);
+      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+      return String(codA).localeCompare(String(codB), "es", { numeric: true });
+    });
     // Si venimos de fetch completo, isGeneratingQrs ya está true
     if (!hasLocationFilter && !hasAnyFilter) {
       setIsGeneratingQrs(true);
