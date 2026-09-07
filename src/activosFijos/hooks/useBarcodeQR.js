@@ -3,7 +3,9 @@ import JsBarcode from "jsbarcode";
 import { jsPDF } from "jspdf";
 import { generateQRLabel } from "../helpers/generateQRLabel";
 import { useToast } from "@/hooks/use-toast";
-import { buildDenominacion } from "@/lib/utils";
+import { supabase } from "@/lib/supabase";
+import { toCamelCaseArray } from "@/lib/mapFields";
+import { resolveAmbienteCodes } from "@/lib/ubicacionFilters";
 const formatCodigoActivo = (a) =>
   a?.codigoActivo != null ? `OJ-02-${a.codigoActivo}` : "";
 
@@ -26,13 +28,12 @@ const buildQrFields = (item, rubroMap, tipoRubroMap) => {
   const codigoActivo = formatCodigoActivo(item);
   const rubro = (rubroMap[item.tipoRubroAct] ?? rubroMap[item.tiporubroact] ?? item.tipoRubroAct ?? item.tiporubroact ?? "").toString().trim();
   const tipo = (tipoRubroMap[item.tipoRubroAct] ?? tipoRubroMap[item.tiporubroact] ?? item.descripciontiporubroact ?? "").toString().trim();
-  const descripcion = buildDenominacion(item, rubro);
-  const estado = resolveEstadoConservacion(item);
-  const qrContent = `${codigoActivo}|${rubro}|${tipo}|${descripcion}|${estado}`;
+  const descripcion = String(item.descripcionActivo ?? item.descripcionactivo ?? "").trim();
+  const qrContent = `${codigoActivo}|${rubro}|${tipo}|${descripcion}`;
   return { codigoActivo, rubro, tipo, qrContent };
 };
 
-export const useBarcodeQR = ({ rubroMap, tipoRubroMap, activosFijos = [] }) => {
+export const useBarcodeQR = ({ rubroMap, tipoRubroMap, activosFijos = [], appliedFilters = null, rubroToTipoIds = {} }) => {
   const { toast } = useToast();
 
   const [barcodeActivo, setBarcodeActivo] = useState(null);
@@ -117,33 +118,131 @@ export const useBarcodeQR = ({ rubroMap, tipoRubroMap, activosFijos = [] }) => {
   );
 
   const handlePrintQRs = useCallback(async () => {
-    if (!activosFijos.length) return;
-    const revisados = activosFijos.filter(
-      (a) => String(a.estadoinventario ?? "").toUpperCase() === "REVISADO",
-    );
-    if (revisados.length === 0) {
-      toast({
-        title: "Sin activos",
-        description: "No hay activos en estado REVISADO para generar QRs.",
-        variant: "destructive",
-      });
+    // Si hay filtros aplicados, obtener TODOS los activos del ambiente seleccionado (no solo página)
+    let itemsToPrint = activosFijos;
+    const hasLocationFilter = appliedFilters && (appliedFilters.ambiente || appliedFilters.nivel || appliedFilters.inmueble || appliedFilters.ciudad);
+    const hasAnyFilter = appliedFilters && Object.values(appliedFilters).some((v) => String(v ?? "").trim().length > 0);
+
+    if (hasLocationFilter || (hasAnyFilter && activosFijos.length > 0)) {
+      // Intentar fetch completo del ambiente/filtros actuales
+      try {
+        setIsGeneratingQrs(true);
+        toast({ title: "Generando QRs...", description: "Obteniendo todos los activos del ambiente seleccionado." });
+
+        const exportFilters = {
+          search: appliedFilters.search,
+          carnet: appliedFilters.carnet,
+          rubro: appliedFilters.rubro ? rubroToTipoIds[appliedFilters.rubro] || [] : undefined,
+          ambiente: appliedFilters.ambiente || undefined,
+          nivel: appliedFilters.nivel || undefined,
+          inmueble: appliedFilters.inmueble || undefined,
+          ciudad: appliedFilters.ciudad || undefined,
+        };
+
+        let ambienteCodes = null;
+        if (!exportFilters.ambiente && (exportFilters.nivel || exportFilters.inmueble || exportFilters.ciudad)) {
+          ambienteCodes = await resolveAmbienteCodes({
+            ciudad: exportFilters.ciudad,
+            inmueble: exportFilters.inmueble,
+            nivel: exportFilters.nivel,
+          });
+        }
+
+        const CHUNK = 1000;
+        let from = 0;
+        let allData = [];
+        while (true) {
+          let query = supabase
+            .from("act_activos")
+            .select("*")
+            .eq("ultimoregistro", 1)
+            .order("cirun", { ascending: true, nullsFirst: true })
+            .order("codigoactivointerno", { ascending: true })
+            .range(from, from + CHUNK - 1);
+
+          if (exportFilters.search) {
+            const s = exportFilters.search.replace(/%/g, "").trim();
+            if (s) {
+              const searchNum = Number(s);
+              if (!isNaN(searchNum)) {
+                query = query.or(`codigoactivo.eq.${searchNum},cirun.ilike.%${s}%`);
+              } else {
+                const words = s.split(/\s+/).filter(Boolean);
+                words.forEach((word) => {
+                  query = query.or(`descripcionactivo.ilike.%${word}%,cirun.ilike.%${word}%`);
+                });
+              }
+            }
+          }
+          if (exportFilters.carnet) {
+            const c = exportFilters.carnet.replace(/%/g, "").trim();
+            if (c) {
+              const words = c.split(/\s+/).filter(Boolean);
+              words.forEach((word) => {
+                query = query.ilike("cirun", `%${word}%`);
+              });
+            }
+          }
+          if (exportFilters.rubro && Array.isArray(exportFilters.rubro)) {
+            query = query.in("tiporubroact", exportFilters.rubro.length > 0 ? exportFilters.rubro : [-1]);
+          }
+          if (exportFilters.ambiente) {
+            query = query.eq("codigoambiente", exportFilters.ambiente);
+          } else if (ambienteCodes) {
+            query = query.in("codigoambiente", ambienteCodes && ambienteCodes.length > 0 ? ambienteCodes : [-1]);
+          }
+
+          const { data, error } = await query;
+          if (error) throw error;
+          if (!data || data.length === 0) break;
+          allData = allData.concat(toCamelCaseArray(data));
+          if (data.length < CHUNK) break;
+          from += CHUNK;
+          if (from > 100000) break;
+        }
+
+        if (allData.length > 0) {
+          itemsToPrint = allData;
+        } else if (!activosFijos.length) {
+          toast({ title: "Sin activos", description: "No se encontraron activos para el ambiente seleccionado.", variant: "destructive" });
+          setIsGeneratingQrs(false);
+          return;
+        }
+      } catch (err) {
+        // Fallback a lista paginada si falla fetch completo
+        console.warn("Fallo fetch completo QR, usando lista paginada:", err);
+        itemsToPrint = activosFijos;
+        if (!itemsToPrint.length) {
+          toast({ title: "Sin activos", description: "No hay activos para generar QRs.", variant: "destructive" });
+          setIsGeneratingQrs(false);
+          return;
+        }
+        // continuar con itemsToPrint paginado
+      } finally {
+        // no cerrar isGeneratingQrs aún, se cierra tras generar labels
+      }
+    }
+
+    if (!itemsToPrint.length) {
+      toast({ title: "Sin activos", description: "No hay activos para generar QRs.", variant: "destructive" });
       return;
     }
-    setIsGeneratingQrs(true);
+    // Si venimos de fetch completo, isGeneratingQrs ya está true
+    if (!hasLocationFilter && !hasAnyFilter) {
+      setIsGeneratingQrs(true);
+    } else if (itemsToPrint === activosFijos) {
+      setIsGeneratingQrs(true);
+    }
     try {
-      const labels = await generateBulkQRLabels(revisados);
+      const labels = await generateBulkQRLabels(itemsToPrint);
       setQrLabels(labels);
       setIsQrPrintOpen(true);
     } catch (err) {
-      toast({
-        title: "Error",
-        description: `Fallo al generar QRs: ${err.message || "Error desconocido"}`,
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: `Fallo al generar QRs: ${err.message || "Error desconocido"}`, variant: "destructive" });
     } finally {
       setIsGeneratingQrs(false);
     }
-  }, [activosFijos, generateBulkQRLabels, toast]);
+  }, [activosFijos, appliedFilters, rubroToTipoIds, generateBulkQRLabels, toast]);
 
   const printQRLabels = useCallback(() => {
     if (!qrLabels.length) return;

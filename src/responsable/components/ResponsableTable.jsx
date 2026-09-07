@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Edit, Trash2, Printer, FileText, Loader2 } from "lucide-react";
+import { Users, Edit, Printer, FileText, Loader2 } from "lucide-react";
 import { useActaAsignacion } from "../hooks/useActaAsignacion";
 import { useToast } from "@/hooks/use-toast";
 import ActaPreviewModal from "./ActaPreviewModal";
@@ -153,15 +153,6 @@ const ResponsableTable = memo(({
                       className="text-yellow-500 hover:text-yellow-700"
                     >
                       <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onDelete(r)}
-                      title="Eliminar responsable"
-                      className="text-red-500 hover:text-red-700"
-                    >
-                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </TableCell>

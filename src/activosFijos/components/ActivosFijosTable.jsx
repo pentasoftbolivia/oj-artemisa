@@ -9,14 +9,14 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Barcode, QrCode, Edit, Trash2, Package } from "lucide-react";
+import { Barcode, QrCode, Edit, Package } from "lucide-react";
 import DataPagination from "@/components/ui/data-pagination";
-import { buildDenominacion } from "@/lib/utils";
 
 const ESTADO_MAP = { 1: "Activo", 0: "Inactivo" };
 
 const ActivosFijosTableRow = memo(({
   activo: a,
+  index,
   rubroMap,
   tipoRubroMap,
   ambienteMap,
@@ -33,6 +33,9 @@ const ActivosFijosTableRow = memo(({
 }) => {
   return (
     <TableRow>
+      <TableCell className="font-mono text-xs text-center">
+        {index}
+      </TableCell>
       <TableCell className="font-mono text-xs">
         {a.codigoActivo != null ? `OJ-02-${a.codigoActivo}` : "—"}
       </TableCell>
@@ -49,7 +52,7 @@ const ActivosFijosTableRow = memo(({
           "—"}
       </TableCell>
       <TableCell className="whitespace-normal break-words text-wrap min-w-[200px] max-w-[350px]">
-        {buildDenominacion(a, rubroMap[a.tiporubroact] ?? rubroMap[a.tipoRubroAct] ?? "")}
+        {a.descripcionActivo ?? a.descripcionactivo ?? "—"}
       </TableCell>
       <TableCell className="text-right font-mono text-xs">
         {a.valorActual != null
@@ -133,15 +136,6 @@ const ActivosFijosTableRow = memo(({
           >
             <Edit className="h-4 w-4" />
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => onDelete(a)}
-            title="Eliminar"
-            className="text-red-500 hover:text-red-700"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
         </div>
       </TableCell>
     </TableRow>
@@ -179,6 +173,7 @@ const ActivosFijosTable = memo(({
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[50px] text-center">#</TableHead>
               <TableHead>Código</TableHead>
               <TableHead>Rubro</TableHead>
               <TableHead>Tipo</TableHead>
@@ -195,10 +190,11 @@ const ActivosFijosTable = memo(({
           </TableHeader>
           <TableBody>
             {activosFijos.length > 0 ? (
-              activosFijos.map((a) => (
+              activosFijos.map((a, idx) => (
                 <ActivosFijosTableRow
                   key={a.codigoActivoInterno}
                   activo={a}
+                  index={(currentPage - 1) * pageSize + idx + 1}
                   rubroMap={rubroMap}
                   tipoRubroMap={tipoRubroMap}
                   ambienteMap={ambienteMap}
@@ -217,7 +213,7 @@ const ActivosFijosTable = memo(({
             ) : (
               <TableRow>
                 <TableCell
-                  colSpan={11}
+                  colSpan={14}
                   className="text-center py-12 text-muted-foreground"
                 >
                   <Package className="mx-auto h-12 w-12 opacity-20 mb-2" />

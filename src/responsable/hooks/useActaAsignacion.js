@@ -4,7 +4,6 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { supabase } from "@/lib/supabase";
 import { getCachedCatalog } from "@/lib/catalogCache";
-import { buildDenominacion } from "@/lib/utils";
 import { toCamelCaseArray } from "@/lib/mapFields";
 import { useToast } from "@/hooks/use-toast";
 import { resolveAmbienteCodes } from "../services/responsableUbicacionService";
@@ -323,7 +322,7 @@ export const useActaAsignacion = () => {
         const trId = a.tipoRubroAct || a.tiporubroact;
         const rn = sanitize(tipoRubroMap[trId] || "");
         const tn = sanitize(descTipoRubroMap[trId] || "");
-        const desc = sanitize(buildDenominacion(a, rn) || "");
+        const desc = sanitize(a.descripcionActivo ?? a.descripcionactivo ?? "");
         const rawObs = sanitize(a.observaciones || "");
         const rawDescActivo = sanitize(a.descripcionActivo || a.descripcionactivo || "");
         const obs = rawObs && (rawObs === "0" || rawObs === rawDescActivo || rawObs === desc) ? "" : rawObs;
@@ -459,7 +458,7 @@ export const useActaAsignacion = () => {
         const trId = a.tipoRubroAct || a.tiporubroact;
         const rn = sanitize2(tipoRubroMap[trId] || "");
         const tn = sanitize2(descTipoRubroMap[trId] || "");
-        const desc = sanitize2(buildDenominacion(a, rn) || "");
+        const desc = sanitize2(a.descripcionActivo ?? a.descripcionactivo ?? "");
         const rawObs = sanitize2(a.observaciones || "");
         const rawDescActivo = sanitize2(a.descripcionActivo || a.descripcionactivo || "");
         const obs = rawObs && (rawObs === "0" || rawObs === rawDescActivo || rawObs === desc) ? "" : rawObs;

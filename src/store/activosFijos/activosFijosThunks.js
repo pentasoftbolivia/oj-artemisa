@@ -24,7 +24,7 @@ export const fetchActivosFijosPaginated = createAsyncThunk(
         .from(TABLE)
         .select("*", { count: "exact" })
         .eq("ultimoregistro", 1)
-        .eq("estadoinventario", "REVISADO")
+        .order("cirun", { ascending: true, nullsFirst: true })
         .order("codigoactivointerno", { ascending: true })
         .range(start, end);
 

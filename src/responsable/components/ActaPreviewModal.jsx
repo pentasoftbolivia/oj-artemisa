@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/table";
 import LoadingSpinner from "@/components/ui/loading-spinner";
 import { loadActaData } from "../hooks/useActaAsignacion";
-import { buildDenominacion } from "@/lib/utils";
 
 const ActaPreviewModal = ({ isOpen, onClose, onAccept, responsable, type, locationFilters }) => {
   const [loading, setLoading] = useState(false);
@@ -129,7 +128,7 @@ const ActaPreviewModal = ({ isOpen, onClose, onAccept, responsable, type, locati
                           const trId = a.tipoRubroAct || a.tiporubroact;
                           const rn = sanitize(data.tipoRubroMap[trId] || "");
                           const tn = sanitize(data.descTipoRubroMap[trId] || "");
-                          const desc = sanitize(buildDenominacion(a, rn) || "");
+                          const desc = sanitize(a.descripcionActivo ?? a.descripcionactivo ?? "");
                           const rawObs = sanitize(a.observaciones || "");
                           const rawDescActivo = sanitize(a.descripcionActivo || a.descripcionactivo || "");
                           const obs = rawObs && (rawObs === "0" || rawObs === rawDescActivo || rawObs === desc) ? "" : rawObs;

@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useSelector, useDispatch } from "react-redux";
 
 
@@ -10,9 +10,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Printer, Download, Barcode, QrCode } from "lucide-react";
+import { Printer, Download, Barcode, QrCode, FileSpreadsheet } from "lucide-react";
+import * as XLSX from "xlsx";
 import { useToast } from "@/hooks/use-toast";
 import LoadingSpinner from "@/components/ui/loading-spinner";
 
@@ -39,6 +39,9 @@ import { useBarcodeQR } from "../hooks/useBarcodeQR";
 import { useActivosFijosCatalogs } from "../hooks/useActivosFijosCatalogs";
 import { useCrudModal } from "@/hooks/useCrudModal";
 import { useActivosFijosState } from "../hooks/useActivosFijosState";
+import { supabase } from "@/lib/supabase";
+import { toCamelCaseArray } from "@/lib/mapFields";
+import { resolveAmbienteCodes } from "@/lib/ubicacionFilters";
 
 const formatCodigoActivo = (a) =>
   a?.codigoActivo != null ? `OJ-02-${a.codigoActivo}` : "";
@@ -46,7 +49,7 @@ const formatCodigoActivo = (a) =>
 const ActivosFijosList = () => {
   const dispatch = useDispatch();
   const { toast } = useToast();
-  
+
   const activosFijos = useSelector(selectActivosFijos);
   const totalCount = useSelector(selectActivosFijosTotalCount);
   const isActivosLoading = useSelector(selectActivosFijosLoading);
@@ -60,6 +63,7 @@ const ActivosFijosList = () => {
     inmuebles,
     niveles,
     ciudades,
+    responsables,
     isLoading: isLoadingCatalogos
   } = useCatalogos({
     loadRubros: true,
@@ -68,6 +72,7 @@ const ActivosFijosList = () => {
     loadInmuebles: true,
     loadNiveles: true,
     loadCiudades: true,
+    loadResponsables: true,
   });
 
   const {
@@ -77,7 +82,7 @@ const ActivosFijosList = () => {
     handleAdd,
     handleEdit,
     handleCancelForm: handleCancel,
-    
+
     itemToDelete: activoToDelete,
     isDeleteDialogOpen,
     setIsDeleteDialogOpen,
@@ -140,10 +145,245 @@ const ActivosFijosList = () => {
     handlePrintQRs,
     printQRLabels,
     downloadQRsPDF,
-  } = useBarcodeQR({ rubroMap, tipoRubroMap, activosFijos });
+  } = useBarcodeQR({ rubroMap, tipoRubroMap, activosFijos, appliedFilters, rubroToTipoIds });
   const hasSearchCriteria = Object.values(appliedFilters).some(
     (v) => String(v ?? "").trim().length > 0
   );
+
+  const responsableMap = useMemo(() => {
+    const map = {};
+    (responsables || []).forEach((r) => {
+      const fullName = `${r.nombre1 || ""} ${r.nombre2 || ""} ${r.paterno || ""} ${r.materno || ""}`.replace(/\s+/g, " ").trim();
+      map[String(r.cirun).trim()] = fullName;
+      map[String(r.cirun).trim().toUpperCase()] = fullName;
+    });
+    return map;
+  }, [responsables]);
+
+  const activosOrdenados = useMemo(() => {
+    return [...activosFijos].sort((a, b) => {
+      const ciA = String(a.cirun || "").trim();
+      const ciB = String(b.cirun || "").trim();
+      const numA = Number(ciA);
+      const numB = Number(ciB);
+      if (!isNaN(numA) && !isNaN(numB) && ciA !== "" && ciB !== "") return numA - numB;
+      return ciA.localeCompare(ciB, "es", { numeric: true });
+    });
+  }, [activosFijos]);
+
+  const handleExportExcel = useCallback(async () => {
+    // Requiere al menos un filtro de ubicación para reporte completo por ambiente
+    if (!appliedFilters.ambiente && !appliedFilters.nivel && !appliedFilters.inmueble && !appliedFilters.ciudad) {
+      if (!activosFijos.length) {
+        toast({ title: "Sin datos", description: "Seleccione un ambiente para exportar el reporte completo.", variant: "destructive" });
+        return;
+      }
+      // Si no hay ambiente seleccionado pero hay lista paginada, se exportará la lista actual paginada filtrada (fallback)
+    }
+    try {
+      toast({ title: "Generando Excel...", description: "Obteniendo todos los activos del ambiente seleccionado." });
+      // Construir filtros igual que en thunk pero sin paginación
+      const exportFilters = {
+        search: appliedFilters.search,
+        carnet: appliedFilters.carnet,
+        rubro: appliedFilters.rubro ? rubroToTipoIds[appliedFilters.rubro] || [] : undefined,
+        ambiente: appliedFilters.ambiente || undefined,
+        nivel: appliedFilters.nivel || undefined,
+        inmueble: appliedFilters.inmueble || undefined,
+        ciudad: appliedFilters.ciudad || undefined,
+      };
+
+      // Resolver códigos de ambiente si hay filtro por nivel/inmueble/ciudad
+      let ambienteCodes = null;
+      if (!exportFilters.ambiente && (exportFilters.nivel || exportFilters.inmueble || exportFilters.ciudad)) {
+        ambienteCodes = await resolveAmbienteCodes({
+          ciudad: exportFilters.ciudad,
+          inmueble: exportFilters.inmueble,
+          nivel: exportFilters.nivel,
+        });
+      }
+
+      const CHUNK = 1000;
+      let from = 0;
+      let allData = [];
+
+      while (true) {
+        let query = supabase
+          .from("act_activos")
+          .select("*")
+          .eq("ultimoregistro", 1)
+          .order("cirun", { ascending: true, nullsFirst: true })
+          .order("codigoactivointerno", { ascending: true })
+          .range(from, from + CHUNK - 1);
+
+        if (exportFilters.search) {
+          const s = exportFilters.search.replace(/%/g, "").trim();
+          if (s) {
+            const searchNum = Number(s);
+            if (!isNaN(searchNum)) {
+              query = query.or(`codigoactivo.eq.${searchNum},cirun.ilike.%${s}%`);
+            } else {
+              const words = s.split(/\s+/).filter(Boolean);
+              words.forEach((word) => {
+                query = query.or(`descripcionactivo.ilike.%${word}%,cirun.ilike.%${word}%`);
+              });
+            }
+          }
+        }
+        if (exportFilters.carnet) {
+          const c = exportFilters.carnet.replace(/%/g, "").trim();
+          if (c) {
+            const words = c.split(/\s+/).filter(Boolean);
+            words.forEach((word) => {
+              query = query.ilike("cirun", `%${word}%`);
+            });
+          }
+        }
+        if (exportFilters.rubro && Array.isArray(exportFilters.rubro)) {
+          query = query.in("tiporubroact", exportFilters.rubro.length > 0 ? exportFilters.rubro : [-1]);
+        }
+        if (exportFilters.ambiente) {
+          query = query.eq("codigoambiente", exportFilters.ambiente);
+        } else if (ambienteCodes) {
+          query = query.in("codigoambiente", ambienteCodes && ambienteCodes.length > 0 ? ambienteCodes : [-1]);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        allData = allData.concat(toCamelCaseArray(data));
+        if (data.length < CHUNK) break;
+        from += CHUNK;
+        // Seguridad para no loop infinito
+        if (from > 100000) break;
+      }
+
+      if (!allData.length) {
+        toast({ title: "Sin datos", description: "No se encontraron activos para el ambiente seleccionado.", variant: "destructive" });
+        return;
+      }
+
+      // Usar allData en lugar de activosFijos paginados
+      const headers = [
+        "N°",
+        "Responsable",
+        "CI Responsable",
+        "Código",
+        "Rubro",
+        "Tipo",
+        "Denominación",
+        "Valor Actual",
+        "Ciudad",
+        "Inmueble",
+        "Nivel",
+        "Ambiente",
+        "Estado",
+        "Estado Inventario",
+      ];
+
+      const resolveCiudad = (a) => {
+        const amb = String(a.codigoAmbiente ?? a.codigoambiente ?? "").trim();
+        if (!amb) return "";
+        const codNivel = ambienteNivelMap[amb];
+        if (!codNivel) return "";
+        const codInmueble = nivelInmuebleMap[String(codNivel).trim()];
+        if (!codInmueble) return "";
+        const codCiudad = inmuebleCiudadMap[String(codInmueble).trim()];
+        if (!codCiudad) return "";
+        return ciudadMap[String(codCiudad).trim()] || "";
+      };
+      const resolveInmueble = (a) => {
+        const amb = String(a.codigoAmbiente ?? a.codigoambiente ?? "").trim();
+        if (!amb) return "";
+        const codNivel = ambienteNivelMap[amb];
+        if (!codNivel) return "";
+        const codInmueble = nivelInmuebleMap[String(codNivel).trim()];
+        if (!codInmueble) return "";
+        return inmuebleMap[String(codInmueble).trim()] || "";
+      };
+      const resolveNivel = (a) => {
+        const amb = String(a.codigoAmbiente ?? a.codigoambiente ?? "").trim();
+        if (!amb) return "";
+        const codNivel = ambienteNivelMap[amb];
+        return codNivel ? (nivelMap[String(codNivel).trim()] || "") : "";
+      };
+      const resolveAmbiente = (a) => {
+        return ambienteMap[String(a.codigoAmbiente ?? a.codigoambiente ?? "").trim()] || "";
+      };
+
+      const sortedActivos = [...allData].sort((a, b) => {
+        const ciA = String(a.cirun || "").trim();
+        const ciB = String(b.cirun || "").trim();
+        const numA = Number(ciA);
+        const numB = Number(ciB);
+        if (!isNaN(numA) && !isNaN(numB) && ciA !== "" && ciB !== "") return numA - numB;
+        return ciA.localeCompare(ciB, "es", { numeric: true });
+      });
+
+      const dataRows = sortedActivos.map((a, idx) => {
+        const ci = String(a.cirun || "").trim();
+        const responsable = responsableMap[ci] || responsableMap[ci.toUpperCase()] || "";
+        const codigo = a.codigoActivo != null ? `OJ-02-${a.codigoActivo}` : "";
+        const rubro = rubroMap[a.tiporubroact] ?? rubroMap[a.tipoRubroAct] ?? "";
+        const tipo = tipoRubroMap[a.tiporubroact] ?? tipoRubroMap[a.tipoRubroAct] ?? a.tiporubroact ?? a.tipoRubroAct ?? "";
+        const denominacion = a.descripcionActivo ?? a.descripcionactivo ?? "";
+        const valor = a.valorActual != null ? Number(a.valorActual) : "";
+        const ciudad = resolveCiudad(a);
+        const inmueble = resolveInmueble(a);
+        const nivel = resolveNivel(a);
+        const ambiente = resolveAmbiente(a);
+        const estado = a.estado === 1 ? "Activo" : a.estado === 0 ? "Inactivo" : String(a.estado ?? "");
+        const estadoInv = a.estadoinventario ?? a.estadoInventario ?? "";
+        return [idx + 1, responsable, ci, codigo, rubro, tipo, denominacion, valor, ciudad, inmueble, nivel, ambiente, estado, estadoInv];
+      });
+
+      const sheetData = [headers, ...dataRows];
+      const ws = XLSX.utils.aoa_to_sheet(sheetData);
+      // Cabeceras en negrita + color
+      const headerRange = XLSX.utils.decode_range(ws["!ref"]);
+      for (let C = headerRange.s.c; C <= headerRange.e.c; ++C) {
+        const cellRef = XLSX.utils.encode_cell({ r: 0, c: C });
+        if (!ws[cellRef]) continue;
+        ws[cellRef].s = {
+          font: { bold: true, color: { rgb: "FFFFFF" }, sz: 11, name: "Calibri" },
+          fill: { fgColor: { rgb: "4472C4" } },
+          alignment: { horizontal: "center", vertical: "center", wrapText: true },
+          border: {
+            top: { style: "thin", color: { rgb: "B4C6E7" } },
+            bottom: { style: "thin", color: { rgb: "B4C6E7" } },
+            left: { style: "thin", color: { rgb: "B4C6E7" } },
+            right: { style: "thin", color: { rgb: "B4C6E7" } },
+          },
+        };
+      }
+      // Altura de fila cabecera
+      ws["!rows"] = [{ hpt: 18 }];
+      // Ajustar ancho de columnas
+      ws["!cols"] = [
+        { wch: 6 }, // N°
+        { wch: 30 }, // Responsable
+        { wch: 15 }, // CI
+        { wch: 14 }, // Código
+        { wch: 22 }, // Rubro
+        { wch: 22 }, // Tipo
+        { wch: 40 }, // Denominación
+        { wch: 14 }, // Valor
+        { wch: 18 }, // Ciudad
+        { wch: 20 }, // Inmueble
+        { wch: 18 }, // Nivel
+        { wch: 20 }, // Ambiente
+        { wch: 12 }, // Estado
+        { wch: 16 }, // Estado Inventario
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "ActivosFijos");
+      const dateStr = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(wb, `ActivosFijos_${dateStr}.xlsx`);
+      toast({ title: "Excel generado", description: `Se exportaron ${allData.length} activos del ambiente seleccionado.` });
+    } catch (err) {
+      toast({ title: "Error", description: `Fallo al generar Excel: ${err.message || "Error desconocido"}`, variant: "destructive" });
+    }
+  }, [appliedFilters, rubroToTipoIds, responsableMap, rubroMap, tipoRubroMap, ambienteMap, ambienteNivelMap, nivelMap, nivelInmuebleMap, inmuebleMap, inmuebleCiudadMap, ciudadMap, toast]);
 
   useEffect(() => {
     if (!hasSearchCriteria) {
@@ -216,24 +456,25 @@ const ActivosFijosList = () => {
           <p className="text-muted-foreground">Administra los activos fijos del sistema</p>
         </div>
         <div className="flex items-center gap-2">
-          {(filters.ciudad || filters.inmueble || filters.nivel || filters.ambiente) && (
-            <Button
-              variant="outline"
-              onClick={handlePrintQRs}
-              disabled={isGeneratingQrs || !activosFijos.length}
-              className="bg-yellow-500 text-black hover:bg-yellow-600 hover:text-black"
-            >
-              <Printer className="mr-2 h-4 w-4" />
-              {isGeneratingQrs ? "Generando..." : "Imprimir QRs"}
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            onClick={handlePrintQRs}
+            disabled={isGeneratingQrs || !activosFijos.length}
+            className="bg-yellow-500 text-black hover:bg-yellow-600 hover:text-black"
+          >
+            <Printer className="mr-2 h-4 w-4" />
+            {isGeneratingQrs ? "Generando..." : "Imprimir QRs"}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleExportExcel}
+            disabled={!activosFijos.length}
+            className="bg-green-600 text-white hover:bg-green-700 hover:text-white"
+          >
+            <FileSpreadsheet className="mr-2 h-4 w-4" />
+            Reporte del Listado en Excel
+          </Button>
           <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={handleAdd}>
-                <Plus className="mr-2 h-4 w-4" />
-                Nuevo
-              </Button>
-            </DialogTrigger>
             <DialogContent
               className="sm:max-w-[700px]"
               onInteractOutside={(e) => {
@@ -272,7 +513,7 @@ const ActivosFijosList = () => {
       />
 
       <ActivosFijosTable
-        activosFijos={activosFijos}
+        activosFijos={activosOrdenados}
         isLoading={isActivosLoading}
         hasSearchCriteria={hasSearchCriteria}
         totalCount={totalCount}
