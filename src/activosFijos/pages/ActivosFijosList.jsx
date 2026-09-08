@@ -551,6 +551,7 @@ const ActivosFijosList = () => {
         inmuebleCiudadMap={inmuebleCiudadMap}
         ciudadMap={ciudadMap}
         nivelMap={nivelMap}
+        responsableMap={responsableMap}
         onBarcode={setBarcodeActivo}
         onQr={setQrActivo}
         onEdit={handleEdit}

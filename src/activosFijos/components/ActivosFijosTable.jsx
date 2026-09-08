@@ -26,6 +26,7 @@ const ActivosFijosTableRow = memo(({
   inmuebleCiudadMap,
   ciudadMap,
   nivelMap,
+  responsableMap,
   onBarcode,
   onQr,
   onEdit,
@@ -53,11 +54,6 @@ const ActivosFijosTableRow = memo(({
       </TableCell>
       <TableCell className="whitespace-normal break-words text-wrap min-w-[200px] max-w-[350px]">
         {a.descripcionActivo ?? a.descripcionactivo ?? "—"}
-      </TableCell>
-      <TableCell className="text-right font-mono text-xs">
-        {a.valorActual != null
-          ? `Bs ${Number(a.valorActual).toFixed(2)}`
-          : "—"}
       </TableCell>
       <TableCell className="font-mono text-xs whitespace-normal break-words max-w-[180px]">
         {(() => {
@@ -99,6 +95,14 @@ const ActivosFijosTableRow = memo(({
       </TableCell>
       <TableCell className="font-mono text-xs">
         {a.cirun || "—"}
+      </TableCell>
+      <TableCell className="text-xs whitespace-normal break-words max-w-[220px]">
+        {(() => {
+          const ci = String(a.cirun || "").trim();
+          if (!ci) return "—";
+          const name = responsableMap?.[ci] ?? responsableMap?.[ci.toUpperCase()] ?? responsableMap?.[String(ci).trim()] ?? "";
+          return name || "—";
+        })()}
       </TableCell>
       <TableCell>
         <Badge
@@ -162,6 +166,7 @@ const ActivosFijosTable = memo(({
   inmuebleCiudadMap,
   ciudadMap,
   nivelMap,
+  responsableMap,
   onBarcode,
   onQr,
   onEdit,
@@ -178,12 +183,12 @@ const ActivosFijosTable = memo(({
               <TableHead>Rubro</TableHead>
               <TableHead>Tipo</TableHead>
               <TableHead>Denominación</TableHead>
-              <TableHead>Valor Actual</TableHead>
               <TableHead>Ciudad</TableHead>
               <TableHead>Inmueble</TableHead>
               <TableHead>Nivel</TableHead>
               <TableHead>Ambiente</TableHead>
               <TableHead>CI Responsable</TableHead>
+              <TableHead>Nombre Responsable</TableHead>
               <TableHead>Estado</TableHead>
               <TableHead className="text-center">Acciones</TableHead>
             </TableRow>
@@ -204,6 +209,7 @@ const ActivosFijosTable = memo(({
                   inmuebleCiudadMap={inmuebleCiudadMap}
                   ciudadMap={ciudadMap}
                   nivelMap={nivelMap}
+                  responsableMap={responsableMap}
                   onBarcode={onBarcode}
                   onQr={onQr}
                   onEdit={onEdit}
@@ -213,7 +219,7 @@ const ActivosFijosTable = memo(({
             ) : (
               <TableRow>
                 <TableCell
-                  colSpan={14}
+                  colSpan={13}
                   className="text-center py-12 text-muted-foreground"
                 >
                   <Package className="mx-auto h-12 w-12 opacity-20 mb-2" />
