@@ -21,6 +21,7 @@ const InventarioTable = memo(
     onOpenImages,
     onToggleAprobado,
     currentUser,
+    photoCounts = {},
   }) => {
     return (
       <div className="rounded-md border">
@@ -116,14 +117,22 @@ const InventarioTable = memo(
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => onOpenImages(a)}
-                            className="text-blue-500 hover:text-blue-700"
-                          >
-                            <ImageIcon className="h-4 w-4" />
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => onOpenImages(a)}
+                              className="text-blue-500 hover:text-blue-700"
+                            >
+                              <ImageIcon className="h-4 w-4" />
+                            </Button>
+                            <span className="text-xs font-mono font-bold min-w-[28px] text-center bg-muted px-1.5 py-0.5 rounded border">
+                              ({(() => {
+                                const c = photoCounts[a.codigoActivo] ?? photoCounts[String(a.codigoActivo)];
+                                return c === undefined ? "…" : String(c);
+                              })()})
+                            </span>
+                          </div>
                           <Button
                             variant="default"
                             size="sm"

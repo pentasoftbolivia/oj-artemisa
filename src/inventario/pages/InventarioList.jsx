@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSelector } from "react-redux";
 import { Package } from "lucide-react";
 import { selectUser } from "@/store/auth/authSlice";
+import { fetchActivoImages } from "../services/inventarioService";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import LoadingSpinner from "@/components/ui/loading-spinner";
@@ -369,6 +370,42 @@ const InventarioList = () => {
     [page, totalPages],
   );
 
+  const [photoCounts, setPhotoCounts] = useState({});
+  useEffect(() => {
+    let cancelled = false;
+    const fetchCounts = async () => {
+      if (paginatedData.length === 0) return;
+      const entries = await Promise.all(
+        paginatedData.map(async (a) => {
+          const key = String(a.codigoActivo);
+          try {
+            const files = await fetchActivoImages(a.codigoActivo);
+            return [key, files.length];
+          } catch {
+            return [key, 0];
+          }
+        })
+      );
+      if (!cancelled) {
+        setPhotoCounts((prev) => {
+          const next = { ...prev };
+          let changed = false;
+          entries.forEach(([k, v]) => {
+            if (next[k] !== v) {
+              next[k] = v;
+              changed = true;
+            }
+          });
+          return changed ? next : prev;
+        });
+      }
+    };
+    fetchCounts();
+    return () => {
+      cancelled = true;
+    };
+  }, [paginatedData]);
+
   if (isLoading && activos.length === 0 && rubros.length === 0) {
     return <LoadingSpinner />;
   }
@@ -473,6 +510,7 @@ const InventarioList = () => {
             onOpenImages={handleOpenImages}
             onToggleAprobado={handleToggleAprobado}
             currentUser={currentUser}
+            photoCounts={photoCounts}
           />
 
           {resolvedActivos.length > 0 && (

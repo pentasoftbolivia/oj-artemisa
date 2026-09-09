@@ -26,6 +26,7 @@ const ResponsableRoutes = lazyWithRetry(() => import("@/responsable/routes/Respo
 const ConfigResponsableRoutes = lazyWithRetry(() => import("@/configResponsable/routes/ConfigResponsableRoutes").then(m => ({ default: m.ConfigResponsableRoutes })));
 const ConfigTransferenciaRoutes = lazyWithRetry(() => import("@/configTransferencias/routes/ConfigTransferenciaRoutes").then(m => ({ default: m.ConfigTransferenciaRoutes })));
 const RegistroActivosRoutes = lazyWithRetry(() => import("@/registroActivos/routes/RegistroActivosRoutes").then(m => ({ default: m.RegistroActivosRoutes })));
+const RevaluoRoutes = lazyWithRetry(() => import("@/revaluo/routes/RevaluoRoutes").then(m => ({ default: m.RevaluoRoutes })));
 const InicioRoutes = lazyWithRetry(() => import("@/inicio/routes/InicioRoutes").then(m => ({ default: m.InicioRoutes })));
 const InventarioRoutes = lazyWithRetry(() => import("@/inventario/routes/InventarioRoutes").then(m => ({ default: m.InventarioRoutes })));
 
@@ -204,6 +205,18 @@ export const AppRouter = () => {
               <AdminRoute>
                 <Navbar />
                 <RegistroActivosRoutes />
+              </AdminRoute>
+            </PrivateRoute>
+          }
+        />
+
+        <Route
+          path="/revaluo/*"
+          element={
+            <PrivateRoute>
+              <AdminRoute>
+                <Navbar />
+                <RevaluoRoutes />
               </AdminRoute>
             </PrivateRoute>
           }
