@@ -42,6 +42,7 @@ const InicioList = () => {
     loadInmueblePendientes,
     loadInmuebleInventariados,
     loadInmuebleEnProceso,
+    loadInmuebleActivos,
     loadCiudadInmueblesStats,
     loadActivosPorFecha,
     loadActivosPorInventariador,
@@ -302,6 +303,7 @@ const InicioList = () => {
         loadInmueblePendientes={loadInmueblePendientes}
         loadInmuebleInventariados={loadInmuebleInventariados}
         loadInmuebleEnProceso={loadInmuebleEnProceso}
+        loadInmuebleActivos={loadInmuebleActivos}
         loadCiudadInmueblesStats={loadCiudadInmueblesStats}
         getAmbienteName={getAmbienteName}
         getResponsableName={getResponsableName}

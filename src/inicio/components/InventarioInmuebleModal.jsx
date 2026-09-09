@@ -17,6 +17,7 @@ import {
   TablaActivos,
   SeccionActivos,
 } from "./InmuebleActivosTable";
+import { normalizarEstado } from "../constants/inventarioConstants";
 
 const PAGE_SIZE = 3;
 
@@ -31,6 +32,7 @@ const InventarioInmuebleModal = ({
   loadInmueblePendientes,
   loadInmuebleInventariados,
   loadInmuebleEnProceso,
+  loadInmuebleActivos,
   loadCiudadInmueblesStats,
   getAmbienteName,
   getResponsableName,
@@ -67,6 +69,14 @@ const InventarioInmuebleModal = ({
   const [ciudadInmueblesStats, setCiudadInmueblesStats] = useState([]);
   const [isLoadingCiudadStats, setIsLoadingCiudadStats] = useState(false);
 
+  const [detalleInmuebleOpen, setDetalleInmuebleOpen] = useState(false);
+  const [detalleInmuebleList, setDetalleInmuebleList] = useState([]);
+  const [detalleInventariadosPage, setDetalleInventariadosPage] = useState(1);
+  const [detalleNoInventariadosPage, setDetalleNoInventariadosPage] = useState(1);
+  const [isLoadingDetalleInmueble, setIsLoadingDetalleInmueble] = useState(false);
+  const [detalleInmuebleTitle, setDetalleInmuebleTitle] = useState("");
+  const [detalleInmuebleSubtitle, setDetalleInmuebleSubtitle] = useState("");
+
   const filteredInmuebleOptions = useMemo(() => {
     if (!ciudad) return inmuebleOptions;
     return inmuebleOptions.filter(
@@ -100,6 +110,39 @@ const InventarioInmuebleModal = ({
     const start = (enProcesoPage - 1) * PAGE_SIZE;
     return enProcesoList.slice(start, start + PAGE_SIZE);
   }, [enProcesoList, enProcesoPage]);
+
+  const detalleInventariados = useMemo(() => {
+    return detalleInmuebleList.filter((r) => {
+      const est = normalizarEstado(r.estadoinventario ?? r.estadoInventario);
+      return Boolean(est && est !== "PENDIENTE" && est !== "EN PROCESO");
+    });
+  }, [detalleInmuebleList]);
+
+  const detalleNoInventariados = useMemo(() => {
+    return detalleInmuebleList.filter((r) => {
+      const est = normalizarEstado(r.estadoinventario ?? r.estadoInventario);
+      const isInv = Boolean(est && est !== "PENDIENTE" && est !== "EN PROCESO");
+      return !isInv;
+    });
+  }, [detalleInmuebleList]);
+
+  const detalleInventariadosTotalPages = useMemo(
+    () => Math.max(1, Math.ceil(detalleInventariados.length / PAGE_SIZE)),
+    [detalleInventariados],
+  );
+  const detalleInventariadosPageData = useMemo(() => {
+    const start = (detalleInventariadosPage - 1) * PAGE_SIZE;
+    return detalleInventariados.slice(start, start + PAGE_SIZE);
+  }, [detalleInventariados, detalleInventariadosPage]);
+
+  const detalleNoInventariadosTotalPages = useMemo(
+    () => Math.max(1, Math.ceil(detalleNoInventariados.length / PAGE_SIZE)),
+    [detalleNoInventariados],
+  );
+  const detalleNoInventariadosPageData = useMemo(() => {
+    const start = (detalleNoInventariadosPage - 1) * PAGE_SIZE;
+    return detalleNoInventariados.slice(start, start + PAGE_SIZE);
+  }, [detalleNoInventariados, detalleNoInventariadosPage]);
 
   const mapActivoRow = (a) => {
     const trId = a.tipoRubroAct || a.tiporubroact;
@@ -171,6 +214,12 @@ const InventarioInmuebleModal = ({
     setEnProcesoDisplayName("");
     setIsGeneratingPdfEnProceso(false);
     setCiudadInmueblesStats([]);
+    setDetalleInmuebleOpen(false);
+    setDetalleInmuebleList([]);
+    setDetalleInventariadosPage(1);
+    setDetalleNoInventariadosPage(1);
+    setDetalleInmuebleTitle("");
+    setDetalleInmuebleSubtitle("");
     onClose();
   };
 
@@ -226,6 +275,71 @@ const InventarioInmuebleModal = ({
     setEnProcesoList([]);
     setEnProcesoPage(1);
     setEnProcesoDisplayName("");
+  };
+
+  const handleShowDetalleInmueble = async ({ codigoinmueble, nombre }) => {
+    if (!loadInmuebleActivos) return;
+    setDetalleInmuebleTitle(nombre ? `Activos — ${nombre}` : `Activos — ${codigoinmueble}`);
+    setDetalleInmuebleSubtitle(`Código: ${codigoinmueble} · ${selectedCiudadName || ciudad}`);
+    setDetalleInmuebleList([]);
+    setDetalleInventariadosPage(1);
+    setDetalleNoInventariadosPage(1);
+    setDetalleInmuebleOpen(true);
+    setIsLoadingDetalleInmueble(true);
+    try {
+      const data = await loadInmuebleActivos({ ciudad, inmueble: codigoinmueble });
+      setDetalleInmuebleList(data || []);
+    } catch (e) {
+      console.error("Error loading detalle inmueble activos:", e);
+      setDetalleInmuebleList([]);
+    } finally {
+      setIsLoadingDetalleInmueble(false);
+    }
+  };
+
+  const handleCloseDetalleInmueble = () => {
+    setDetalleInmuebleOpen(false);
+    setDetalleInmuebleList([]);
+    setDetalleInventariadosPage(1);
+    setDetalleNoInventariadosPage(1);
+    setDetalleInmuebleTitle("");
+    setDetalleInmuebleSubtitle("");
+  };
+
+  const handleGenerarPdfDetalleInventariados = () => {
+    if (detalleInventariados.length === 0) return;
+    try {
+      const detalleInmuebleName = detalleInmuebleTitle.replace("Activos — ", "").trim();
+      exportInmueblePdf({
+        title: "ACTIVOS INVENTARIADOS",
+        items: detalleInventariados,
+        ciudadName: selectedCiudadName,
+        inmuebleName: detalleInmuebleName,
+        mapActivoRow,
+        fileNamePrefix: `Activos_Inventariados_${detalleInmuebleName.replace(/\s+/g, "_")}`,
+        headerColor: [37, 99, 235],
+      });
+    } catch (e) {
+      console.error("Error generando PDF detalle inventariados:", e);
+    }
+  };
+
+  const handleGenerarPdfDetalleNoInventariados = () => {
+    if (detalleNoInventariados.length === 0) return;
+    try {
+      const detalleInmuebleName = detalleInmuebleTitle.replace("Activos — ", "").trim();
+      exportInmueblePdf({
+        title: "ACTIVOS NO INVENTARIADOS",
+        items: detalleNoInventariados,
+        ciudadName: selectedCiudadName,
+        inmuebleName: detalleInmuebleName,
+        mapActivoRow,
+        fileNamePrefix: `Activos_NoInventariados_${detalleInmuebleName.replace(/\s+/g, "_")}`,
+        headerColor: [220, 38, 38],
+      });
+    } catch (e) {
+      console.error("Error generando PDF detalle no inventariados:", e);
+    }
   };
 
   const handleGenerarPdfEnProceso = async () => {
@@ -613,15 +727,26 @@ const InventarioInmuebleModal = ({
                           {ciudadInmueblesStats.map((stat) => (
                             <div
                               key={stat.codigoinmueble}
-                              className="rounded-lg border p-4 bg-card space-y-2 shadow-sm"
+                              className="rounded-lg border p-4 bg-card space-y-2 shadow-sm cursor-pointer hover:shadow-md hover:border-blue-300 dark:hover:border-blue-700 transition-all"
+                              onClick={() => handleShowDetalleInmueble({ codigoinmueble: stat.codigoinmueble, nombre: stat.inmueble })}
+                              role="button"
+                              tabIndex={0}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleShowDetalleInmueble({ codigoinmueble: stat.codigoinmueble, nombre: stat.inmueble });
+                              }}
+                              title="Click para ver activos de este inmueble"
                             >
                               <div className="text-sm font-semibold truncate" title={stat.inmueble}>
                                 {stat.inmueble}
                               </div>
                               <div className="text-xs text-muted-foreground">Código: {stat.codigoinmueble}</div>
-                              <div className="rounded bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 p-2 text-center">
+                              <div className="rounded bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 p-2 text-center group-hover:bg-blue-100">
                                 <div className="text-xs text-blue-600 dark:text-blue-400 font-medium">Total activos</div>
-                                <div className="text-lg font-bold text-blue-700 dark:text-blue-300">{stat.totalInmueble}</div>
+                                <div className="text-lg font-bold text-blue-700 dark:text-blue-300 flex items-center justify-center gap-1">
+                                  {stat.totalInmueble}
+                                  <FileDown className="h-3 w-3 opacity-60" />
+                                </div>
+                                <div className="text-[10px] text-blue-600 dark:text-blue-400 underline underline-offset-2">Ver detalle</div>
                               </div>
                               <BarraAvance inventariado={stat.totalInventariado} total={stat.totalInmueble} />
                             </div>
@@ -794,6 +919,110 @@ const InventarioInmuebleModal = ({
               Reporte Activos En Proceso en PDF
             </Button>
             <Button variant="outline" onClick={handleCloseEnProceso}>
+              <X className="h-4 w-4 mr-2" />
+              Cerrar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={detalleInmuebleOpen} onOpenChange={(open) => !open && handleCloseDetalleInmueble()}>
+        <DialogContent className="w-full max-w-[96vw] sm:max-w-[1200px] max-h-[90vh] flex flex-col p-4 sm:p-6">
+          <DialogHeader>
+            <DialogTitle className="text-lg flex items-center gap-2">
+              <Building2 className="h-5 w-5 text-blue-600" />
+              {detalleInmuebleTitle || "Activos por Inmueble"}
+            </DialogTitle>
+            <DialogDescription>
+              {detalleInmuebleSubtitle && <span>{detalleInmuebleSubtitle} · </span>}
+              {detalleInmuebleList.length > 0
+                ? `${detalleInmuebleList.length} activos · ${detalleNoInventariados.length} no inventariados · ${detalleInventariados.length} inventariados`
+                : "Listado completo de activos del inmueble separado por estado."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 min-h-0 overflow-auto space-y-4">
+            {isLoadingDetalleInmueble ? (
+              <div className="flex flex-col justify-center items-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                <p className="mt-4 text-muted-foreground animate-pulse">Cargando activos del inmueble...</p>
+              </div>
+            ) : detalleInmuebleList.length > 0 ? (
+              <>
+                <SeccionActivos
+                  titulo="ACTIVOS NO INVENTARIADOS"
+                  count={detalleNoInventariados.length}
+                  tituloClass="text-red-600 dark:text-red-400"
+                  headerClass="bg-red-50 dark:bg-red-950/20"
+                >
+                  {detalleNoInventariados.length > 0 ? (
+                    <>
+                      <TablaActivos items={detalleNoInventariadosPageData} mapRow={mapActivoRow} />
+                      <PaginacionTabla
+                        count={detalleNoInventariados.length}
+                        mostrados={detalleNoInventariadosPageData.length}
+                        page={detalleNoInventariadosPage}
+                        totalPages={detalleNoInventariadosTotalPages}
+                        onPrev={() => setDetalleNoInventariadosPage((p) => Math.max(1, p - 1))}
+                        onNext={() => setDetalleNoInventariadosPage((p) => Math.min(detalleNoInventariadosTotalPages, p + 1))}
+                      />
+                      <div className="flex justify-end gap-2 px-4 py-3 border-t bg-muted/20">
+                        <Button onClick={handleGenerarPdfDetalleNoInventariados} disabled={detalleNoInventariados.length === 0}>
+                          <FileDown className="h-4 w-4 mr-2" />
+                          Reporte No Inventariados en PDF
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-center text-muted-foreground py-6 border-t">
+                      <Package className="mx-auto h-8 w-8 opacity-20 mb-2" />
+                      Sin activos por inventariar en este inmueble.
+                    </div>
+                  )}
+                </SeccionActivos>
+
+                <SeccionActivos
+                  titulo="ACTIVOS INVENTARIADOS"
+                  count={detalleInventariados.length}
+                  tituloClass="text-green-600 dark:text-green-400"
+                  headerClass="bg-green-50 dark:bg-green-950/20"
+                >
+                  {detalleInventariados.length > 0 ? (
+                    <>
+                      <TablaActivos items={detalleInventariadosPageData} mapRow={mapActivoRow} />
+                      <PaginacionTabla
+                        count={detalleInventariados.length}
+                        mostrados={detalleInventariadosPageData.length}
+                        page={detalleInventariadosPage}
+                        totalPages={detalleInventariadosTotalPages}
+                        onPrev={() => setDetalleInventariadosPage((p) => Math.max(1, p - 1))}
+                        onNext={() => setDetalleInventariadosPage((p) => Math.min(detalleInventariadosTotalPages, p + 1))}
+                      />
+                      <div className="flex justify-end gap-2 px-4 py-3 border-t bg-muted/20">
+                        <Button onClick={handleGenerarPdfDetalleInventariados} disabled={detalleInventariados.length === 0}>
+                          <FileDown className="h-4 w-4 mr-2" />
+                          Reporte Inventariados en PDF
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-center text-muted-foreground py-6 border-t">
+                      <Package className="mx-auto h-8 w-8 opacity-20 mb-2" />
+                      Sin activos inventariados en este inmueble.
+                    </div>
+                  )}
+                </SeccionActivos>
+              </>
+            ) : (
+              <div className="text-center text-muted-foreground py-8 border rounded-md">
+                <Package className="mx-auto h-10 w-10 opacity-20 mb-2" />
+                No se encontraron activos para este inmueble.
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end pt-4">
+            <Button variant="outline" onClick={handleCloseDetalleInmueble}>
               <X className="h-4 w-4 mr-2" />
               Cerrar
             </Button>
