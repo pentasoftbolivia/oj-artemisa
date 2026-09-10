@@ -15,12 +15,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useRef, useState } from "react";
+import { useRef, useState, useMemo } from "react";
 import { Upload, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import LoadingSpinner from "@/components/ui/loading-spinner";
 import { useToast } from "@/hooks/use-toast";
 import { getRubroFields } from "../constants/inventarioConstants";
+import ComboboxField from "@/components/ui/combobox-field";
 import {
   fetchActivoImages,
   uploadActivoImages,
@@ -38,8 +39,22 @@ export const InventarioEditModal = ({
   handleEditSave,
   ambientes = [],
   rubroFromTipo = {},
+  rubros = [],
+  tipoRubros = [],
   saveText = "GUARDAR",
 }) => {
+  const rubroOptions = useMemo(() => {
+    const opts = (rubros || []).map((r) => ({ value: String(r.codigorubroact), label: r.descripcionrubroact }));
+    return opts.sort((a, b) => a.label.localeCompare(b.label));
+  }, [rubros]);
+
+  const tipoRubroOptionsFiltered = useMemo(() => {
+    const rubroCod = editForm.rubroCod || "";
+    if (!rubroCod) return (tipoRubros || []).map((t) => ({ value: String(t.tiporubroact), label: `${t.tiporubroact} - ${t.descripciontiporubroact}` })).sort((a, b) => a.label.localeCompare(b.label));
+    const filtered = (tipoRubros || []).filter((t) => String(t.codigorubroact) === String(rubroCod));
+    return filtered.map((t) => ({ value: String(t.tiporubroact), label: `${t.tiporubroact} - ${t.descripciontiporubroact}` })).sort((a, b) => a.label.localeCompare(b.label));
+  }, [tipoRubros, editForm.rubroCod]);
+
   const renderEditFields = () => {
     if (!editActivo) return null;
     const rubroDesc = rubroFromTipo[editActivo.tipoRubroAct] || "";
@@ -116,28 +131,32 @@ export const InventarioEditModal = ({
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="rubro">Rubro</Label>
-              <Input
-                id="rubro"
-                value={editForm.rubro || ""}
-                onChange={undefined}
-                disabled={isSaving}
-                readOnly
-                className="break-words"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="tipoRubro">Tipo Rubro</Label>
-              <Input
-                id="tipoRubro"
-                value={editForm.tipoRubro || ""}
-                onChange={undefined}
-                disabled={isSaving}
-                readOnly
-                className="break-words"
-              />
-            </div>
+            <ComboboxField
+              label="Rubro"
+              value={editForm.rubroCod || ""}
+              onValueChange={(v) => {
+                handleEditSelectChange("rubroCod", v);
+                // reset tipo when rubro changes
+                const firstTipo = (tipoRubros || []).find((t) => String(t.codigorubroact) === String(v));
+                if (firstTipo) handleEditSelectChange("tipoRubroAct", String(firstTipo.tiporubroact));
+                else handleEditSelectChange("tipoRubroAct", "");
+              }}
+              options={rubroOptions}
+              placeholder="Seleccionar rubro"
+              searchPlaceholder="Buscar rubro..."
+              emptyMessage="Sin resultados"
+              wrapText
+            />
+            <ComboboxField
+              label="Tipo Rubro"
+              value={editForm.tipoRubroAct || ""}
+              onValueChange={(v) => handleEditSelectChange("tipoRubroAct", v)}
+              options={tipoRubroOptionsFiltered}
+              placeholder="Seleccionar tipo rubro"
+              searchPlaceholder="Buscar tipo rubro..."
+              emptyMessage={editForm.rubroCod ? "Sin tipos para este rubro" : "Seleccione un rubro primero"}
+              wrapText
+            />
           </div>
 
           <div className="space-y-2">

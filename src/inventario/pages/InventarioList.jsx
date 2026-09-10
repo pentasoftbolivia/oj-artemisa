@@ -130,6 +130,8 @@ const InventarioList = () => {
     currentUser,
     rubroFromTipo,
     tipoRubroDescMap,
+    tipoRubros,
+    rubros,
     loadActivos,
     getUbicacionFilters,
     filtroCodigoActivo,
@@ -538,6 +540,8 @@ const InventarioList = () => {
         handleEditSave={handleEditSave}
         ambientes={ambientes}
         rubroFromTipo={rubroFromTipo}
+        rubros={rubros}
+        tipoRubros={tipoRubros}
       />
 
       <InventarioImagesModal

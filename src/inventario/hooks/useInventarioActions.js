@@ -12,6 +12,8 @@ export const useInventarioActions = ({
   currentUser,
   rubroFromTipo,
   tipoRubroDescMap,
+  tipoRubros = [],
+  rubros = [],
   loadActivos,
   getUbicacionFilters,
   filtroCodigoActivo,
@@ -56,14 +58,17 @@ export const useInventarioActions = ({
 
   const handleEdit = (activo) => {
     const rubroDesc = rubroFromTipo[activo.tipoRubroAct] || "";
-    const tipoDesc = tipoRubroDescMap[activo.tipoRubroAct] || "";
     const consVal = getConservacion(activo);
+    const tipoObj = (tipoRubros || []).find((t) => String(t.tiporubroact) === String(activo.tipoRubroAct));
+    const rubroCod = tipoObj ? String(tipoObj.codigorubroact) : "";
     setEditActivo(activo);
     setEditForm({
       codigoActivo:
         activo.codigoActivo != null ? String(activo.codigoActivo) : "",
+      rubroCod: rubroCod,
       rubro: rubroDesc,
-      tipoRubro: tipoDesc,
+      tipoRubroAct: String(activo.tipoRubroAct ?? ""),
+      tipoRubro: rubroDesc ? `${activo.tipoRubroAct} - ${rubroDesc}` : String(activo.tipoRubroAct || ""),
       descripcionActivo: (activo.descripcionActivo || "").trim(),
       observaciones: (activo.observaciones || "").trim(),
       codigoAmbiente: String(activo.codigoAmbiente ?? "").trim(),
@@ -87,6 +92,19 @@ export const useInventarioActions = ({
   };
 
   const handleEditSelectChange = (field, value) => {
+    if (field === "rubroCod") {
+      setEditForm((p) => {
+        const next = { ...p, rubroCod: value };
+        const tipoObj = (tipoRubros || []).find((t) => String(t.tiporubroact) === String(p.tipoRubroAct));
+        if (tipoObj && String(tipoObj.codigorubroact) !== String(value)) {
+          next.tipoRubroAct = "";
+        }
+        const rubroDesc = (rubros || []).find((r) => String(r.codigorubroact) === String(value))?.descripcionrubroact || "";
+        next.rubro = rubroDesc;
+        return next;
+      });
+      return;
+    }
     setEditForm((p) => ({ ...p, [field]: value }));
   };
 
@@ -96,18 +114,21 @@ export const useInventarioActions = ({
     try {
       const rubroDesc = rubroFromTipo[editActivo.tipoRubroAct] || "";
       const fieldsToUpdate = {};
+      if (editForm.tipoRubroAct) fieldsToUpdate.tiporubroact = editForm.tipoRubroAct;
       fieldsToUpdate.descripcionactivo = editForm.descripcionActivo;
       fieldsToUpdate.observaciones = editForm.observaciones || null;
       const ambValue = editForm.codigoAmbiente;
       if (ambValue) fieldsToUpdate.codigoambiente = ambValue;
       const rubroFields = getRubroFields(rubroDesc);
+      const newRubroDesc = editForm.tipoRubroAct ? rubroFromTipo[editForm.tipoRubroAct] || rubroDesc : rubroDesc;
+      const newRubroFields = getRubroFields(newRubroDesc);
       if (editForm.estadoConservacion) {
         fieldsToUpdate.estadoconservacion = editForm.estadoConservacion;
       }
       fieldsToUpdate.marcamaterial = editForm.marcamaterial || null;
       fieldsToUpdate.modelo = editForm.modelo || null;
       fieldsToUpdate.serie = editForm.serie || null;
-      rubroFields.forEach((f) => {
+      newRubroFields.forEach((f) => {
         const val = editForm[f.key];
         fieldsToUpdate[f.key] = val || null;
       });

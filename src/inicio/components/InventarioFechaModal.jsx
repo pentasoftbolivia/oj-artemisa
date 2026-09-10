@@ -29,12 +29,14 @@ const InventarioFechaModal = ({
   onClose,
   getDisplayName,
   loadActivosPorFecha,
+  loadEnProcesoAcumulado,
 }) => {
   const [fechaDesde, setFechaDesde] = useState("");
   const [fechaHasta, setFechaHasta] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [rawData, setRawData] = useState(null);
+  const [acumuladoMap, setAcumuladoMap] = useState({});
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isGeneratingExcel, setIsGeneratingExcel] = useState(false);
 
@@ -42,13 +44,18 @@ const InventarioFechaModal = ({
     if (!fechaDesde || !fechaHasta) return;
     setIsLoading(true);
     try {
-      const { aggregated, rawRows } = await loadActivosPorFecha({ fechaDesde, fechaHasta });
+      const [{ aggregated, rawRows }, acumulado] = await Promise.all([
+        loadActivosPorFecha({ fechaDesde, fechaHasta }),
+        loadEnProcesoAcumulado ? loadEnProcesoAcumulado() : Promise.resolve({}),
+      ]);
       setResult(aggregated);
       setRawData(rawRows);
+      setAcumuladoMap(acumulado || {});
     } catch (e) {
       console.error("Error cargando activos por fecha:", e);
       setResult([]);
       setRawData([]);
+      setAcumuladoMap({});
     } finally {
       setIsLoading(false);
     }
@@ -59,12 +66,17 @@ const InventarioFechaModal = ({
     setFechaHasta("");
     setResult(null);
     setRawData(null);
+    setAcumuladoMap({});
   };
 
-  const sortedResult = useMemo(
-    () => (result ? [...result].sort((a, b) => b.total - a.total) : null),
-    [result],
-  );
+  const sortedResult = useMemo(() => {
+    if (!result) return null;
+    const withAcumulado = result.map((r) => ({
+      ...r,
+      enProcesoAcumulado: acumuladoMap[r.email] ?? 0,
+    }));
+    return withAcumulado.sort((a, b) => b.total - a.total);
+  }, [result, acumuladoMap]);
 
   const formatFecha = (iso) => {
     if (!iso) return "—";
@@ -78,6 +90,7 @@ const InventarioFechaModal = ({
   };
 
   const totalEnProceso = sortedResult ? sortedResult.reduce((acc, r) => acc + r.enProceso, 0) : 0;
+  const totalEnProcesoAcumulado = sortedResult ? sortedResult.reduce((acc, r) => acc + (r.enProcesoAcumulado || 0), 0) : 0;
   const totalInventariado = sortedResult ? sortedResult.reduce((acc, r) => acc + r.inventariado, 0) : 0;
   const totalRevisado = sortedResult ? sortedResult.reduce((acc, r) => acc + r.revisado, 0) : 0;
   const totalGeneral = totalInventariado + totalRevisado;
@@ -101,26 +114,28 @@ const InventarioFechaModal = ({
       const body = sortedResult.map((stat, i) => [
         i + 1,
         getDisplayName(stat.email),
+        stat.enProcesoAcumulado || 0,
         stat.enProceso,
         stat.inventariado,
         stat.revisado,
         stat.total,
       ]);
-      body.push(["", "TOTAL GENERAL", totalEnProceso, totalInventariado, totalRevisado, totalGeneral]);
+      body.push(["", "TOTAL GENERAL", totalEnProcesoAcumulado, totalEnProceso, totalInventariado, totalRevisado, totalGeneral]);
 
       autoTable(doc, {
         startY: 28,
-        head: [["N°", "INVENTARIADOR", "EN PROCESO", "INVENTARIADO", "REVISADO", "TOTAL DE ACTIVOS"]],
+        head: [["N°", "INVENTARIADOR", "EN PROCESO\nACUMULADO", "EN PROCESO", "INVENTARIADO", "REVISADO", "TOTAL DE ACTIVOS"]],
         body,
-        styles: { fontSize: 10, cellPadding: 2.5 },
-        headStyles: { fillColor: [37, 99, 235], textColor: 255, halign: "center" },
+        styles: { fontSize: 9, cellPadding: 2, valign: "middle" },
+        headStyles: { fillColor: [37, 99, 235], textColor: 255, halign: "center", valign: "middle" },
         columnStyles: {
-          0: { halign: "center", cellWidth: 15 },
+          0: { halign: "center", cellWidth: 12 },
           1: { halign: "left" },
-          2: { halign: "center", cellWidth: 32, textColor: [128, 128, 128] },
-          3: { halign: "center", cellWidth: 32, fontStyle: "bold" },
-          4: { halign: "center", cellWidth: 32, fontStyle: "bold" },
-          5: { halign: "center", cellWidth: 40, fontStyle: "bold" },
+          2: { halign: "center", cellWidth: 32, textColor: [180, 83, 9], fontStyle: "bold", fillColor: [254, 243, 199] },
+          3: { halign: "center", cellWidth: 28, textColor: [128, 128, 128] },
+          4: { halign: "center", cellWidth: 28, fontStyle: "bold" },
+          5: { halign: "center", cellWidth: 28, fontStyle: "bold" },
+          6: { halign: "center", cellWidth: 36, fontStyle: "bold" },
         },
         didParseCell: (data) => {
           if (data.row.index === body.length - 1 && data.section === "body") {
@@ -187,7 +202,7 @@ const InventarioFechaModal = ({
         ["REPORTE DIARIO DE ACTIVOS POR INVENTARIADOR"],
         [`Desde: ${fechaDesde || "—"}    Hasta: ${fechaHasta || "—"}`],
         [],
-        ["FECHA", "INVENTARIADOR", "EN PROCESO", "INVENTARIADO", "REVISADO", "TOTAL"]
+        ["FECHA", "INVENTARIADOR", "EN PROCESO\nACUMULADO", "EN PROCESO", "INVENTARIADO", "REVISADO", "TOTAL"]
       ];
 
       // Generar todas las fechas en el rango
@@ -207,6 +222,7 @@ const InventarioFechaModal = ({
         const usersInDate = groupedByDayAndUser[date];
         if (usersInDate && Object.keys(usersInDate).length > 0) {
           let dailyEnProceso = 0;
+          let dailyEnProcesoAcum = 0;
           let dailyInventariado = 0;
           let dailyRevisado = 0;
           let dailyTotal = 0;
@@ -215,14 +231,17 @@ const InventarioFechaModal = ({
             .sort(([, a], [, b]) => (b.inventariado + b.revisado) - (a.inventariado + a.revisado))
             .forEach(([email, counts]) => {
             const userTotal = counts.inventariado + counts.revisado;
+            const acumulado = acumuladoMap[email] ?? 0;
             excelData.push([
               date,
               getDisplayName(email),
+              acumulado,
               counts.enProceso,
               counts.inventariado,
               counts.revisado,
               userTotal
             ]);
+            dailyEnProcesoAcum += acumulado;
             dailyEnProceso += counts.enProceso;
             dailyInventariado += counts.inventariado;
             dailyRevisado += counts.revisado;
@@ -232,6 +251,7 @@ const InventarioFechaModal = ({
           excelData.push([
             "",
             "TOTAL DEL DÍA",
+            dailyEnProcesoAcum,
             dailyEnProceso,
             dailyInventariado,
             dailyRevisado,
@@ -241,6 +261,7 @@ const InventarioFechaModal = ({
           excelData.push([
             date,
             "Sin actividad",
+            0,
             0,
             0,
             0,
@@ -255,13 +276,14 @@ const InventarioFechaModal = ({
 
       // Combinar celdas para el título y el subtítulo
       worksheet["!merges"] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }, // A1:F1
-        { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } }  // A2:F2
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 6 } }, // A1:G1
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 6 } }  // A2:G2
       ];
 
       const columnWidths = [
         { wch: 15 },
         { wch: 35 },
+        { wch: 15 },
         { wch: 15 },
         { wch: 15 },
         { wch: 15 },
@@ -283,7 +305,7 @@ const InventarioFechaModal = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-[96vw] sm:max-w-[960px] max-h-[90vh] flex flex-col p-6">
+      <DialogContent className="max-w-[96vw] sm:max-w-[1080px] max-h-[90vh] flex flex-col p-6">
         <DialogHeader>
           <DialogTitle className="text-xl flex items-center gap-2">
             <CalendarDays className="h-5 w-5" />
@@ -372,8 +394,14 @@ const InventarioFechaModal = ({
             <Table>
               <TableHeader className="bg-muted/50 sticky top-0">
                 <TableRow>
-                  <TableHead className="w-[50px]">N°</TableHead>
+                  <TableHead className="w-[40px]">N°</TableHead>
                   <TableHead>Inventariador</TableHead>
+                  <TableHead className="text-center bg-amber-50 dark:bg-amber-950/30">
+                    <div className="flex flex-col leading-tight py-1 text-xs font-medium">
+                      <span>En Proceso</span>
+                      <span>Acumulado</span>
+                    </div>
+                  </TableHead>
                   <TableHead className="text-center">En Proceso</TableHead>
                   <TableHead className="text-center">Inventariado</TableHead>
                   <TableHead className="text-center">Revisado</TableHead>
@@ -386,7 +414,7 @@ const InventarioFechaModal = ({
                 {sortedResult.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={8}
+                      colSpan={9}
                       className="text-center text-muted-foreground py-8"
                     >
                       No se encontraron activos en el rango de fechas seleccionado.
@@ -398,6 +426,9 @@ const InventarioFechaModal = ({
                       <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                       <TableCell className="font-medium">
                         {getDisplayName(stat.email)}
+                      </TableCell>
+                      <TableCell className="text-center font-bold bg-amber-50/50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-300">
+                        {stat.enProcesoAcumulado ?? 0}
                       </TableCell>
                       <TableCell className="text-center">{stat.enProceso}</TableCell>
                       <TableCell className="text-center">{stat.inventariado}</TableCell>
@@ -416,6 +447,9 @@ const InventarioFechaModal = ({
                   <TableRow>
                     <TableCell colSpan={2} className="font-bold">
                       TOTAL GENERAL
+                    </TableCell>
+                    <TableCell className="text-center font-bold bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200">
+                      {totalEnProcesoAcumulado}
                     </TableCell>
                     <TableCell className="text-center font-bold">
                       {totalEnProceso}

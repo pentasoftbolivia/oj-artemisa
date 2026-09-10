@@ -45,6 +45,7 @@ const InicioList = () => {
     loadInmuebleActivos,
     loadCiudadInmueblesStats,
     loadActivosPorFecha,
+    loadEnProcesoAcumulado,
     loadActivosPorInventariador,
     loadActivos,
     loadInitialData,
@@ -316,6 +317,7 @@ const InicioList = () => {
         onClose={() => setIsFechaModalOpen(false)}
         getDisplayName={getDisplayName}
         loadActivosPorFecha={loadActivosPorFecha}
+        loadEnProcesoAcumulado={loadEnProcesoAcumulado}
       />
 
       <Dialog open={isUsuarioModalOpen} onOpenChange={(open) => !open && handleCloseUsuarioModal()}>

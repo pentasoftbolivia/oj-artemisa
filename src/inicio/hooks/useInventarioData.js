@@ -485,6 +485,31 @@ export const useInventarioData = () => {
     };
   }, []);
 
+  const loadEnProcesoAcumulado = useCallback(async () => {
+    const CHUNK = 1000;
+    let rows = [];
+    let offset = 0;
+    for (;;) {
+      const { data, error } = await supabase
+        .from("act_activos")
+        .select("usuarioinventario")
+        .eq("ultimoregistro", 1)
+        .eq("estadoinventario", "EN PROCESO")
+        .range(offset, offset + CHUNK - 1);
+      if (error) throw error;
+      rows = rows.concat(data || []);
+      if (!data || data.length < CHUNK) break;
+      offset += CHUNK;
+    }
+    const acc = {};
+    rows.forEach((r) => {
+      const email = String(r.usuarioinventario || "").trim();
+      if (!email) return;
+      acc[email] = (acc[email] || 0) + 1;
+    });
+    return acc;
+  }, []);
+
   const loadActivosPorInventariador = useCallback(async ({ usuario = "", estado = "pendiente" } = {}) => {
     const email = String(usuario || "").trim();
     if (!email) return [];
@@ -536,6 +561,7 @@ export const useInventarioData = () => {
     loadInmuebleActivos,
     loadCiudadInmueblesStats,
     loadActivosPorFecha,
+    loadEnProcesoAcumulado,
     loadActivosPorInventariador,
     loadCatalogos,
     loadActivos,
