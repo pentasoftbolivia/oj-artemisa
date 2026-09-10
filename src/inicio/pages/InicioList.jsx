@@ -47,6 +47,7 @@ const InicioList = () => {
     loadActivosPorFecha,
     loadEnProcesoAcumulado,
     loadActivosPorInventariador,
+    loadTransferenciasPorCodigos,
     loadActivos,
     loadInitialData,
   } = useInventarioData();
@@ -310,6 +311,7 @@ const InicioList = () => {
         getResponsableName={getResponsableName}
         rubroFromTipo={rubroFromTipo}
         tipoRubroDescMap={tipoRubroDescMap}
+        loadTransferenciasPorCodigos={loadTransferenciasPorCodigos}
       />
 
       <InventarioFechaModal

@@ -538,6 +538,23 @@ export const useInventarioData = () => {
     return rows;
   }, []);
 
+  const loadTransferenciasPorCodigos = useCallback(async ({ codigosTransaccion = [] } = {}) => {
+    const codes = [...new Set((codigosTransaccion || []).map((c) => String(c).trim()).filter(Boolean))];
+    if (codes.length === 0) return [];
+    const CHUNK = 1000;
+    let rows = [];
+    for (let i = 0; i < codes.length; i += CHUNK) {
+      const chunk = codes.slice(i, i + CHUNK);
+      const { data, error } = await supabase
+        .from("act_transferencias")
+        .select("*")
+        .in("codigotransaccion", chunk);
+      if (error) throw error;
+      rows = rows.concat(data || []);
+    }
+    return rows;
+  }, []);
+
   return {
     isLoading,
     rubros,
@@ -563,6 +580,7 @@ export const useInventarioData = () => {
     loadActivosPorFecha,
     loadEnProcesoAcumulado,
     loadActivosPorInventariador,
+    loadTransferenciasPorCodigos,
     loadCatalogos,
     loadActivos,
     loadInitialData,

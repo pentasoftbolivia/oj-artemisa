@@ -105,6 +105,90 @@ export const exportInmueblePdf = ({
 };
 
 /**
+ * Genera y descarga un reporte PDF de transferencias para activos inventariados.
+ * Columnas: Código Activo | Persona Origen | Ubicación Origen | Persona Destino | Ubicación Destino
+ */
+export const exportTransferenciasPdf = ({
+  items = [],
+  ciudadName = "Todas",
+  inmuebleName = "Todos",
+  fileNamePrefix = "Transferencias_Inventariados",
+  headerColor = [37, 99, 235],
+}) => {
+  if (!items || items.length === 0) return;
+
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "letter" });
+  addLogo(doc);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  const pageWidth = doc.internal.pageSize.getWidth();
+  doc.text("TRANSFERENCIAS DE ACTIVOS INVENTARIADOS", pageWidth / 2, 15, { align: "center" });
+
+  doc.setFontSize(9);
+  const drawCenteredBoldLabel = (label, value, xCenter, y) => {
+    doc.setFont("helvetica", "bold");
+    const labelWidth = doc.getTextWidth(label);
+    doc.setFont("helvetica", "normal");
+    const valueWidth = doc.getTextWidth(value);
+    const totalWidth = labelWidth + valueWidth;
+    const startX = xCenter - totalWidth / 2;
+    doc.setFont("helvetica", "bold");
+    doc.text(label, startX, y);
+    doc.setFont("helvetica", "normal");
+    doc.text(value, startX + labelWidth, y);
+  };
+
+  drawCenteredBoldLabel("CIUDAD: ", `${ciudadName || "Todas"}`, pageWidth / 4, 21);
+  drawCenteredBoldLabel("INMUEBLE: ", `${inmuebleName || "Todos"}`, (pageWidth * 3) / 4, 21);
+
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "normal");
+  doc.text(`Total transferencias: ${items.length}`, pageWidth / 2, 25, { align: "center" });
+  const startY = 28;
+
+  // items filtrados: solo con hasTransferencia=true, orden ascendente por código
+  const body = items.map((r, idx) => [
+    idx + 1,
+    r.codigoActivo || "—",
+    r.responsableInicialNombre ? `${r.responsableInicialNombre}\n(${r.responsableInicialCi || "—"})` : (r.responsableInicialCi || "—"),
+    r.ubicacionInicial || "—",
+    r.responsableFinalNombre ? `${r.responsableFinalNombre}\n(${r.responsableFinalCi || "—"})` : (r.responsableFinalCi || "—"),
+    r.ubicacionFinal || "—",
+  ]);
+
+  autoTable(doc, {
+    startY,
+    head: [["N°", "CÓDIGO ACTIVO", "PERSONA ORIGEN\n(Nombre / CI)", "UBICACIÓN ORIGEN", "PERSONA DESTINO\n(Nombre / CI)", "UBICACIÓN DESTINO"]],
+    body,
+    theme: "striped",
+    styles: { font: "helvetica", fontSize: 6.5, cellPadding: 1.2, overflow: "linebreak", valign: "middle" },
+    headStyles: { fillColor: headerColor, textColor: [255, 255, 255], halign: "center", valign: "middle", fontSize: 7 },
+    columnStyles: {
+      0: { cellWidth: 10, halign: "center" },
+      1: { cellWidth: 26, halign: "center", fontStyle: "bold" },
+      2: { cellWidth: 42, halign: "left" },
+      3: { cellWidth: 58, halign: "left" },
+      4: { cellWidth: 42, halign: "left" },
+      5: { cellWidth: 58, halign: "left" },
+    },
+    margin: { left: 14, right: 14 },
+  });
+
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const totalPages = doc.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    if (i > 1) addLogo(doc);
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Página ${i} de ${totalPages}`, pageWidth / 2, pageHeight - 8, { align: "center" });
+  }
+
+  const safeInmueble = (inmuebleName || "Inmueble").replace(/[^a-zA-Z0-9]+/g, "_");
+  doc.save(`${fileNamePrefix}_${safeInmueble}.pdf`);
+};
+
+/**
  * Genera y descarga un reporte Excel (.xlsx) para los activos de un inmueble.
  */
 export const exportInmuebleExcel = ({

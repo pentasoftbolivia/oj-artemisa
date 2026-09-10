@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Building2, Users, Loader2, Search, X, FileDown, FileSpreadsheet, Package } from "lucide-react";
+import { Building2, Users, Loader2, Search, X, FileDown, FileSpreadsheet, Package, ArrowLeftRight } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import ComboboxField from "@/components/ui/combobox-field";
 
-import { exportInmueblePdf, exportInmuebleExcel } from "../services/inmuebleExportUtils";
+import { exportInmueblePdf, exportInmuebleExcel, exportTransferenciasPdf } from "../services/inmuebleExportUtils";
 import { BarraAvance } from "./InmuebleStatsHeader";
 import {
   PaginacionTabla,
@@ -38,6 +38,7 @@ const InventarioInmuebleModal = ({
   getResponsableName,
   rubroFromTipo,
   tipoRubroDescMap,
+  loadTransferenciasPorCodigos,
 }) => {
   const [ciudad, setCiudad] = useState("");
   const [inmueble, setInmueble] = useState("");
@@ -76,6 +77,7 @@ const InventarioInmuebleModal = ({
   const [isLoadingDetalleInmueble, setIsLoadingDetalleInmueble] = useState(false);
   const [detalleInmuebleTitle, setDetalleInmuebleTitle] = useState("");
   const [detalleInmuebleSubtitle, setDetalleInmuebleSubtitle] = useState("");
+  const [isGeneratingPdfTransferencias, setIsGeneratingPdfTransferencias] = useState(false);
 
   const filteredInmuebleOptions = useMemo(() => {
     if (!ciudad) return inmuebleOptions;
@@ -111,19 +113,34 @@ const InventarioInmuebleModal = ({
     return enProcesoList.slice(start, start + PAGE_SIZE);
   }, [enProcesoList, enProcesoPage]);
 
+  const sortByCodigoActivoAsc = (a, b) => {
+    const codA = String(a.codigoactivo ?? a.codigoActivo ?? a.codigoActivo ?? "").trim();
+    const codB = String(b.codigoactivo ?? b.codigoActivo ?? b.codigoActivo ?? "").trim();
+    const numA = Number(codA.replace(/\D/g, ""));
+    const numB = Number(codB.replace(/\D/g, ""));
+    if (numA && numB && numA !== numB) return numA - numB;
+    if (numA && !numB) return -1;
+    if (!numA && numB) return 1;
+    return String(codA || "").localeCompare(String(codB || ""), "es", { numeric: true });
+  };
+
   const detalleInventariados = useMemo(() => {
-    return detalleInmuebleList.filter((r) => {
-      const est = normalizarEstado(r.estadoinventario ?? r.estadoInventario);
-      return Boolean(est && est !== "PENDIENTE" && est !== "EN PROCESO");
-    });
+    return detalleInmuebleList
+      .filter((r) => {
+        const est = normalizarEstado(r.estadoinventario ?? r.estadoInventario);
+        return Boolean(est && est !== "PENDIENTE" && est !== "EN PROCESO");
+      })
+      .sort(sortByCodigoActivoAsc);
   }, [detalleInmuebleList]);
 
   const detalleNoInventariados = useMemo(() => {
-    return detalleInmuebleList.filter((r) => {
-      const est = normalizarEstado(r.estadoinventario ?? r.estadoInventario);
-      const isInv = Boolean(est && est !== "PENDIENTE" && est !== "EN PROCESO");
-      return !isInv;
-    });
+    return detalleInmuebleList
+      .filter((r) => {
+        const est = normalizarEstado(r.estadoinventario ?? r.estadoInventario);
+        const isInv = Boolean(est && est !== "PENDIENTE" && est !== "EN PROCESO");
+        return !isInv;
+      })
+      .sort(sortByCodigoActivoAsc);
   }, [detalleInmuebleList]);
 
   const detalleInventariadosTotalPages = useMemo(
@@ -366,6 +383,118 @@ const InventarioInmuebleModal = ({
 
   const selectedCiudadName = ciudadOptions.find((o) => String(o.value).trim() === String(ciudad).trim())?.label || "";
   const selectedInmuebleName = inmuebleOptions.find((o) => String(o.value).trim() === String(inmueble).trim())?.label || "";
+
+  const handleGenerarPdfTransferenciasInventariados = async () => {
+    if (detalleInventariados.length === 0 || isGeneratingPdfTransferencias) return;
+    if (!loadTransferenciasPorCodigos) {
+      console.error("loadTransferenciasPorCodigos no disponible");
+      return;
+    }
+    setIsGeneratingPdfTransferencias(true);
+    try {
+      // LEFT JOIN: mostrar los 306 inventariados, con "—" si no tiene transferencia
+      const codigosTransaccion = detalleInventariados
+        .map((a) => a.codigotransaccion ?? a.codigoTransaccion ?? a.codigotransaccion)
+        .filter((v) => v != null && String(v).trim() !== "");
+      // Si ningún activo tiene codigotransaccion, igual generamos PDF con 306 filas sin transferencia
+      let transferencias = [];
+      if (codigosTransaccion.length > 0) {
+        transferencias = (await loadTransferenciasPorCodigos({ codigosTransaccion })) || [];
+      }
+
+      // Map codigotransaccion -> fila transferencia (si hay duplicados, primera gana)
+      const transferenciaByCt = {};
+      (transferencias || []).forEach((t) => {
+        const ct = String(t.codigotransaccion ?? "").trim();
+        if (ct && !transferenciaByCt[ct]) transferenciaByCt[ct] = t;
+      });
+
+      // Orden ascendente por código de activo antes del LEFT JOIN
+      const sortedDetalle = [...detalleInventariados].sort((a, b) => {
+        const codA = String(a.codigoactivo ?? a.codigoActivo ?? "").trim();
+        const codB = String(b.codigoactivo ?? b.codigoActivo ?? "").trim();
+        const numA = Number(codA.replace(/\D/g, ""));
+        const numB = Number(codB.replace(/\D/g, ""));
+        if (numA && numB && numA !== numB) return numA - numB;
+        if (numA && !numB) return -1;
+        if (!numA && numB) return 1;
+        return String(codA || "").localeCompare(String(codB || ""), "es", { numeric: true });
+      });
+
+      const itemsAll = sortedDetalle.map((a) => {
+        const ct = String(a.codigotransaccion ?? a.codigoTransaccion ?? "").trim();
+        const codActRaw = a.codigoactivo ?? a.codigoActivo ?? "";
+        const codigoActivo = codActRaw ? `OJ-02-${String(codActRaw).trim()}` : (ct ? `Trans. ${ct}` : "—");
+        const t = ct ? transferenciaByCt[ct] : null;
+        const hasTransferencia = Boolean(t);
+
+        if (!hasTransferencia) {
+          return {
+            codigoActivo,
+            hasTransferencia: false,
+            responsableInicialNombre: "",
+            responsableInicialCi: "—",
+            ubicacionInicial: "—",
+            responsableFinalNombre: "",
+            responsableFinalCi: "—",
+            ubicacionFinal: "—",
+          };
+        }
+
+        // Soporta variaciones de nombres de columnas (snake_case / camelCase)
+        const respIniRaw = t.responsableinicial ?? t.responsableInicial ?? t.responsable_inicial ?? "";
+        const respFinRaw = t.responsablefinal ?? t.responsableFinal ?? t.responsable_final ?? "";
+        const ubiIniRaw = t.ubicacioninicial ?? t.ubicacionInicial ?? t.ubicacion_inicial ?? "";
+        const ubiFinRaw = t.ubicacionfinal ?? t.ubicacionFinal ?? t.ubicacion_final ?? "";
+
+        const respIniCi = String(respIniRaw ?? "").trim();
+        const respFinCi = String(respFinRaw ?? "").trim();
+        const ubiIniCode = String(ubiIniRaw ?? "").trim();
+        const ubiFinCode = String(ubiFinRaw ?? "").trim();
+
+        // getResponsableName devuelve "—" si no existe; evitamos mostrar "—" como nombre
+        const respIniNombreRaw = respIniCi ? getResponsableName(respIniCi) : "—";
+        const respFinNombreRaw = respFinCi ? getResponsableName(respFinCi) : "—";
+        const responsableInicialNombre = respIniNombreRaw && respIniNombreRaw !== "—" && respIniNombreRaw !== respIniCi ? respIniNombreRaw : "";
+        const responsableFinalNombre = respFinNombreRaw && respFinNombreRaw !== "—" && respFinNombreRaw !== respFinCi ? respFinNombreRaw : "";
+
+        const ubicacionInicial = ubiIniCode ? getAmbienteName(ubiIniCode) : "—";
+        const ubicacionFinal = ubiFinCode ? getAmbienteName(ubiFinCode) : "—";
+
+        return {
+          codigoActivo,
+          hasTransferencia: true,
+          responsableInicialNombre,
+          responsableInicialCi: respIniCi || "—",
+          ubicacionInicial: ubicacionInicial && ubicacionInicial !== ubiIniCode ? ubicacionInicial : ubiIniCode || "—",
+          responsableFinalNombre,
+          responsableFinalCi: respFinCi || "—",
+          ubicacionFinal: ubicacionFinal && ubicacionFinal !== ubiFinCode ? ubicacionFinal : ubiFinCode || "—",
+        };
+      });
+
+      // Solo los que SÍ tienen registro en act_transferencias
+      const items = itemsAll.filter((r) => r.hasTransferencia);
+      if (items.length === 0) {
+        console.warn("Ningún activo inventariado tiene transferencia registrada");
+        return;
+      }
+
+      const detalleInmuebleName = detalleInmuebleTitle.replace("Activos — ", "").trim();
+
+      exportTransferenciasPdf({
+        items,
+        ciudadName: selectedCiudadName,
+        inmuebleName: detalleInmuebleName || selectedInmuebleName,
+        fileNamePrefix: `Transferencias_Inventariados_${(detalleInmuebleName || selectedInmuebleName || "Inmueble").replace(/\s+/g, "_")}`,
+        headerColor: [37, 99, 235],
+      });
+    } catch (e) {
+      console.error("Error generando PDF transferencias:", e);
+    } finally {
+      setIsGeneratingPdfTransferencias(false);
+    }
+  };
 
   const handleGenerarPdfInventariados = async ({ usuario = "", displayName = "" } = {}) => {
     if (!result || result.totalInventariado === 0) return;
@@ -998,10 +1127,24 @@ const InventarioInmuebleModal = ({
                         onPrev={() => setDetalleInventariadosPage((p) => Math.max(1, p - 1))}
                         onNext={() => setDetalleInventariadosPage((p) => Math.min(detalleInventariadosTotalPages, p + 1))}
                       />
-                      <div className="flex justify-end gap-2 px-4 py-3 border-t bg-muted/20">
+                      <div className="flex flex-wrap justify-end gap-2 px-4 py-3 border-t bg-muted/20">
                         <Button onClick={handleGenerarPdfDetalleInventariados} disabled={detalleInventariados.length === 0}>
                           <FileDown className="h-4 w-4 mr-2" />
                           Reporte Inventariados en PDF
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:hover:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800"
+                          onClick={handleGenerarPdfTransferenciasInventariados}
+                          disabled={detalleInventariados.length === 0 || isGeneratingPdfTransferencias}
+                          title="Genera PDF con transferencias de los activos inventariados (tabla act_transferencias: código, persona y ubicación origen/destino)"
+                        >
+                          {isGeneratingPdfTransferencias ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <ArrowLeftRight className="h-4 w-4 mr-2" />
+                          )}
+                          Reporte Transferencias en PDF
                         </Button>
                       </div>
                     </>
