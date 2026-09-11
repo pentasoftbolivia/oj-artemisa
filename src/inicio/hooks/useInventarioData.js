@@ -238,9 +238,9 @@ export const useInventarioData = () => {
     setIsLoading(false);
   }, [loadCatalogos]);
 
-  const loadInmuebleSummary = useCallback(async ({ ciudad = "", inmueble = "" } = {}) => {
-    const ambienteCodes = await resolveAmbienteCodes({ ciudad, inmueble });
-    const totalInmueble = await countActivosByUbicacion({ ciudad, inmueble });
+  const loadInmuebleSummary = useCallback(async ({ ciudad = "", inmueble = "", nivel = "", ambiente = "" } = {}) => {
+    const ambienteCodes = await resolveAmbienteCodes({ ciudad, inmueble, nivel, ambiente });
+    const totalInmueble = await countActivosByUbicacion({ ciudad, inmueble, nivel, ambiente });
     if (!ambienteCodes || ambienteCodes.length === 0) {
       return { totalInmueble, totalInventariado: 0, totalEnProceso: 0, perUser: [] };
     }
@@ -306,8 +306,8 @@ export const useInventarioData = () => {
   }, []);
 
   const loadInmueblePendientes = useCallback(
-    async ({ ciudad = "", inmueble = "", usuario = "" } = {}) => {
-      const ambienteCodes = await resolveAmbienteCodes({ ciudad, inmueble });
+    async ({ ciudad = "", inmueble = "", nivel = "", ambiente = "", usuario = "" } = {}) => {
+      const ambienteCodes = await resolveAmbienteCodes({ ciudad, inmueble, nivel, ambiente });
       if (!ambienteCodes || ambienteCodes.length === 0) {
         return [];
       }
@@ -328,8 +328,8 @@ export const useInventarioData = () => {
   );
 
   const loadInmuebleInventariados = useCallback(
-    async ({ ciudad = "", inmueble = "", usuario = "" } = {}) => {
-      const ambienteCodes = await resolveAmbienteCodes({ ciudad, inmueble });
+    async ({ ciudad = "", inmueble = "", nivel = "", ambiente = "", usuario = "" } = {}) => {
+      const ambienteCodes = await resolveAmbienteCodes({ ciudad, inmueble, nivel, ambiente });
       if (!ambienteCodes || ambienteCodes.length === 0) {
         return [];
       }
@@ -350,8 +350,8 @@ export const useInventarioData = () => {
   );
 
   const loadInmuebleEnProceso = useCallback(
-    async ({ ciudad = "", inmueble = "", usuario = "" } = {}) => {
-      const ambienteCodes = await resolveAmbienteCodes({ ciudad, inmueble });
+    async ({ ciudad = "", inmueble = "", nivel = "", ambiente = "", usuario = "" } = {}) => {
+      const ambienteCodes = await resolveAmbienteCodes({ ciudad, inmueble, nivel, ambiente });
       if (!ambienteCodes || ambienteCodes.length === 0) {
         return [];
       }
@@ -368,8 +368,8 @@ export const useInventarioData = () => {
   );
 
   const loadInmuebleActivos = useCallback(
-    async ({ ciudad = "", inmueble = "", usuario = "" } = {}) => {
-      const ambienteCodes = await resolveAmbienteCodes({ ciudad, inmueble });
+    async ({ ciudad = "", inmueble = "", nivel = "", ambiente = "", usuario = "" } = {}) => {
+      const ambienteCodes = await resolveAmbienteCodes({ ciudad, inmueble, nivel, ambiente });
       if (!ambienteCodes || ambienteCodes.length === 0) {
         return [];
       }
@@ -458,6 +458,133 @@ export const useInventarioData = () => {
       return [];
     }
   }, [inmuebles, niveles, ambientes]);
+
+  const loadInmuebleNivelesStats = useCallback(async ({ ciudad = "", inmueble = "" } = {}) => {
+    const inmuebleCode = String(inmueble || "").trim();
+    if (!inmuebleCode) return [];
+    try {
+      const srcNiveles = niveles.length > 0 ? niveles : [];
+      const srcAmbientes = ambientes.length > 0 ? ambientes : (ambientesRef.current || []);
+      const nivelesRows = srcNiveles.filter((r) => String(r.codigoinmueble ?? "").trim() === inmuebleCode);
+      if (nivelesRows.length === 0) return [];
+      const nivelCodes = nivelesRows.map((r) => String(r.codigonivel).trim()).filter(Boolean);
+      const nivelLabelMap = {};
+      nivelesRows.forEach((r) => { nivelLabelMap[String(r.codigonivel).trim()] = r.nivel; });
+      const ambienteToNivel = {};
+      const allAmbienteCodes = [];
+      srcAmbientes.forEach((r) => {
+        const niv = String(r.codigonivel ?? "").trim();
+        const amb = String(r.codigoambiente ?? "").trim();
+        if (amb && nivelCodes.includes(niv)) { ambienteToNivel[amb] = niv; allAmbienteCodes.push(amb); }
+      });
+      if (allAmbienteCodes.length === 0) {
+        return nivelCodes.map((code) => ({
+          codigonivel: code,
+          nivel: nivelLabelMap[code] || code,
+          totalInmueble: 0,
+          totalInventariado: 0,
+          totalEnProceso: 0,
+          porcentaje: 0,
+        })).sort((a, b) => a.nivel.localeCompare(b.nivel));
+      }
+      const CHUNK = 1000;
+      let activosRows = [];
+      let start = 0;
+      for (;;) {
+        const { data, error } = await supabase
+          .from("act_activos")
+          .select("codigoambiente,estadoinventario")
+          .eq("ultimoregistro", 1)
+          .in("codigoambiente", allAmbienteCodes)
+          .range(start, start + CHUNK - 1);
+        if (error) throw error;
+        activosRows = activosRows.concat(data || []);
+        if (!data || data.length < CHUNK) break;
+        start += CHUNK;
+      }
+      const acc = {};
+      nivelCodes.forEach((code) => { acc[code] = { totalInmueble: 0, totalInventariado: 0, totalEnProceso: 0 }; });
+      (activosRows || []).forEach((r) => {
+        const amb = String(r.codigoambiente || "").trim();
+        const niv = ambienteToNivel[amb];
+        if (!niv || !acc[niv]) return;
+        acc[niv].totalInmueble += 1;
+        const est = normalizarEstado(r.estadoinventario);
+        if (est === "EN PROCESO") acc[niv].totalEnProceso += 1;
+        const isInventariado = Boolean(est && est !== "PENDIENTE" && est !== "EN PROCESO");
+        if (isInventariado) acc[niv].totalInventariado += 1;
+      });
+      return nivelCodes.map((code) => {
+        const { totalInmueble, totalInventariado, totalEnProceso } = acc[code];
+        const porcentaje = totalInmueble > 0 ? (totalInventariado / totalInmueble) * 100 : 0;
+        return {
+          codigonivel: code,
+          nivel: nivelLabelMap[code] || code,
+          totalInmueble,
+          totalInventariado,
+          totalEnProceso,
+          porcentaje: Number(porcentaje.toFixed(2)),
+        };
+      }).filter((s) => s.totalInmueble > 0).sort((a, b) => a.nivel.localeCompare(b.nivel));
+    } catch (e) {
+      console.error("Error loading inmueble niveles stats:", e);
+      return [];
+    }
+  }, [niveles, ambientes]);
+
+  const loadNivelAmbientesStats = useCallback(async ({ nivel = "" } = {}) => {
+    const nivelCode = String(nivel || "").trim();
+    if (!nivelCode) return [];
+    try {
+      const srcAmbientes = ambientes.length > 0 ? ambientes : (ambientesRef.current || []);
+      const ambientesRows = srcAmbientes.filter((r) => String(r.codigonivel ?? "").trim() === nivelCode);
+      if (ambientesRows.length === 0) return [];
+      const ambienteCodes = ambientesRows.map((r) => String(r.codigoambiente).trim()).filter(Boolean);
+      const ambienteLabelMap = {};
+      ambientesRows.forEach((r) => { ambienteLabelMap[String(r.codigoambiente).trim()] = r.ambiente; });
+      const CHUNK = 1000;
+      let activosRows = [];
+      let start = 0;
+      for (;;) {
+        const { data, error } = await supabase
+          .from("act_activos")
+          .select("codigoambiente,estadoinventario")
+          .eq("ultimoregistro", 1)
+          .in("codigoambiente", ambienteCodes)
+          .range(start, start + CHUNK - 1);
+        if (error) throw error;
+        activosRows = activosRows.concat(data || []);
+        if (!data || data.length < CHUNK) break;
+        start += CHUNK;
+      }
+      const acc = {};
+      ambienteCodes.forEach((code) => { acc[code] = { totalInmueble: 0, totalInventariado: 0, totalEnProceso: 0 }; });
+      (activosRows || []).forEach((r) => {
+        const amb = String(r.codigoambiente || "").trim();
+        if (!acc[amb]) return;
+        acc[amb].totalInmueble += 1;
+        const est = normalizarEstado(r.estadoinventario);
+        if (est === "EN PROCESO") acc[amb].totalEnProceso += 1;
+        const isInventariado = Boolean(est && est !== "PENDIENTE" && est !== "EN PROCESO");
+        if (isInventariado) acc[amb].totalInventariado += 1;
+      });
+      return ambienteCodes.map((code) => {
+        const { totalInmueble, totalInventariado, totalEnProceso } = acc[code];
+        const porcentaje = totalInmueble > 0 ? (totalInventariado / totalInmueble) * 100 : 0;
+        return {
+          codigoambiente: code,
+          ambiente: ambienteLabelMap[code] || code,
+          totalInmueble,
+          totalInventariado,
+          totalEnProceso,
+          porcentaje: Number(porcentaje.toFixed(2)),
+        };
+      }).filter((s) => s.totalInmueble > 0).sort((a, b) => a.ambiente.localeCompare(b.ambiente));
+    } catch (e) {
+      console.error("Error loading nivel ambientes stats:", e);
+      return [];
+    }
+  }, [ambientes]);
 
   const loadActivosPorFecha = useCallback(async ({ fechaDesde, fechaHasta } = {}) => {
     const start = `${fechaDesde}T00:00:00`;
@@ -577,6 +704,8 @@ export const useInventarioData = () => {
     loadInmuebleEnProceso,
     loadInmuebleActivos,
     loadCiudadInmueblesStats,
+    loadInmuebleNivelesStats,
+    loadNivelAmbientesStats,
     loadActivosPorFecha,
     loadEnProcesoAcumulado,
     loadActivosPorInventariador,

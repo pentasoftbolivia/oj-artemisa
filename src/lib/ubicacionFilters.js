@@ -63,7 +63,12 @@ export const resolveAmbienteCodes = async ({
   ciudad = "",
   inmueble = "",
   nivel = "",
+  ambiente = "",
 } = {}) => {
+  if (String(ambiente || "").trim()) {
+    return [String(ambiente).trim()];
+  }
+
   if (nivel) {
     const rows = await fetchColumnPaginated({
       table: "act_ambiente",

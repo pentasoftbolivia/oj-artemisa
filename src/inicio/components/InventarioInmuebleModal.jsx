@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Building2, Users, Loader2, Search, X, FileDown, FileSpreadsheet, Package, ArrowLeftRight } from "lucide-react";
+import { Building2, Users, Loader2, Search, X, FileDown, FileSpreadsheet, Package, ArrowLeftRight, Layers } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -26,7 +26,14 @@ const InventarioInmuebleModal = ({
   onClose,
   ciudadOptions = [],
   inmuebleOptions = [],
+  nivelOptions = [],
+  ambienteOptions = [],
   inmuebleCiudadMap = {},
+  nivelInmuebleMap = {},
+  ambienteNivelMap = {},
+  inmuebleOptionsByCiudad,
+  nivelOptionsByInmueble,
+  ambienteOptionsByNivel,
   getDisplayName,
   loadInmuebleSummary,
   loadInmueblePendientes,
@@ -34,6 +41,8 @@ const InventarioInmuebleModal = ({
   loadInmuebleEnProceso,
   loadInmuebleActivos,
   loadCiudadInmueblesStats,
+  loadInmuebleNivelesStats,
+  loadNivelAmbientesStats,
   getAmbienteName,
   getResponsableName,
   rubroFromTipo,
@@ -42,6 +51,8 @@ const InventarioInmuebleModal = ({
 }) => {
   const [ciudad, setCiudad] = useState("");
   const [inmueble, setInmueble] = useState("");
+  const [nivel, setNivel] = useState("");
+  const [ambiente, setAmbiente] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [pendientes, setPendientes] = useState([]);
@@ -70,6 +81,12 @@ const InventarioInmuebleModal = ({
   const [ciudadInmueblesStats, setCiudadInmueblesStats] = useState([]);
   const [isLoadingCiudadStats, setIsLoadingCiudadStats] = useState(false);
 
+  const [inmuebleNivelesStats, setInmuebleNivelesStats] = useState([]);
+  const [isLoadingNivelesStats, setIsLoadingNivelesStats] = useState(false);
+
+  const [nivelAmbientesStats, setNivelAmbientesStats] = useState([]);
+  const [isLoadingAmbientesStats, setIsLoadingAmbientesStats] = useState(false);
+
   const [detalleInmuebleOpen, setDetalleInmuebleOpen] = useState(false);
   const [detalleInmuebleList, setDetalleInmuebleList] = useState([]);
   const [detalleInventariadosPage, setDetalleInventariadosPage] = useState(1);
@@ -85,6 +102,49 @@ const InventarioInmuebleModal = ({
       (o) => inmuebleCiudadMap[String(o.value).trim()] === String(ciudad).trim(),
     );
   }, [inmuebleOptions, inmuebleCiudadMap, ciudad]);
+
+  const filteredNivelOptions = useMemo(() => {
+    if (inmueble) {
+      return nivelOptions.filter((o) => String(nivelInmuebleMap[String(o.value).trim()] ?? "") === String(inmueble).trim());
+    }
+    if (ciudad) {
+      const inmuebleCodesInCiudad = new Set(
+        Object.entries(inmuebleCiudadMap)
+          .filter(([, c]) => c === String(ciudad).trim())
+          .map(([inm]) => inm),
+      );
+      return nivelOptions.filter((o) => inmuebleCodesInCiudad.has(String(nivelInmuebleMap[String(o.value).trim()] ?? "")));
+    }
+    return nivelOptions;
+  }, [nivelOptions, nivelInmuebleMap, inmuebleCiudadMap, inmueble, ciudad]);
+
+  const filteredAmbienteOptions = useMemo(() => {
+    if (nivel) {
+      return ambienteOptions.filter((o) => String(ambienteNivelMap[String(o.value).trim()] ?? "") === String(nivel).trim());
+    }
+    if (inmueble) {
+      const nivelCodesInInmueble = new Set(
+        Object.entries(nivelInmuebleMap)
+          .filter(([, inm]) => inm === String(inmueble).trim())
+          .map(([niv]) => niv),
+      );
+      return ambienteOptions.filter((o) => nivelCodesInInmueble.has(String(ambienteNivelMap[String(o.value).trim()] ?? "")));
+    }
+    if (ciudad) {
+      const inmuebleCodesInCiudad = new Set(
+        Object.entries(inmuebleCiudadMap)
+          .filter(([, c]) => c === String(ciudad).trim())
+          .map(([inm]) => inm),
+      );
+      const nivelCodesInCiudad = new Set(
+        Object.entries(nivelInmuebleMap)
+          .filter(([, inm]) => inmuebleCodesInCiudad.has(inm))
+          .map(([niv]) => niv),
+      );
+      return ambienteOptions.filter((o) => nivelCodesInCiudad.has(String(ambienteNivelMap[String(o.value).trim()] ?? "")));
+    }
+    return ambienteOptions;
+  }, [ambienteOptions, ambienteNivelMap, nivelInmuebleMap, inmuebleCiudadMap, nivel, inmueble, ciudad]);
 
   const pendientesTotalPages = useMemo(
     () => Math.max(1, Math.ceil(pendientes.length / PAGE_SIZE)),
@@ -177,16 +237,22 @@ const InventarioInmuebleModal = ({
 
   const handleBuscar = async () => {
     setIsLoading(true);
-    const shouldLoadCiudadStats = Boolean(ciudad && !inmueble && loadCiudadInmueblesStats);
+    const shouldLoadCiudadStats = Boolean(ciudad && !inmueble && !nivel && !ambiente && loadCiudadInmueblesStats);
+    const shouldLoadNivelesStats = Boolean(inmueble && !nivel && !ambiente && loadInmuebleNivelesStats);
+    const shouldLoadAmbientesStats = Boolean(nivel && !ambiente && loadNivelAmbientesStats);
     if (shouldLoadCiudadStats) setIsLoadingCiudadStats(true);
     else setCiudadInmueblesStats([]);
+    if (shouldLoadNivelesStats) setIsLoadingNivelesStats(true);
+    else setInmuebleNivelesStats([]);
+    if (shouldLoadAmbientesStats) setIsLoadingAmbientesStats(true);
+    else setNivelAmbientesStats([]);
 
-    const summaryPromise = loadInmuebleSummary({ ciudad, inmueble })
+    const summaryPromise = loadInmuebleSummary({ ciudad, inmueble, nivel, ambiente })
       .catch((e) => {
         console.error("Error loading inmueble summary:", e);
         return { totalInmueble: 0, totalInventariado: 0, totalEnProceso: 0, perUser: [] };
       });
-    const pendientesPromise = loadInmueblePendientes({ ciudad, inmueble }).catch((e) => {
+    const pendientesPromise = loadInmueblePendientes({ ciudad, inmueble, nivel, ambiente }).catch((e) => {
       console.error("Error loading pendientes:", e);
       return [];
     });
@@ -196,8 +262,20 @@ const InventarioInmuebleModal = ({
           return [];
         })
       : Promise.resolve(null);
+    const nivelesStatsPromise = shouldLoadNivelesStats
+      ? loadInmuebleNivelesStats({ ciudad, inmueble }).catch((e) => {
+          console.error("Error loading inmueble niveles stats:", e);
+          return [];
+        })
+      : Promise.resolve(null);
+    const ambientesStatsPromise = shouldLoadAmbientesStats
+      ? loadNivelAmbientesStats({ nivel }).catch((e) => {
+          console.error("Error loading nivel ambientes stats:", e);
+          return [];
+        })
+      : Promise.resolve(null);
 
-    const [data, pend, stats] = await Promise.all([summaryPromise, pendientesPromise, ciudadStatsPromise]);
+    const [data, pend, stats, nivelesStats, ambientesStats] = await Promise.all([summaryPromise, pendientesPromise, ciudadStatsPromise, nivelesStatsPromise, ambientesStatsPromise]);
 
     setResult(data);
     setPendientes(pend || []);
@@ -206,16 +284,28 @@ const InventarioInmuebleModal = ({
       setCiudadInmueblesStats(stats || []);
       setIsLoadingCiudadStats(false);
     }
+    if (shouldLoadNivelesStats) {
+      setInmuebleNivelesStats(nivelesStats || []);
+      setIsLoadingNivelesStats(false);
+    }
+    if (shouldLoadAmbientesStats) {
+      setNivelAmbientesStats(ambientesStats || []);
+      setIsLoadingAmbientesStats(false);
+    }
     setIsLoading(false);
   };
 
   const handleLimpiar = () => {
     setCiudad("");
     setInmueble("");
+    setNivel("");
+    setAmbiente("");
     setResult(null);
     setPendientes([]);
     setPendientesPage(1);
     setCiudadInmueblesStats([]);
+    setInmuebleNivelesStats([]);
+    setNivelAmbientesStats([]);
   };
 
   const handleClose = () => {
@@ -231,6 +321,10 @@ const InventarioInmuebleModal = ({
     setEnProcesoDisplayName("");
     setIsGeneratingPdfEnProceso(false);
     setCiudadInmueblesStats([]);
+    setInmuebleNivelesStats([]);
+    setIsLoadingNivelesStats(false);
+    setNivelAmbientesStats([]);
+    setIsLoadingAmbientesStats(false);
     setDetalleInmuebleOpen(false);
     setDetalleInmuebleList([]);
     setDetalleInventariadosPage(1);
@@ -250,7 +344,7 @@ const InventarioInmuebleModal = ({
     setInventariadosOpen(true);
     setIsLoadingInventariados(true);
     try {
-      const data = await loadInmuebleInventariados({ ciudad, inmueble, usuario });
+      const data = await loadInmuebleInventariados({ ciudad, inmueble, nivel, ambiente, usuario });
       setInventariados(data || []);
     } catch (e) {
       console.error("Error loading inventariados:", e);
@@ -277,7 +371,7 @@ const InventarioInmuebleModal = ({
     setEnProcesoOpen(true);
     setIsLoadingEnProceso(true);
     try {
-      const data = await loadInmuebleEnProceso({ ciudad, inmueble, usuario });
+      const data = await loadInmuebleEnProceso({ ciudad, inmueble, nivel, ambiente, usuario });
       setEnProcesoList(data || []);
     } catch (e) {
       console.error("Error loading en proceso:", e);
@@ -308,6 +402,46 @@ const InventarioInmuebleModal = ({
       setDetalleInmuebleList(data || []);
     } catch (e) {
       console.error("Error loading detalle inmueble activos:", e);
+      setDetalleInmuebleList([]);
+    } finally {
+      setIsLoadingDetalleInmueble(false);
+    }
+  };
+
+  const handleShowDetalleNivel = async ({ codigonivel, nombre }) => {
+    if (!loadInmuebleActivos) return;
+    setDetalleInmuebleTitle(nombre ? `Activos — ${nombre}` : `Activos — ${codigonivel}`);
+    setDetalleInmuebleSubtitle(`Nivel: ${codigonivel} · ${selectedInmuebleName || inmueble}`);
+    setDetalleInmuebleList([]);
+    setDetalleInventariadosPage(1);
+    setDetalleNoInventariadosPage(1);
+    setDetalleInmuebleOpen(true);
+    setIsLoadingDetalleInmueble(true);
+    try {
+      const data = await loadInmuebleActivos({ ciudad, inmueble, nivel: codigonivel });
+      setDetalleInmuebleList(data || []);
+    } catch (e) {
+      console.error("Error loading detalle nivel activos:", e);
+      setDetalleInmuebleList([]);
+    } finally {
+      setIsLoadingDetalleInmueble(false);
+    }
+  };
+
+  const handleShowDetalleAmbiente = async ({ codigoambiente, nombre }) => {
+    if (!loadInmuebleActivos) return;
+    setDetalleInmuebleTitle(nombre ? `Activos — ${nombre}` : `Activos — ${codigoambiente}`);
+    setDetalleInmuebleSubtitle(`Ambiente: ${codigoambiente} · ${selectedNivelName || nivel}`);
+    setDetalleInmuebleList([]);
+    setDetalleInventariadosPage(1);
+    setDetalleNoInventariadosPage(1);
+    setDetalleInmuebleOpen(true);
+    setIsLoadingDetalleInmueble(true);
+    try {
+      const data = await loadInmuebleActivos({ ciudad, inmueble, nivel, ambiente: codigoambiente });
+      setDetalleInmuebleList(data || []);
+    } catch (e) {
+      console.error("Error loading detalle ambiente activos:", e);
       setDetalleInmuebleList([]);
     } finally {
       setIsLoadingDetalleInmueble(false);
@@ -383,6 +517,8 @@ const InventarioInmuebleModal = ({
 
   const selectedCiudadName = ciudadOptions.find((o) => String(o.value).trim() === String(ciudad).trim())?.label || "";
   const selectedInmuebleName = inmuebleOptions.find((o) => String(o.value).trim() === String(inmueble).trim())?.label || "";
+  const selectedNivelName = nivelOptions.find((o) => String(o.value).trim() === String(nivel).trim())?.label || "";
+  const selectedAmbienteName = ambienteOptions.find((o) => String(o.value).trim() === String(ambiente).trim())?.label || "";
 
   const handleGenerarPdfTransferenciasInventariados = async () => {
     if (detalleInventariados.length === 0 || isGeneratingPdfTransferencias) return;
@@ -502,7 +638,7 @@ const InventarioInmuebleModal = ({
     setIsGeneratingPdfInventariados(true);
     setGeneratingUser(usuario || "__all__");
     try {
-      const data = await loadInmuebleInventariados({ ciudad, inmueble, usuario });
+      const data = await loadInmuebleInventariados({ ciudad, inmueble, nivel, ambiente, usuario });
       if (!data || data.length === 0) return;
 
       exportInmueblePdf({
@@ -589,7 +725,7 @@ const InventarioInmuebleModal = ({
               Activos por Inmueble
             </DialogTitle>
             <DialogDescription>
-              Filtre por Ciudad e Inmueble para ver el avance de inventario por inventariador.
+              Filtre por Ciudad, Inmueble, Nivel y Ambiente (en cascada) para ver el avance de inventario por inventariador.
             </DialogDescription>
           </DialogHeader>
 
@@ -601,6 +737,8 @@ const InventarioInmuebleModal = ({
                 onValueChange={(val) => {
                   setCiudad(val);
                   setInmueble("");
+                  setNivel("");
+                  setAmbiente("");
                 }}
                 options={ciudadOptions}
                 placeholder="Seleccionar ciudad..."
@@ -611,10 +749,37 @@ const InventarioInmuebleModal = ({
               <ComboboxField
                 label="Inmueble"
                 value={inmueble}
-                onValueChange={setInmueble}
+                onValueChange={(val) => {
+                  setInmueble(val);
+                  setNivel("");
+                  setAmbiente("");
+                }}
                 options={filteredInmuebleOptions}
                 placeholder="Seleccionar inmueble..."
                 searchPlaceholder="Buscar inmueble..."
+                emptyMessage="Sin resultados"
+                wrapText
+              />
+              <ComboboxField
+                label="Nivel"
+                value={nivel}
+                onValueChange={(val) => {
+                  setNivel(val);
+                  setAmbiente("");
+                }}
+                options={filteredNivelOptions}
+                placeholder="Seleccionar nivel..."
+                searchPlaceholder="Buscar nivel..."
+                emptyMessage="Sin resultados"
+                wrapText
+              />
+              <ComboboxField
+                label="Ambiente"
+                value={ambiente}
+                onValueChange={setAmbiente}
+                options={filteredAmbienteOptions}
+                placeholder="Seleccionar ambiente..."
+                searchPlaceholder="Buscar ambiente..."
                 emptyMessage="Sin resultados"
                 wrapText
               />
@@ -623,7 +788,7 @@ const InventarioInmuebleModal = ({
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 onClick={handleBuscar}
-                disabled={isLoading || (!ciudad && !inmueble)}
+                disabled={isLoading || (!ciudad && !inmueble && !nivel && !ambiente)}
               >
                 {isLoading ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -692,7 +857,14 @@ const InventarioInmuebleModal = ({
                         TOTAL DE ACTIVOS EN EL INMUEBLE
                       </div>
                       <div className="text-lg font-bold text-blue-700 dark:text-blue-300 mt-1">
-                        {(selectedCiudadName || "Todas") + " - " + (selectedInmuebleName || "Todos")}
+                        {[
+                          selectedCiudadName || "Todas",
+                          selectedInmuebleName || "Todos",
+                          selectedNivelName || (nivel ? nivel : null),
+                          selectedAmbienteName || (ambiente ? ambiente : null),
+                        ]
+                          .filter(Boolean)
+                          .join(" - ")}
                       </div>
                       <div className="text-3xl font-bold text-blue-700 dark:text-blue-300">
                         {result.totalInmueble}
@@ -834,7 +1006,7 @@ const InventarioInmuebleModal = ({
                   </div>
                 )}
 
-                {ciudad && !inmueble && result && (
+                {ciudad && !inmueble && !nivel && !ambiente && result && (
                   <div className="space-y-3">
                     {isLoadingCiudadStats ? (
                       <div className="flex flex-col justify-center items-center py-8 border rounded-md">
@@ -876,6 +1048,110 @@ const InventarioInmuebleModal = ({
                                   <FileDown className="h-3 w-3 opacity-60" />
                                 </div>
                                 <div className="text-[10px] text-blue-600 dark:text-blue-400 underline underline-offset-2">Ver detalle</div>
+                              </div>
+                              <BarraAvance inventariado={stat.totalInventariado} total={stat.totalInmueble} />
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    ) : null}
+                  </div>
+                )}
+
+                {inmueble && !nivel && !ambiente && result && (
+                  <div className="space-y-3">
+                    {isLoadingNivelesStats ? (
+                      <div className="flex flex-col justify-center items-center py-8 border rounded-md">
+                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                        <p className="mt-2 text-sm text-muted-foreground animate-pulse">
+                          Cargando detalle por nivel...
+                        </p>
+                      </div>
+                    ) : inmuebleNivelesStats.length > 0 ? (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <Layers className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm font-semibold tracking-wide">
+                            DETALLE POR NIVEL — {selectedInmuebleName || inmueble}
+                          </span>
+                          <span className="text-xs text-muted-foreground">({inmuebleNivelesStats.length} niveles)</span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {inmuebleNivelesStats.map((stat) => (
+                            <div
+                              key={stat.codigonivel}
+                              className="rounded-lg border p-4 bg-card space-y-2 shadow-sm cursor-pointer hover:shadow-md hover:border-emerald-300 dark:hover:border-emerald-700 transition-all"
+                              onClick={() => handleShowDetalleNivel({ codigonivel: stat.codigonivel, nombre: stat.nivel })}
+                              role="button"
+                              tabIndex={0}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleShowDetalleNivel({ codigonivel: stat.codigonivel, nombre: stat.nivel });
+                              }}
+                              title="Click para ver activos de este nivel"
+                            >
+                              <div className="text-sm font-semibold truncate" title={stat.nivel}>
+                                {stat.nivel}
+                              </div>
+                              <div className="text-xs text-muted-foreground">Código: {stat.codigonivel}</div>
+                              <div className="rounded bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900 p-2 text-center">
+                                <div className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Total activos</div>
+                                <div className="text-lg font-bold text-emerald-700 dark:text-emerald-300 flex items-center justify-center gap-1">
+                                  {stat.totalInmueble}
+                                  <FileDown className="h-3 w-3 opacity-60" />
+                                </div>
+                                <div className="text-[10px] text-emerald-600 dark:text-emerald-400 underline underline-offset-2">Ver detalle</div>
+                              </div>
+                              <BarraAvance inventariado={stat.totalInventariado} total={stat.totalInmueble} />
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    ) : null}
+                  </div>
+                )}
+
+                {nivel && !ambiente && result && (
+                  <div className="space-y-3">
+                    {isLoadingAmbientesStats ? (
+                      <div className="flex flex-col justify-center items-center py-8 border rounded-md">
+                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                        <p className="mt-2 text-sm text-muted-foreground animate-pulse">
+                          Cargando detalle por ambiente...
+                        </p>
+                      </div>
+                    ) : nivelAmbientesStats.length > 0 ? (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <Package className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm font-semibold tracking-wide">
+                            DETALLE POR AMBIENTE — {selectedNivelName || nivel}
+                          </span>
+                          <span className="text-xs text-muted-foreground">({nivelAmbientesStats.length} ambientes)</span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {nivelAmbientesStats.map((stat) => (
+                            <div
+                              key={stat.codigoambiente}
+                              className="rounded-lg border p-4 bg-card space-y-2 shadow-sm cursor-pointer hover:shadow-md hover:border-purple-300 dark:hover:border-purple-700 transition-all"
+                              onClick={() => handleShowDetalleAmbiente({ codigoambiente: stat.codigoambiente, nombre: stat.ambiente })}
+                              role="button"
+                              tabIndex={0}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleShowDetalleAmbiente({ codigoambiente: stat.codigoambiente, nombre: stat.ambiente });
+                              }}
+                              title="Click para ver activos de este ambiente"
+                            >
+                              <div className="text-sm font-semibold truncate" title={stat.ambiente}>
+                                {stat.ambiente}
+                              </div>
+                              <div className="text-xs text-muted-foreground">Código: {stat.codigoambiente}</div>
+                              <div className="rounded bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900 p-2 text-center">
+                                <div className="text-xs text-purple-600 dark:text-purple-400 font-medium">Total activos</div>
+                                <div className="text-lg font-bold text-purple-700 dark:text-purple-300 flex items-center justify-center gap-1">
+                                  {stat.totalInmueble}
+                                  <FileDown className="h-3 w-3 opacity-60" />
+                                </div>
+                                <div className="text-[10px] text-purple-600 dark:text-purple-400 underline underline-offset-2">Ver detalle</div>
                               </div>
                               <BarraAvance inventariado={stat.totalInventariado} total={stat.totalInmueble} />
                             </div>

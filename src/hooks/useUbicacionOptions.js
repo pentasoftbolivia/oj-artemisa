@@ -68,24 +68,64 @@ export const useUbicacionOptions = ({
 
   const nivelOptionsByInmueble = useMemo(() => {
     const inmueble = String(filters.inmueble ?? "").trim();
-    if (!inmueble) return nivelOptions;
-    return nivelOptions.filter(
-      (o) => nivelInmuebleMap[String(o.value).trim()] === inmueble,
-    );
-  }, [nivelOptions, nivelInmuebleMap, filters.inmueble]);
+    const ciudad = String(filters.ciudad ?? "").trim();
+    if (inmueble) {
+      return nivelOptions.filter(
+        (o) => nivelInmuebleMap[String(o.value).trim()] === inmueble,
+      );
+    }
+    if (ciudad) {
+      const inmuebleCodesInCiudad = new Set(
+        Object.entries(inmuebleCiudadMap)
+          .filter(([, c]) => c === ciudad)
+          .map(([inm]) => inm),
+      );
+      return nivelOptions.filter((o) => inmuebleCodesInCiudad.has(nivelInmuebleMap[String(o.value).trim()]));
+    }
+    return nivelOptions;
+  }, [nivelOptions, nivelInmuebleMap, inmuebleCiudadMap, filters.inmueble, filters.ciudad]);
 
   const ambienteOptionsByNivel = useMemo(() => {
     const nivel = String(filters.nivel ?? "").trim();
-    if (!nivel) return ambienteOptions;
-    return ambienteOptions.filter(
-      (o) => String(ambienteNivelMap[String(o.value).trim()] ?? "") === nivel,
-    );
-  }, [ambienteOptions, ambienteNivelMap, filters.nivel]);
+    const inmueble = String(filters.inmueble ?? "").trim();
+    const ciudad = String(filters.ciudad ?? "").trim();
+    if (nivel) {
+      return ambienteOptions.filter(
+        (o) => String(ambienteNivelMap[String(o.value).trim()] ?? "") === nivel,
+      );
+    }
+    if (inmueble) {
+      const nivelCodesInInmueble = new Set(
+        Object.entries(nivelInmuebleMap)
+          .filter(([, inm]) => inm === inmueble)
+          .map(([niv]) => niv),
+      );
+      return ambienteOptions.filter((o) => nivelCodesInInmueble.has(String(ambienteNivelMap[String(o.value).trim()] ?? "")));
+    }
+    if (ciudad) {
+      const inmuebleCodesInCiudad = new Set(
+        Object.entries(inmuebleCiudadMap)
+          .filter(([, c]) => c === ciudad)
+          .map(([inm]) => inm),
+      );
+      const nivelCodesInCiudad = new Set(
+        Object.entries(nivelInmuebleMap)
+          .filter(([, inm]) => inmuebleCodesInCiudad.has(inm))
+          .map(([niv]) => niv),
+      );
+      return ambienteOptions.filter((o) => nivelCodesInCiudad.has(String(ambienteNivelMap[String(o.value).trim()] ?? "")));
+    }
+    return ambienteOptions;
+  }, [ambienteOptions, ambienteNivelMap, nivelInmuebleMap, inmuebleCiudadMap, filters.nivel, filters.inmueble, filters.ciudad]);
 
   return {
     ciudadOptions,
     inmuebleOptions,
+    nivelOptions,
+    ambienteOptions,
     inmuebleCiudadMap,
+    nivelInmuebleMap,
+    ambienteNivelMap,
     inmuebleOptionsByCiudad,
     nivelOptionsByInmueble,
     ambienteOptionsByNivel,

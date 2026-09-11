@@ -44,6 +44,8 @@ const InicioList = () => {
     loadInmuebleEnProceso,
     loadInmuebleActivos,
     loadCiudadInmueblesStats,
+    loadInmuebleNivelesStats,
+    loadNivelAmbientesStats,
     loadActivosPorFecha,
     loadEnProcesoAcumulado,
     loadActivosPorInventariador,
@@ -52,15 +54,25 @@ const InicioList = () => {
     loadInitialData,
   } = useInventarioData();
 
+  const [ubicacionFilters, setUbicacionFilters] = useState({ ciudad: "", inmueble: "", nivel: "", ambiente: "" });
+
   const {
     ciudadOptions,
     inmuebleOptions,
+    nivelOptions,
+    ambienteOptions,
     inmuebleCiudadMap,
+    nivelInmuebleMap,
+    ambienteNivelMap,
+    inmuebleOptionsByCiudad,
+    nivelOptionsByInmueble,
+    ambienteOptionsByNivel,
   } = useUbicacionOptions({
     ciudades,
     inmuebles,
     niveles,
     ambientes,
+    filters: ubicacionFilters,
   });
 
   const [isInmuebleModalOpen, setIsInmuebleModalOpen] = useState(false);
@@ -299,7 +311,16 @@ const InicioList = () => {
         onClose={() => setIsInmuebleModalOpen(false)}
         ciudadOptions={ciudadOptions}
         inmuebleOptions={inmuebleOptions}
+        nivelOptions={nivelOptions}
+        ambienteOptions={ambienteOptions}
         inmuebleCiudadMap={inmuebleCiudadMap}
+        nivelInmuebleMap={nivelInmuebleMap}
+        ambienteNivelMap={ambienteNivelMap}
+        inmuebleOptionsByCiudad={inmuebleOptionsByCiudad}
+        nivelOptionsByInmueble={nivelOptionsByInmueble}
+        ambienteOptionsByNivel={ambienteOptionsByNivel}
+        ubicacionFilters={ubicacionFilters}
+        setUbicacionFilters={setUbicacionFilters}
         getDisplayName={getDisplayName}
         loadInmuebleSummary={loadInmuebleSummary}
         loadInmueblePendientes={loadInmueblePendientes}
@@ -307,6 +328,8 @@ const InicioList = () => {
         loadInmuebleEnProceso={loadInmuebleEnProceso}
         loadInmuebleActivos={loadInmuebleActivos}
         loadCiudadInmueblesStats={loadCiudadInmueblesStats}
+        loadInmuebleNivelesStats={loadInmuebleNivelesStats}
+        loadNivelAmbientesStats={loadNivelAmbientesStats}
         getAmbienteName={getAmbienteName}
         getResponsableName={getResponsableName}
         rubroFromTipo={rubroFromTipo}
