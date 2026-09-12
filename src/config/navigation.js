@@ -1,5 +1,5 @@
 export const DEFAULT_NAV_ITEMS = [
-  { title: "Inicio", href: "/inicio" },
+  { title: "Inicio", href: "/inicio", adminOnly: true },
   {
     title: "Configuración",
     href: "#",
