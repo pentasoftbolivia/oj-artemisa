@@ -346,20 +346,20 @@ const InicioList = () => {
       />
 
       <Dialog open={isUsuarioModalOpen} onOpenChange={(open) => !open && handleCloseUsuarioModal()}>
-        <DialogContent className="w-full max-w-[96vw] sm:max-w-[1200px] max-h-[85vh] flex flex-col p-4 sm:p-6">
-          <DialogHeader>
-            <DialogTitle className="text-lg flex items-center gap-2">
-              <Package className="h-5 w-5 text-blue-600" />
-              {usuarioModalTitle || "Activos por Inventariador"}
+        <DialogContent className="w-full max-w-[96vw] sm:max-w-[1200px] max-h-[92vh] sm:max-h-[85vh] flex flex-col p-3 sm:p-6 gap-3 overflow-hidden">
+          <DialogHeader className="shrink-0 pr-6 space-y-1">
+            <DialogTitle className="text-base sm:text-lg flex items-center gap-2 leading-tight">
+              <Package className="h-5 w-5 text-blue-600 shrink-0" />
+              <span className="truncate">{usuarioModalTitle || "Activos por Inventariador"}</span>
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-xs sm:text-sm leading-tight">
               {usuarioModalList.length > 0
-                ? `Mostrando ${usuarioModalList.length} activo(s) para el inventariador seleccionado.`
+                ? `Mostrando ${usuarioModalList.length} activo(s).`
                 : "Listado de activos filtrado por inventariador y estado."}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 min-h-0 flex flex-col">
+          <div className="flex-1 min-h-0 flex flex-col overflow-y-auto overscroll-contain">
             {isLoadingUsuarioModal ? (
               <div className="flex flex-col justify-center items-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -390,16 +390,16 @@ const InicioList = () => {
             )}
           </div>
 
-          <div className="flex flex-wrap justify-between gap-2 pt-4">
+          <div className="flex flex-col sm:flex-row sm:justify-between gap-2 pt-3 sm:pt-4 shrink-0">
             <Button
               onClick={handleExportUsuarioExcel}
               disabled={!usuarioModalList.length || isGeneratingUsuarioExcel || isLoadingUsuarioModal}
-              className="bg-green-600 hover:bg-green-700 text-white"
+              className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white min-h-11 sm:min-h-9 text-xs sm:text-sm order-1"
             >
               {isGeneratingUsuarioExcel ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileSpreadsheet className="h-4 w-4 mr-2" />}
               Reporte en Excel
             </Button>
-            <Button variant="outline" onClick={handleCloseUsuarioModal}>
+            <Button variant="outline" onClick={handleCloseUsuarioModal} className="w-full sm:w-auto min-h-11 sm:min-h-9 order-2">
               <X className="h-4 w-4 mr-2" />
               Cerrar
             </Button>

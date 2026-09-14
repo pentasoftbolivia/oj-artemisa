@@ -718,19 +718,19 @@ const InventarioInmuebleModal = ({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-        <DialogContent className="w-full max-w-[96vw] sm:max-w-[1200px] max-h-[90vh] flex flex-col p-4 sm:p-6">
-          <DialogHeader>
-            <DialogTitle className="text-xl flex items-center gap-2">
-              <Building2 className="h-5 w-5" />
+        <DialogContent className="w-full max-w-[96vw] sm:max-w-[1200px] max-h-[92vh] sm:max-h-[90vh] flex flex-col p-3 sm:p-6 gap-3 sm:gap-4 overflow-hidden">
+          <DialogHeader className="shrink-0 space-y-1.5 sm:space-y-2 pr-6">
+            <DialogTitle className="text-base sm:text-xl flex items-center gap-2 leading-tight">
+              <Building2 className="h-5 w-5 shrink-0" />
               Activos por Inmueble
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-xs sm:text-sm leading-tight">
               Filtre por Ciudad, Inmueble, Nivel y Ambiente (en cascada) para ver el avance de inventario por inventariador.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 min-h-0 flex flex-col my-2 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="flex-1 min-h-0 flex flex-col my-1 sm:my-2 space-y-3 sm:space-y-4 overflow-y-auto overscroll-contain pr-1 -mr-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <ComboboxField
                 label="Ciudad"
                 value={ciudad}
@@ -785,32 +785,35 @@ const InventarioInmuebleModal = ({
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                onClick={handleBuscar}
-                disabled={isLoading || (!ciudad && !inmueble && !nivel && !ambiente)}
-              >
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Search className="h-4 w-4 mr-2" />
-                )}
-                Buscar
-              </Button>
-              <Button variant="outline" onClick={handleLimpiar} disabled={isLoading}>
-                <X className="h-4 w-4 mr-2" />
-                Limpiar
-              </Button>
+            <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
+              <div className="flex gap-2 w-full sm:w-auto">
+                <Button
+                  onClick={handleBuscar}
+                  disabled={isLoading || (!ciudad && !inmueble && !nivel && !ambiente)}
+                  className="flex-1 sm:flex-none min-h-11 sm:min-h-9 text-sm"
+                >
+                  {isLoading ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Search className="h-4 w-4 mr-2" />
+                  )}
+                  Buscar
+                </Button>
+                <Button variant="outline" onClick={handleLimpiar} disabled={isLoading} className="flex-1 sm:flex-none min-h-11 sm:min-h-9">
+                  <X className="h-4 w-4 mr-2" />
+                  Limpiar
+                </Button>
+              </div>
               <Button
                 variant="outline"
-                className="ml-auto bg-sky-300 hover:bg-sky-400 text-sky-950 border-sky-400"
+                className="w-full sm:w-auto sm:ml-auto bg-sky-300 hover:bg-sky-400 text-sky-950 border-sky-400 min-h-11 sm:min-h-9 text-xs sm:text-sm whitespace-normal text-center leading-tight h-auto py-2.5 sm:py-2"
                 onClick={handleGenerarExcel}
                 disabled={isGeneratingExcel || !result}
               >
                 {isGeneratingExcel ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin shrink-0" />
                 ) : (
-                  <FileDown className="h-4 w-4 mr-2" />
+                  <FileDown className="h-4 w-4 mr-2 shrink-0" />
                 )}
                 Reporte de los Paneles en Excel
               </Button>
@@ -824,18 +827,18 @@ const InventarioInmuebleModal = ({
                 </p>
               </div>
             ) : result ? (
-              <div className="flex-1 min-h-0 overflow-auto space-y-4">
+              <div className="flex-1 min-h-0 space-y-3 sm:space-y-4">
                 {result.totalInmueble > 0 && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="flex flex-col justify-center items-center py-2">
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                    <div className="flex flex-col justify-center items-center py-2 sm:py-3 rounded-lg border bg-muted/20 sm:border-0 sm:bg-transparent">
                       <div
-                        className="text-sm font-semibold tracking-wide"
+                        className="text-[11px] sm:text-sm font-semibold tracking-wide text-center"
                         style={{ color: "#dc2626" }}
                       >
                         PORCENTAJE DE AVANCE
                       </div>
                       <div
-                        className="text-4xl font-extrabold animate-flash"
+                        className="text-2xl sm:text-4xl font-extrabold animate-flash"
                         style={{
                           color:
                             result.totalInventariado / result.totalInmueble <= 0.5
@@ -852,11 +855,11 @@ const InventarioInmuebleModal = ({
                         %
                       </div>
                     </div>
-                    <div className="rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/20 p-4 text-center shadow-sm">
-                      <div className="text-sm font-semibold text-blue-600 dark:text-blue-400 tracking-wide">
-                        TOTAL DE ACTIVOS EN EL INMUEBLE
+                    <div className="rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/20 p-3 sm:p-4 text-center shadow-sm flex flex-col justify-center">
+                      <div className="text-[11px] sm:text-sm font-semibold text-blue-600 dark:text-blue-400 tracking-wide leading-tight">
+                        TOTAL EN INMUEBLE
                       </div>
-                      <div className="text-lg font-bold text-blue-700 dark:text-blue-300 mt-1">
+                      <div className="text-[11px] sm:text-sm font-bold text-blue-700 dark:text-blue-300 mt-1 leading-tight break-words line-clamp-2">
                         {[
                           selectedCiudadName || "Todas",
                           selectedInmuebleName || "Todos",
@@ -866,16 +869,16 @@ const InventarioInmuebleModal = ({
                           .filter(Boolean)
                           .join(" - ")}
                       </div>
-                      <div className="text-3xl font-bold text-blue-700 dark:text-blue-300">
+                      <div className="text-2xl sm:text-3xl font-bold text-blue-700 dark:text-blue-300">
                         {result.totalInmueble}
                       </div>
                     </div>
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
                   <div
-                    className={`rounded-lg border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/20 p-4 text-center shadow-sm ${result.totalInventariado > 0 ? "cursor-pointer hover:shadow-md hover:border-green-400 transition-all" : "opacity-70"}`}
+                    className={`rounded-lg border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/20 p-3 sm:p-4 text-center shadow-sm ${result.totalInventariado > 0 ? "cursor-pointer hover:shadow-md hover:border-green-400 transition-all active:scale-[0.98]" : "opacity-70"}`}
                     onClick={() => result.totalInventariado > 0 && !isGeneratingPdfInventariados && handleGenerarPdfInventariados({ usuario: "", displayName: "" })}
                     role={result.totalInventariado > 0 ? "button" : undefined}
                     tabIndex={result.totalInventariado > 0 ? 0 : undefined}
@@ -884,10 +887,10 @@ const InventarioInmuebleModal = ({
                     }}
                     title={result.totalInventariado > 0 ? "Click para generar PDF de inventariados" : undefined}
                   >
-                    <div className="text-sm font-semibold text-green-600 dark:text-green-400 tracking-wide">
-                      TOTAL DE ACTIVOS INVENTARIADOS
+                    <div className="text-[11px] sm:text-sm font-semibold text-green-600 dark:text-green-400 tracking-wide leading-tight">
+                      INVENTARIADOS
                     </div>
-                    <div className="text-3xl font-bold text-green-700 dark:text-green-300">
+                    <div className="text-2xl sm:text-3xl font-bold text-green-700 dark:text-green-300">
                       {result.totalInventariado}
                     </div>
                     {result.totalInventariado > 0 && (
@@ -905,7 +908,7 @@ const InventarioInmuebleModal = ({
                     )}
                   </div>
                   <div
-                    className={`rounded-lg border border-yellow-200 dark:border-yellow-900 bg-yellow-50 dark:bg-yellow-950/20 p-4 text-center shadow-sm ${result.totalEnProceso > 0 ? "cursor-pointer hover:shadow-md hover:border-yellow-400 transition-all" : "opacity-70"}`}
+                    className={`rounded-lg border border-yellow-200 dark:border-yellow-900 bg-yellow-50 dark:bg-yellow-950/20 p-3 sm:p-4 text-center shadow-sm ${result.totalEnProceso > 0 ? "cursor-pointer hover:shadow-md hover:border-yellow-400 transition-all active:scale-[0.98]" : "opacity-70"}`}
                     onClick={() => result.totalEnProceso > 0 && handleShowEnProceso({ usuario: "", displayName: "" })}
                     role={result.totalEnProceso > 0 ? "button" : undefined}
                     tabIndex={result.totalEnProceso > 0 ? 0 : undefined}
@@ -914,17 +917,17 @@ const InventarioInmuebleModal = ({
                     }}
                     title={result.totalEnProceso > 0 ? "Click para ver listado en proceso" : undefined}
                   >
-                    <div className="text-sm font-semibold text-yellow-600 dark:text-yellow-400 tracking-wide">
-                      TOTAL DE ACTIVOS EN PROCESO
+                    <div className="text-[11px] sm:text-sm font-semibold text-yellow-600 dark:text-yellow-400 tracking-wide leading-tight">
+                      EN PROCESO
                     </div>
-                    <div className="text-3xl font-bold text-yellow-700 dark:text-yellow-300">
+                    <div className="text-2xl sm:text-3xl font-bold text-yellow-700 dark:text-yellow-300">
                       {result.totalEnProceso}
                     </div>
                   </div>
                 </div>
 
                 {result.perUser.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                     {result.perUser.map((stat) => (
                       <div
                         key={stat.email}
@@ -1017,14 +1020,14 @@ const InventarioInmuebleModal = ({
                       </div>
                     ) : ciudadInmueblesStats.length > 0 ? (
                       <>
-                        <div className="flex items-center gap-2">
-                          <Building2 className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm font-semibold tracking-wide">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <span className="text-xs sm:text-sm font-semibold tracking-wide leading-tight">
                             DETALLE POR INMUEBLE — {selectedCiudadName || ciudad}
                           </span>
-                          <span className="text-xs text-muted-foreground">({ciudadInmueblesStats.length} inmuebles)</span>
+                          <span className="text-xs text-muted-foreground">({ciudadInmueblesStats.length})</span>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                           {ciudadInmueblesStats.map((stat) => (
                             <div
                               key={stat.codigoinmueble}
@@ -1069,14 +1072,14 @@ const InventarioInmuebleModal = ({
                       </div>
                     ) : inmuebleNivelesStats.length > 0 ? (
                       <>
-                        <div className="flex items-center gap-2">
-                          <Layers className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm font-semibold tracking-wide">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Layers className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <span className="text-xs sm:text-sm font-semibold tracking-wide leading-tight">
                             DETALLE POR NIVEL — {selectedInmuebleName || inmueble}
                           </span>
-                          <span className="text-xs text-muted-foreground">({inmuebleNivelesStats.length} niveles)</span>
+                          <span className="text-xs text-muted-foreground">({inmuebleNivelesStats.length})</span>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                           {inmuebleNivelesStats.map((stat) => (
                             <div
                               key={stat.codigonivel}
@@ -1121,14 +1124,14 @@ const InventarioInmuebleModal = ({
                       </div>
                     ) : nivelAmbientesStats.length > 0 ? (
                       <>
-                        <div className="flex items-center gap-2">
-                          <Package className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm font-semibold tracking-wide">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Package className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <span className="text-xs sm:text-sm font-semibold tracking-wide leading-tight">
                             DETALLE POR AMBIENTE — {selectedNivelName || nivel}
                           </span>
-                          <span className="text-xs text-muted-foreground">({nivelAmbientesStats.length} ambientes)</span>
+                          <span className="text-xs text-muted-foreground">({nivelAmbientesStats.length})</span>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                           {nivelAmbientesStats.map((stat) => (
                             <div
                               key={stat.codigoambiente}
@@ -1178,21 +1181,22 @@ const InventarioInmuebleModal = ({
                       onPrev={() => setPendientesPage((p) => Math.max(1, p - 1))}
                       onNext={() => setPendientesPage((p) => Math.min(pendientesTotalPages, p + 1))}
                     />
-                    <div className="flex flex-wrap justify-end gap-2 px-4 py-3 border-t bg-muted/20">
+                    <div className="flex flex-col sm:flex-row sm:justify-end gap-2 px-3 sm:px-4 py-3 border-t bg-muted/20">
                       <Button
                         onClick={handleGenerarPdf}
                         disabled={isGeneratingPdf}
+                        className="w-full sm:w-auto min-h-11 sm:min-h-9 text-xs sm:text-sm"
                       >
                         {isGeneratingPdf ? (
                           <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                         ) : (
                           <FileDown className="h-4 w-4 mr-2" />
                         )}
-                        Reporte Activos No Inventariados en PDF
+                        PDF No Inventariados
                       </Button>
                       <Button
                         variant="outline"
-                        className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200 dark:bg-green-950/30 dark:hover:bg-green-950/50 dark:text-green-300 dark:border-green-800"
+                        className="w-full sm:w-auto bg-green-50 hover:bg-green-100 text-green-700 border-green-200 dark:bg-green-950/30 dark:hover:bg-green-950/50 dark:text-green-300 dark:border-green-800 min-h-11 sm:min-h-9 text-xs sm:text-sm"
                         onClick={handleGenerarExcelPendientes}
                         disabled={isGeneratingExcelPendientes}
                       >
@@ -1201,7 +1205,7 @@ const InventarioInmuebleModal = ({
                         ) : (
                           <FileSpreadsheet className="h-4 w-4 mr-2" />
                         )}
-                        Reporte Activos No Inventariados en EXCEL
+                        EXCEL No Inventariados
                       </Button>
                     </div>
                   </SeccionActivos>
@@ -1213,20 +1217,20 @@ const InventarioInmuebleModal = ({
       </Dialog>
 
       <Dialog open={inventariadosOpen} onOpenChange={(open) => !open && handleCloseInventariados()}>
-        <DialogContent className="w-full max-w-[96vw] sm:max-w-[1200px] max-h-[85vh] flex flex-col p-4 sm:p-6">
-          <DialogHeader>
-            <DialogTitle className="text-lg flex items-center gap-2">
-              <Package className="h-5 w-5 text-green-600" />
-              {inventariadosTitle || "Activos Inventariados"}
+        <DialogContent className="w-full max-w-[96vw] sm:max-w-[1200px] max-h-[92vh] sm:max-h-[85vh] flex flex-col p-3 sm:p-6 gap-3 overflow-hidden">
+          <DialogHeader className="shrink-0 pr-6 space-y-1">
+            <DialogTitle className="text-base sm:text-lg flex items-center gap-2 leading-tight">
+              <Package className="h-5 w-5 text-green-600 shrink-0" />
+              <span className="truncate">{inventariadosTitle || "Activos Inventariados"}</span>
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-xs sm:text-sm leading-tight">
               {inventariados.length > 0
-                ? `Mostrando ${inventariados.length} activo(s) inventariado(s) en el inmueble seleccionado.`
+                ? `Mostrando ${inventariados.length} activo(s) inventariado(s).`
                 : "Listado de activos con estado inventariado."}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 min-h-0 flex flex-col">
+          <div className="flex-1 min-h-0 flex flex-col overflow-y-auto overscroll-contain">
             {isLoadingInventariados ? (
               <div className="flex flex-col justify-center items-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -1257,8 +1261,8 @@ const InventarioInmuebleModal = ({
             )}
           </div>
 
-          <div className="flex justify-end pt-4">
-            <Button variant="outline" onClick={handleCloseInventariados}>
+          <div className="flex justify-end pt-3 sm:pt-4 shrink-0">
+            <Button variant="outline" onClick={handleCloseInventariados} className="w-full sm:w-auto min-h-11 sm:min-h-9">
               <X className="h-4 w-4 mr-2" />
               Cerrar
             </Button>
@@ -1267,20 +1271,20 @@ const InventarioInmuebleModal = ({
       </Dialog>
 
       <Dialog open={enProcesoOpen} onOpenChange={(open) => !open && handleCloseEnProceso()}>
-        <DialogContent className="w-full max-w-[96vw] sm:max-w-[1200px] max-h-[85vh] flex flex-col p-4 sm:p-6">
-          <DialogHeader>
-            <DialogTitle className="text-lg flex items-center gap-2">
-              <Package className="h-5 w-5 text-yellow-600" />
-              {enProcesoTitle || "Activos En Proceso"}
+        <DialogContent className="w-full max-w-[96vw] sm:max-w-[1200px] max-h-[92vh] sm:max-h-[85vh] flex flex-col p-3 sm:p-6 gap-3 overflow-hidden">
+          <DialogHeader className="shrink-0 pr-6 space-y-1">
+            <DialogTitle className="text-base sm:text-lg flex items-center gap-2 leading-tight">
+              <Package className="h-5 w-5 text-yellow-600 shrink-0" />
+              <span className="truncate">{enProcesoTitle || "Activos En Proceso"}</span>
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-xs sm:text-sm leading-tight">
               {enProcesoList.length > 0
-                ? `Mostrando ${enProcesoList.length} activo(s) en proceso en el inmueble seleccionado.`
+                ? `Mostrando ${enProcesoList.length} activo(s) en proceso.`
                 : "Listado de activos con estado EN PROCESO."}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 min-h-0 flex flex-col">
+          <div className="flex-1 min-h-0 flex flex-col overflow-y-auto overscroll-contain">
             {isLoadingEnProceso ? (
               <div className="flex flex-col justify-center items-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -1311,19 +1315,20 @@ const InventarioInmuebleModal = ({
             )}
           </div>
 
-          <div className="flex flex-wrap justify-between gap-2 pt-4">
+          <div className="flex flex-col sm:flex-row sm:justify-between gap-2 pt-3 sm:pt-4 shrink-0">
             <Button
               onClick={handleGenerarPdfEnProceso}
               disabled={isGeneratingPdfEnProceso || enProcesoList.length === 0}
+              className="w-full sm:w-auto min-h-11 sm:min-h-9 text-xs sm:text-sm order-1"
             >
               {isGeneratingPdfEnProceso ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
                 <FileDown className="h-4 w-4 mr-2" />
               )}
-              Reporte Activos En Proceso en PDF
+              PDF En Proceso
             </Button>
-            <Button variant="outline" onClick={handleCloseEnProceso}>
+            <Button variant="outline" onClick={handleCloseEnProceso} className="w-full sm:w-auto min-h-11 sm:min-h-9 order-2">
               <X className="h-4 w-4 mr-2" />
               Cerrar
             </Button>
@@ -1332,21 +1337,21 @@ const InventarioInmuebleModal = ({
       </Dialog>
 
       <Dialog open={detalleInmuebleOpen} onOpenChange={(open) => !open && handleCloseDetalleInmueble()}>
-        <DialogContent className="w-full max-w-[96vw] sm:max-w-[1200px] max-h-[90vh] flex flex-col p-4 sm:p-6">
-          <DialogHeader>
-            <DialogTitle className="text-lg flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-blue-600" />
-              {detalleInmuebleTitle || "Activos por Inmueble"}
+        <DialogContent className="w-full max-w-[96vw] sm:max-w-[1200px] max-h-[92vh] sm:max-h-[90vh] flex flex-col p-3 sm:p-6 gap-3 overflow-hidden">
+          <DialogHeader className="shrink-0 pr-6 space-y-1">
+            <DialogTitle className="text-base sm:text-lg flex items-center gap-2 leading-tight">
+              <Building2 className="h-5 w-5 text-blue-600 shrink-0" />
+              <span className="truncate">{detalleInmuebleTitle || "Activos por Inmueble"}</span>
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-xs sm:text-sm leading-tight break-words">
               {detalleInmuebleSubtitle && <span>{detalleInmuebleSubtitle} · </span>}
               {detalleInmuebleList.length > 0
-                ? `${detalleInmuebleList.length} activos · ${detalleNoInventariados.length} no inventariados · ${detalleInventariados.length} inventariados`
-                : "Listado completo de activos del inmueble separado por estado."}
+                ? `${detalleInmuebleList.length} activos · ${detalleNoInventariados.length} no inv. · ${detalleInventariados.length} inv.`
+                : "Listado completo separado por estado."}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 min-h-0 overflow-auto space-y-4">
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-3 sm:space-y-4 pr-1 -mr-1">
             {isLoadingDetalleInmueble ? (
               <div className="flex flex-col justify-center items-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -1371,10 +1376,10 @@ const InventarioInmuebleModal = ({
                         onPrev={() => setDetalleNoInventariadosPage((p) => Math.max(1, p - 1))}
                         onNext={() => setDetalleNoInventariadosPage((p) => Math.min(detalleNoInventariadosTotalPages, p + 1))}
                       />
-                      <div className="flex justify-end gap-2 px-4 py-3 border-t bg-muted/20">
-                        <Button onClick={handleGenerarPdfDetalleNoInventariados} disabled={detalleNoInventariados.length === 0}>
+                      <div className="flex justify-end gap-2 px-3 sm:px-4 py-3 border-t bg-muted/20">
+                        <Button onClick={handleGenerarPdfDetalleNoInventariados} disabled={detalleNoInventariados.length === 0} className="w-full sm:w-auto min-h-11 sm:min-h-9 text-xs sm:text-sm">
                           <FileDown className="h-4 w-4 mr-2" />
-                          Reporte No Inventariados en PDF
+                          PDF No Inventariados
                         </Button>
                       </div>
                     </>
@@ -1403,14 +1408,14 @@ const InventarioInmuebleModal = ({
                         onPrev={() => setDetalleInventariadosPage((p) => Math.max(1, p - 1))}
                         onNext={() => setDetalleInventariadosPage((p) => Math.min(detalleInventariadosTotalPages, p + 1))}
                       />
-                      <div className="flex flex-wrap justify-end gap-2 px-4 py-3 border-t bg-muted/20">
-                        <Button onClick={handleGenerarPdfDetalleInventariados} disabled={detalleInventariados.length === 0}>
+                      <div className="flex flex-col sm:flex-row sm:justify-end gap-2 px-3 sm:px-4 py-3 border-t bg-muted/20">
+                        <Button onClick={handleGenerarPdfDetalleInventariados} disabled={detalleInventariados.length === 0} className="w-full sm:w-auto min-h-11 sm:min-h-9 text-xs sm:text-sm">
                           <FileDown className="h-4 w-4 mr-2" />
-                          Reporte Inventariados en PDF
+                          PDF Inventariados
                         </Button>
                         <Button
                           variant="outline"
-                          className="bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:hover:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800"
+                          className="w-full sm:w-auto bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:hover:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800 min-h-11 sm:min-h-9 text-xs sm:text-sm"
                           onClick={handleGenerarPdfTransferenciasInventariados}
                           disabled={detalleInventariados.length === 0 || isGeneratingPdfTransferencias}
                           title="Genera PDF con transferencias de los activos inventariados (tabla act_transferencias: código, persona y ubicación origen/destino)"
@@ -1420,7 +1425,7 @@ const InventarioInmuebleModal = ({
                           ) : (
                             <ArrowLeftRight className="h-4 w-4 mr-2" />
                           )}
-                          Reporte Transferencias en PDF
+                          PDF Transferencias
                         </Button>
                       </div>
                     </>
@@ -1440,8 +1445,8 @@ const InventarioInmuebleModal = ({
             )}
           </div>
 
-          <div className="flex justify-end pt-4">
-            <Button variant="outline" onClick={handleCloseDetalleInmueble}>
+          <div className="flex justify-end pt-3 sm:pt-4 shrink-0">
+            <Button variant="outline" onClick={handleCloseDetalleInmueble} className="w-full sm:w-auto min-h-11 sm:min-h-9">
               <X className="h-4 w-4 mr-2" />
               Cerrar
             </Button>

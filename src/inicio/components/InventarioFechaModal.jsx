@@ -305,39 +305,43 @@ const InventarioFechaModal = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-[96vw] sm:max-w-[1080px] max-h-[90vh] flex flex-col p-6">
-        <DialogHeader>
-          <DialogTitle className="text-xl flex items-center gap-2">
-            <CalendarDays className="h-5 w-5" />
+      <DialogContent className="w-full max-w-[96vw] sm:max-w-[1080px] max-h-[92vh] sm:max-h-[90vh] flex flex-col p-3 sm:p-6 gap-3 overflow-hidden">
+        <DialogHeader className="shrink-0 pr-6 space-y-1">
+          <DialogTitle className="text-base sm:text-xl flex items-center gap-2 leading-tight">
+            <CalendarDays className="h-5 w-5 shrink-0" />
             Activos por Inventariador y Fecha
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs sm:text-sm leading-tight">
             Seleccione un rango de fechas para ver cuántos activos registró cada inventariador.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-wrap items-end gap-3 my-2">
-          <div className="grid gap-1.5">
-            <Label htmlFor="fechaDesde">Desde</Label>
-            <Input
-              id="fechaDesde"
-              type="date"
-              value={fechaDesde}
-              onChange={(e) => setFechaDesde(e.target.value)}
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="fechaHasta">Hasta</Label>
-            <Input
-              id="fechaHasta"
-              type="date"
-              value={fechaHasta}
-              onChange={(e) => setFechaHasta(e.target.value)}
-            />
+        <div className="flex flex-col gap-3 my-1 sm:my-2">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-1.5">
+              <Label htmlFor="fechaDesde" className="text-xs sm:text-sm">Desde</Label>
+              <Input
+                id="fechaDesde"
+                type="date"
+                value={fechaDesde}
+                onChange={(e) => setFechaDesde(e.target.value)}
+                className="min-h-11 sm:min-h-9 text-sm"
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="fechaHasta" className="text-xs sm:text-sm">Hasta</Label>
+              <Input
+                id="fechaHasta"
+                type="date"
+                value={fechaHasta}
+                onChange={(e) => setFechaHasta(e.target.value)}
+                className="min-h-11 sm:min-h-9 text-sm"
+              />
+            </div>
           </div>
           <Button
             variant="outline"
-            className="ml-auto bg-green-300 hover:bg-green-400 text-green-950 border-green-400 w-[260px]"
+            className="w-full bg-green-300 hover:bg-green-400 text-green-950 border-green-400 min-h-11 sm:min-h-9 text-xs sm:text-sm"
             onClick={handleGenerarExcel}
             disabled={isGeneratingExcel || !rawData}
           >
@@ -350,26 +354,29 @@ const InventarioFechaModal = ({
           </Button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 mb-2">
-          <Button
-            onClick={handleBuscar}
-            disabled={isLoading || !fechaDesde || !fechaHasta}
-          >
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Search className="h-4 w-4 mr-2" />
-            )}
-            Buscar
-          </Button>
-          <Button variant="outline" onClick={handleLimpiar} disabled={isLoading}>
-            <X className="h-4 w-4 mr-2" />
-            Limpiar
-          </Button>
+        <div className="flex flex-col sm:flex-row gap-2 mb-2">
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Button
+              onClick={handleBuscar}
+              disabled={isLoading || !fechaDesde || !fechaHasta}
+              className="flex-1 sm:flex-none min-h-11 sm:min-h-9"
+            >
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Search className="h-4 w-4 mr-2" />
+              )}
+              Buscar
+            </Button>
+            <Button variant="outline" onClick={handleLimpiar} disabled={isLoading} className="flex-1 sm:flex-none min-h-11 sm:min-h-9">
+              <X className="h-4 w-4 mr-2" />
+              Limpiar
+            </Button>
+          </div>
 
           <Button
             variant="outline"
-            className="ml-auto bg-sky-300 hover:bg-sky-400 text-sky-950 border-sky-400 w-[260px]"
+            className="w-full sm:w-auto sm:ml-auto bg-sky-300 hover:bg-sky-400 text-sky-950 border-sky-400 min-h-11 sm:min-h-9 text-xs sm:text-sm"
             onClick={handleGenerarPdf}
             disabled={isGeneratingPdf || !sortedResult}
           >
@@ -390,84 +397,162 @@ const InventarioFechaModal = ({
             </p>
           </div>
         ) : sortedResult ? (
-          <div className="flex-1 min-h-0 overflow-auto border rounded-md">
-            <Table>
-              <TableHeader className="bg-muted/50 sticky top-0">
-                <TableRow>
-                  <TableHead className="w-[40px]">N°</TableHead>
-                  <TableHead>Inventariador</TableHead>
-                  <TableHead className="text-center bg-amber-50 dark:bg-amber-950/30">
-                    <div className="flex flex-col leading-tight py-1 text-xs font-medium">
-                      <span>En Proceso</span>
-                      <span>Acumulado</span>
+          <div className="flex-1 min-h-0 overflow-auto overscroll-contain space-y-0">
+            {sortedResult.length === 0 ? (
+              <div className="border rounded-md text-center text-muted-foreground py-8 text-sm">
+                No se encontraron activos en el rango de fechas seleccionado.
+              </div>
+            ) : (
+              <>
+                {/* MÓVIL: cards */}
+                <div className="sm:hidden space-y-3 pr-1">
+                  {sortedResult.map((stat, i) => (
+                    <div key={stat.email} className="rounded-lg border bg-card p-3 space-y-2.5 shadow-sm">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="text-[11px] text-muted-foreground font-medium">#{i + 1} · Inventariador</div>
+                          <div className="text-sm font-semibold leading-tight truncate" title={getDisplayName(stat.email)}>
+                            {getDisplayName(stat.email)}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground truncate">{stat.email}</div>
+                        </div>
+                        <div className="shrink-0 rounded-md bg-blue-600 text-white px-2.5 py-1.5 text-center min-w-[56px]">
+                          <div className="text-[10px] uppercase leading-none opacity-90">Total</div>
+                          <div className="text-lg font-extrabold leading-none">{stat.total}</div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-4 gap-2">
+                        <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 p-2 text-center">
+                          <div className="text-[9px] uppercase font-semibold text-amber-700 dark:text-amber-300 leading-tight">Acum.<br/>En Proc.</div>
+                          <div className="text-sm font-bold text-amber-700 dark:text-amber-300">{stat.enProcesoAcumulado ?? 0}</div>
+                        </div>
+                        <div className="rounded-md bg-muted/50 border p-2 text-center">
+                          <div className="text-[9px] uppercase font-semibold text-muted-foreground leading-tight">En<br/>Proceso</div>
+                          <div className="text-sm font-bold">{stat.enProceso}</div>
+                        </div>
+                        <div className="rounded-md bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 p-2 text-center">
+                          <div className="text-[9px] uppercase font-semibold text-green-700 dark:text-green-300 leading-tight">Invent.</div>
+                          <div className="text-sm font-bold text-green-700 dark:text-green-300">{stat.inventariado}</div>
+                        </div>
+                        <div className="rounded-md bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-900 p-2 text-center">
+                          <div className="text-[9px] uppercase font-semibold text-yellow-700 dark:text-yellow-400 leading-tight">Revisado</div>
+                          <div className="text-sm font-bold text-yellow-700 dark:text-yellow-300">{stat.revisado}</div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-xs border-t pt-2">
+                        <div>
+                          <div className="text-[10px] uppercase font-semibold text-muted-foreground">Primer registro</div>
+                          <div className="text-xs leading-tight break-words">{formatFecha(stat.primerRegistro)}</div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] uppercase font-semibold text-muted-foreground">Último registro</div>
+                          <div className="text-xs leading-tight break-words">{formatFecha(stat.ultimoRegistro)}</div>
+                        </div>
+                      </div>
                     </div>
-                  </TableHead>
-                  <TableHead className="text-center">En Proceso</TableHead>
-                  <TableHead className="text-center">Inventariado</TableHead>
-                  <TableHead className="text-center">Revisado</TableHead>
-                  <TableHead className="text-center">Total</TableHead>
-                  <TableHead className="text-center whitespace-nowrap">Primer Registro</TableHead>
-                  <TableHead className="text-center whitespace-nowrap">Último Registro</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedResult.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={9}
-                      className="text-center text-muted-foreground py-8"
-                    >
-                      No se encontraron activos en el rango de fechas seleccionado.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  sortedResult.map((stat, i) => (
-                    <TableRow key={stat.email}>
-                      <TableCell className="text-muted-foreground">{i + 1}</TableCell>
-                      <TableCell className="font-medium">
-                        {getDisplayName(stat.email)}
-                      </TableCell>
-                      <TableCell className="text-center font-bold bg-amber-50/50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-300">
-                        {stat.enProcesoAcumulado ?? 0}
-                      </TableCell>
-                      <TableCell className="text-center">{stat.enProceso}</TableCell>
-                      <TableCell className="text-center">{stat.inventariado}</TableCell>
-                      <TableCell className="text-center">{stat.revisado}</TableCell>
-                      <TableCell className="text-center font-bold">
-                        {stat.total}
-                      </TableCell>
-                      <TableCell className="text-center text-xs whitespace-nowrap">{formatFecha(stat.primerRegistro)}</TableCell>
-                      <TableCell className="text-center text-xs whitespace-nowrap">{formatFecha(stat.ultimoRegistro)}</TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-              {sortedResult.length > 0 && (
-                <TableFooter className="bg-muted/50">
-                  <TableRow>
-                    <TableCell colSpan={2} className="font-bold">
-                      TOTAL GENERAL
-                    </TableCell>
-                    <TableCell className="text-center font-bold bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200">
-                      {totalEnProcesoAcumulado}
-                    </TableCell>
-                    <TableCell className="text-center font-bold">
-                      {totalEnProceso}
-                    </TableCell>
-                    <TableCell className="text-center font-bold">
-                      {totalInventariado}
-                    </TableCell>
-                    <TableCell className="text-center font-bold">
-                      {totalRevisado}
-                    </TableCell>
-                    <TableCell className="text-center font-bold text-blue-600 dark:text-blue-400">
-                      {totalGeneral}
-                    </TableCell>
-                    <TableCell colSpan={2} className="text-center text-xs text-muted-foreground">—</TableCell>
-                  </TableRow>
-                </TableFooter>
-              )}
-            </Table>
+                  ))}
+
+                  {/* Total general móvil */}
+                  <div className="rounded-lg border-2 border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-950/30 p-3 space-y-2">
+                    <div className="text-xs font-bold text-blue-700 dark:text-blue-300 tracking-wide text-center">TOTAL GENERAL</div>
+                    <div className="grid grid-cols-4 gap-2">
+                      <div className="text-center">
+                        <div className="text-[9px] uppercase text-muted-foreground font-semibold">Acum.</div>
+                        <div className="text-sm font-bold text-amber-700 dark:text-amber-300">{totalEnProcesoAcumulado}</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-[9px] uppercase text-muted-foreground font-semibold">En Proc.</div>
+                        <div className="text-sm font-bold">{totalEnProceso}</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-[9px] uppercase text-muted-foreground font-semibold">Invent.</div>
+                        <div className="text-sm font-bold text-green-700 dark:text-green-300">{totalInventariado}</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-[9px] uppercase text-muted-foreground font-semibold">Revisado</div>
+                        <div className="text-sm font-bold">{totalRevisado}</div>
+                      </div>
+                    </div>
+                    <div className="text-center border-t border-blue-200 dark:border-blue-800 pt-2">
+                      <span className="text-xs text-muted-foreground">Total activos: </span>
+                      <span className="text-lg font-extrabold text-blue-700 dark:text-blue-300">{totalGeneral}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* DESKTOP: tabla */}
+                <div className="hidden sm:block border rounded-md overflow-auto">
+                  <Table>
+                    <TableHeader className="bg-muted/50 sticky top-0">
+                      <TableRow>
+                        <TableHead className="w-[40px]">N°</TableHead>
+                        <TableHead>Inventariador</TableHead>
+                        <TableHead className="text-center bg-amber-50 dark:bg-amber-950/30">
+                          <div className="flex flex-col leading-tight py-1 text-xs font-medium">
+                            <span>En Proceso</span>
+                            <span>Acumulado</span>
+                          </div>
+                        </TableHead>
+                        <TableHead className="text-center">En Proceso</TableHead>
+                        <TableHead className="text-center">Inventariado</TableHead>
+                        <TableHead className="text-center">Revisado</TableHead>
+                        <TableHead className="text-center">Total</TableHead>
+                        <TableHead className="text-center whitespace-nowrap">Primer Registro</TableHead>
+                        <TableHead className="text-center whitespace-nowrap">Último Registro</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {sortedResult.map((stat, i) => (
+                        <TableRow key={stat.email}>
+                          <TableCell className="text-muted-foreground">{i + 1}</TableCell>
+                          <TableCell className="font-medium">
+                            {getDisplayName(stat.email)}
+                          </TableCell>
+                          <TableCell className="text-center font-bold bg-amber-50/50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-300">
+                            {stat.enProcesoAcumulado ?? 0}
+                          </TableCell>
+                          <TableCell className="text-center">{stat.enProceso}</TableCell>
+                          <TableCell className="text-center">{stat.inventariado}</TableCell>
+                          <TableCell className="text-center">{stat.revisado}</TableCell>
+                          <TableCell className="text-center font-bold">
+                            {stat.total}
+                          </TableCell>
+                          <TableCell className="text-center text-xs whitespace-nowrap">{formatFecha(stat.primerRegistro)}</TableCell>
+                          <TableCell className="text-center text-xs whitespace-nowrap">{formatFecha(stat.ultimoRegistro)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                    {sortedResult.length > 0 && (
+                      <TableFooter className="bg-muted/50">
+                        <TableRow>
+                          <TableCell colSpan={2} className="font-bold">
+                            TOTAL GENERAL
+                          </TableCell>
+                          <TableCell className="text-center font-bold bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200">
+                            {totalEnProcesoAcumulado}
+                          </TableCell>
+                          <TableCell className="text-center font-bold">
+                            {totalEnProceso}
+                          </TableCell>
+                          <TableCell className="text-center font-bold">
+                            {totalInventariado}
+                          </TableCell>
+                          <TableCell className="text-center font-bold">
+                            {totalRevisado}
+                          </TableCell>
+                          <TableCell className="text-center font-bold text-blue-600 dark:text-blue-400">
+                            {totalGeneral}
+                          </TableCell>
+                          <TableCell colSpan={2} className="text-center text-xs text-muted-foreground">—</TableCell>
+                        </TableRow>
+                      </TableFooter>
+                    )}
+                  </Table>
+                </div>
+              </>
+            )}
           </div>
         ) : null}
       </DialogContent>
