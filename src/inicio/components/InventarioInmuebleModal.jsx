@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import ComboboxField from "@/components/ui/combobox-field";
 
-import { exportInmueblePdf, exportInmuebleExcel, exportTransferenciasPdf } from "../services/inmuebleExportUtils";
+import { exportInmueblePdf, exportInmuebleExcel, exportTransferenciasPdf, exportInmueblePanelesFiltradoExcel } from "../services/inmuebleExportUtils";
 import { BarraAvance } from "./InmuebleStatsHeader";
 import {
   PaginacionTabla,
@@ -701,15 +701,25 @@ const InventarioInmuebleModal = ({
     if (!result) return;
     setIsGeneratingExcel(true);
     try {
-      exportInmuebleExcel({
-        items: pendientes,
-        ciudadName: selectedCiudadName,
-        inmuebleName: selectedInmuebleName,
+      exportInmueblePanelesFiltradoExcel({
+        result,
+        ciudad,
+        inmueble,
+        nivel,
+        ambiente,
+        selectedCiudadName,
+        selectedInmuebleName,
+        selectedNivelName,
+        selectedAmbienteName,
+        ciudadInmueblesStats,
+        inmuebleNivelesStats,
+        nivelAmbientesStats,
+        pendientes,
+        getDisplayName,
         mapActivoRow,
-        fileNamePrefix: "Activos_Por_Inmueble",
       });
     } catch (e) {
-      console.error("Error generando Excel:", e);
+      console.error("Error generando Excel paneles:", e);
     } finally {
       setIsGeneratingExcel(false);
     }

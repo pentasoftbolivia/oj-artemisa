@@ -219,3 +219,139 @@ export const exportInmuebleExcel = ({
   const safeInmueble = (inmuebleName || "Inmueble").replace(/[^a-zA-Z0-9]+/g, "_");
   XLSX.writeFile(wb, `${fileNamePrefix}_${safeInmueble}.xlsx`);
 };
+
+/**
+ * Genera y descarga el Excel de los PANELES visibles en Activos por Inmueble
+ * según el filtro aplicado. Replica exactamente lo que ve el usuario:
+ * - Filtro, resumen general, por inventariador, detalle por inmueble/nivel/ambiente
+ * - Hoja separada con ACTIVOS POR INVENTARIAR (pendientes) si existen
+ */
+export const exportInmueblePanelesFiltradoExcel = ({
+  result,
+  ciudad = "",
+  inmueble = "",
+  nivel = "",
+  ambiente = "",
+  selectedCiudadName = "",
+  selectedInmuebleName = "",
+  selectedNivelName = "",
+  selectedAmbienteName = "",
+  ciudadInmueblesStats = [],
+  inmuebleNivelesStats = [],
+  nivelAmbientesStats = [],
+  pendientes = [],
+  getDisplayName = (e) => e,
+  mapActivoRow,
+}) => {
+  if (!result) return;
+
+  const ubicacionStr = [
+    selectedCiudadName || (ciudad ? ciudad : null) || "Todas",
+    selectedInmuebleName || (inmueble ? inmueble : null) || "Todos",
+    selectedNivelName || (nivel ? nivel : null),
+    selectedAmbienteName || (ambiente ? ambiente : null),
+  ].filter(Boolean).join(" - ");
+
+  const pctAvance = result.totalInmueble > 0 ? ((result.totalInventariado / result.totalInmueble) * 100).toFixed(2) + "%" : "0.00%";
+
+  const sheetData = [
+    ["REPORTE DE PANELES POR INMUEBLE - ÓRGANO JUDICIAL"],
+    [`Generado: ${new Date().toLocaleString("es-BO")}`],
+    [],
+    ["FILTRO APLICADO"],
+    ["Ciudad", selectedCiudadName || ciudad || "Todas"],
+    ["Inmueble", selectedInmuebleName || inmueble || "Todos"],
+    ["Nivel", selectedNivelName || nivel || "Todos"],
+    ["Ambiente", selectedAmbienteName || ambiente || "Todos"],
+    [],
+    ["RESUMEN GENERAL"],
+    ["Ubicación", ubicacionStr],
+    ["Porcentaje de avance", pctAvance],
+    ["Total en inmueble", result.totalInmueble],
+    ["Total inventariados", result.totalInventariado],
+    ["Total en proceso", result.totalEnProceso],
+  ];
+
+  if (result.perUser && result.perUser.length > 0) {
+    sheetData.push([]);
+    sheetData.push(["RESUMEN POR INVENTARIADOR"]);
+    sheetData.push(["Inventariador", "Email", "En Proceso", "Inventariados", "Total usuario", "% Avance s/ total inmueble"]);
+    (result.perUser || []).forEach((stat) => {
+      const pct = result.totalInmueble > 0 ? ((stat.inventariado / result.totalInmueble) * 100).toFixed(2) + "%" : "0.00%";
+      sheetData.push([
+        getDisplayName(stat.email),
+        stat.email,
+        stat.enProceso ?? 0,
+        stat.inventariado ?? 0,
+        stat.total ?? (stat.enProceso + stat.inventariado) ?? 0,
+        pct,
+      ]);
+    });
+  }
+
+  // Detalle condicionado al filtro
+  const isCiudadOnly = Boolean(ciudad && !inmueble && !nivel && !ambiente);
+  const isInmuebleOnly = Boolean(inmueble && !nivel && !ambiente);
+  const isNivelOnly = Boolean(nivel && !ambiente);
+
+  if (isCiudadOnly && ciudadInmueblesStats.length > 0) {
+    sheetData.push([]);
+    sheetData.push([`DETALLE POR INMUEBLE — ${selectedCiudadName || ciudad}`]);
+    sheetData.push(["Inmueble", "Código inmueble", "Total activos", "Inventariados", "En Proceso", "% Avance"]);
+    ciudadInmueblesStats.forEach((s) => {
+      sheetData.push([s.inmueble, s.codigoinmueble, s.totalInmueble, s.totalInventariado, s.totalEnProceso, `${s.porcentaje ?? 0}%`]);
+    });
+  }
+
+  if (isInmuebleOnly && inmuebleNivelesStats.length > 0) {
+    sheetData.push([]);
+    sheetData.push([`DETALLE POR NIVEL — ${selectedInmuebleName || inmueble}`]);
+    sheetData.push(["Nivel", "Código nivel", "Total activos", "Inventariados", "En Proceso", "% Avance"]);
+    inmuebleNivelesStats.forEach((s) => {
+      sheetData.push([s.nivel, s.codigonivel, s.totalInmueble, s.totalInventariado, s.totalEnProceso, `${s.porcentaje ?? 0}%`]);
+    });
+  }
+
+  if (isNivelOnly && nivelAmbientesStats.length > 0) {
+    sheetData.push([]);
+    sheetData.push([`DETALLE POR AMBIENTE — ${selectedNivelName || nivel}`]);
+    sheetData.push(["Ambiente", "Código ambiente", "Total activos", "Inventariados", "En Proceso", "% Avance"]);
+    nivelAmbientesStats.forEach((s) => {
+      sheetData.push([s.ambiente, s.codigoambiente, s.totalInmueble, s.totalInventariado, s.totalEnProceso, `${s.porcentaje ?? 0}%`]);
+    });
+  }
+
+  // Totales de pendientes en el resumen
+  sheetData.push([]);
+  sheetData.push(["ACTIVOS POR INVENTARIAR (Pendientes)"]);
+  sheetData.push(["Total pendientes", pendientes.length]);
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(sheetData);
+  ws["!cols"] = [{ wch: 36 }, { wch: 22 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 18 }];
+  // Negrita para títulos (estilo básico)
+  ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }];
+  XLSX.utils.book_append_sheet(wb, ws, "Paneles");
+
+  // Hoja 2: listado completo de pendientes con columnas de activo
+  if (pendientes.length > 0 && mapActivoRow) {
+    const headers = ["Código", "Rubro", "Tipo Rubro", "Descripción", "Ambiente", "Responsable", "CI Responsable"];
+    const dataRows = pendientes.map(mapActivoRow);
+    const pendSheet = [
+      ["ACTIVOS POR INVENTARIAR - DETALLE"],
+      [`Filtro: ${ubicacionStr}`],
+      [`Total: ${pendientes.length}`],
+      [],
+      headers,
+      ...dataRows,
+    ];
+    const ws2 = XLSX.utils.aoa_to_sheet(pendSheet);
+    ws2["!cols"] = [{ wch: 14 }, { wch: 22 }, { wch: 22 }, { wch: 40 }, { wch: 30 }, { wch: 25 }, { wch: 14 }];
+    XLSX.utils.book_append_sheet(wb, ws2, "Por Inventariar");
+  }
+
+  const safeCiudad = (selectedCiudadName || ciudad || "Filtro").replace(/[^a-zA-Z0-9]+/g, "_").slice(0, 20);
+  const safeInmueble = (selectedInmuebleName || inmueble || "").replace(/[^a-zA-Z0-9]+/g, "_").slice(0, 20);
+  const suffix = [safeCiudad, safeInmueble].filter(Boolean).join("_");
+  XLSX.writeFile(wb, `Reporte_Paneles_${suffix || "SinFiltro"}.xlsx`);
+};
