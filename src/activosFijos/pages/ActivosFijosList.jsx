@@ -288,7 +288,7 @@ const ActivosFijosList = () => {
         "Inmueble",
         "Nivel",
         "Ambiente",
-        "Estado",
+        "Inventariador",
         "Estado Inventario",
       ];
 
@@ -353,9 +353,9 @@ const ActivosFijosList = () => {
         const inmueble = resolveInmueble(a);
         const nivel = resolveNivel(a);
         const ambiente = resolveAmbiente(a);
-        const estado = a.estado === 1 ? "Activo" : a.estado === 0 ? "Inactivo" : String(a.estado ?? "");
-        const estadoInv = a.estadoinventario ?? a.estadoInventario ?? "";
-        return [idx + 1, responsable, ci, codigo, rubro, tipo, denominacion, valor, ciudad, inmueble, nivel, ambiente, estado, estadoInv];
+        const inventariador = String(a.usuarioInventario ?? a.usuarioinventario ?? "").trim();
+        const estadoInv = String(a.estadoinventario ?? a.estadoInventario ?? "").trim();
+        return [idx + 1, responsable, ci, codigo, rubro, tipo, denominacion, valor, ciudad, inmueble, nivel, ambiente, inventariador, estadoInv];
       });
 
       const sheetData = [headers, ...dataRows];
@@ -393,7 +393,7 @@ const ActivosFijosList = () => {
         { wch: 20 }, // Inmueble
         { wch: 18 }, // Nivel
         { wch: 20 }, // Ambiente
-        { wch: 12 }, // Estado
+        { wch: 30 }, // Inventariador
         { wch: 16 }, // Estado Inventario
       ];
       const wb = XLSX.utils.book_new();
@@ -531,6 +531,7 @@ const ActivosFijosList = () => {
         nivelOptionsByInmueble={nivelOptionsByInmueble}
         ambienteOptionsByNivel={ambienteOptionsByNivel}
         isLoading={isActivosLoading}
+        totalCount={totalCount}
       />
 
       <ActivosFijosTable

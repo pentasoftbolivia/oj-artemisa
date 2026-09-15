@@ -16,7 +16,8 @@ const ActivosFijosFilters = memo(({
   inmuebleOptionsByCiudad,
   nivelOptionsByInmueble,
   ambienteOptionsByNivel,
-  isLoading
+  isLoading,
+  totalCount = 0,
 }) => {
   const isFilterActive =
     filters.search ||
@@ -132,21 +133,23 @@ const ActivosFijosFilters = memo(({
             </div>
           </div>
 
-          <div className="flex items-center gap-2 pt-2 border-t">
-            <Button onClick={onSearch} disabled={isLoading}>
-              {isLoading ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Search className="h-4 w-4 mr-2" />
-              )}
-              Buscar
-            </Button>
-            {isFilterActive ? (
-              <Button variant="outline" onClick={onClearFilters}>
-                <X className="h-4 w-4 mr-2" />
-                Limpiar
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-3 border-t">
+            <div className="flex items-center gap-2">
+              <Button onClick={onSearch} disabled={isLoading} className="min-h-11 sm:min-h-9">
+                {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
+                Buscar
               </Button>
-            ) : null}
+              {isFilterActive ? (
+                <Button variant="outline" onClick={onClearFilters} className="min-h-11 sm:min-h-9">
+                  <X className="h-4 w-4 mr-2" />
+                  Limpiar
+                </Button>
+              ) : null}
+            </div>
+            <div className="sm:ml-auto flex items-center justify-center sm:justify-end bg-muted/30 border rounded-md px-3 py-2 sm:py-1.5">
+              <span className="text-xs sm:text-sm font-semibold text-muted-foreground">Total registros:</span>
+              <span className="ml-2 text-sm sm:text-base font-bold text-foreground">{Number(totalCount || 0).toLocaleString("es-BO")}</span>
+            </div>
           </div>
         </div>
       </CardContent>

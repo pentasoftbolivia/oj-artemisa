@@ -7,12 +7,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Barcode, QrCode, Edit, Package } from "lucide-react";
 import DataPagination from "@/components/ui/data-pagination";
-
-const ESTADO_MAP = { 1: "Activo", 0: "Inactivo" };
 
 const ActivosFijosTableRow = memo(({
   activo: a,
@@ -104,12 +101,11 @@ const ActivosFijosTableRow = memo(({
           return name || "—";
         })()}
       </TableCell>
-      <TableCell>
-        <Badge
-          variant={a.estado === 1 ? "default" : "secondary"}
-        >
-          {ESTADO_MAP[a.estado] || "—"}
-        </Badge>
+      <TableCell className="text-xs whitespace-normal break-words max-w-[200px]" title={a.usuarioInventario ?? a.usuarioinventario ?? ""}>
+        {(() => {
+          const raw = String(a.usuarioInventario ?? a.usuarioinventario ?? "").trim();
+          return raw || "—";
+        })()}
       </TableCell>
       <TableCell className="text-right">
         <div className="flex space-x-1 justify-end">
@@ -189,7 +185,7 @@ const ActivosFijosTable = memo(({
               <TableHead>Ambiente</TableHead>
               <TableHead>CI Responsable</TableHead>
               <TableHead>Nombre Responsable</TableHead>
-              <TableHead>Estado</TableHead>
+              <TableHead>Inventariador</TableHead>
               <TableHead className="text-center">Acciones</TableHead>
             </TableRow>
           </TableHeader>
