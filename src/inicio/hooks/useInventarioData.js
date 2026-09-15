@@ -385,62 +385,67 @@ export const useInventarioData = () => {
     [fetchActivosPorAmbientes],
   );
 
+  // Opción A: fuente única DB - no usa cache de inmuebles/niveles/ambientes para evitar desfasaje entre navegadores (ej. 36 vs 28 Parqueo Calle Comercio)
   const loadCiudadInmueblesStats = useCallback(async ({ ciudad = "" } = {}) => {
     const ciudadCode = String(ciudad || "").trim();
     if (!ciudadCode) return [];
     try {
-      const srcInmuebles = inmuebles.length > 0 ? inmuebles : [];
-      const srcNiveles = niveles.length > 0 ? niveles : [];
-      const srcAmbientes = ambientes.length > 0 ? ambientes : (ambientesRef.current || []);
-      const inmueblesRows = srcInmuebles.filter((r) => String(r.codigociudad ?? "").trim() === ciudadCode);
-      if (inmueblesRows.length === 0) return [];
+      // 1) inmuebles de la ciudad directo de BD
+      const { data: inmueblesRows, error: inmErr } = await supabase
+        .from("act_inmueble")
+        .select("codigoinmueble,inmueble")
+        .eq("codigociudad", ciudadCode)
+        .order("inmueble", { ascending: true });
+      if (inmErr) throw inmErr;
+      if (!inmueblesRows || inmueblesRows.length === 0) return [];
       const inmuebleCodes = inmueblesRows.map((r) => String(r.codigoinmueble).trim()).filter(Boolean);
       const inmuebleLabelMap = {};
       inmueblesRows.forEach((r) => { inmuebleLabelMap[String(r.codigoinmueble).trim()] = r.inmueble; });
-      const nivelToInmueble = {};
-      const nivelCodes = [];
-      srcNiveles.forEach((r) => {
-        const inm = String(r.codigoinmueble ?? "").trim();
-        const niv = String(r.codigonivel ?? "").trim();
-        if (inmuebleCodes.includes(inm) && niv) { nivelToInmueble[niv] = inm; nivelCodes.push(niv); }
-      });
-      if (nivelCodes.length === 0) return [];
-      const ambienteToInmueble = {};
-      const allAmbienteCodes = [];
-      srcAmbientes.forEach((r) => {
-        const niv = String(r.codigonivel ?? "").trim();
-        const amb = String(r.codigoambiente ?? "").trim();
-        const inm = nivelToInmueble[niv];
-        if (amb && inm) { ambienteToInmueble[amb] = inm; allAmbienteCodes.push(amb); }
-      });
-      if (allAmbienteCodes.length === 0) return [];
-      const CHUNK = 1000;
-      let activosRows = [];
-      let start = 0;
-      for (;;) {
-        const { data, error } = await supabase
-          .from("act_activos")
-          .select("codigoambiente,estadoinventario")
-          .eq("ultimoregistro", 1)
-          .in("codigoambiente", allAmbienteCodes)
-          .range(start, start + CHUNK - 1);
-        if (error) throw error;
-        activosRows = activosRows.concat(data || []);
-        if (!data || data.length < CHUNK) break;
-        start += CHUNK;
-      }
+
+      // 2-3) Para cada inmueble, resolver niveles/ambientes igual que resolveAmbienteCodes({inmueble}) y que loadInmuebleActivos (detalle) - evita bulk .in() que pierde filas
       const acc = {};
       inmuebleCodes.forEach((code) => { acc[code] = { totalInmueble: 0, totalInventariado: 0, totalEnProceso: 0 }; });
-      (activosRows || []).forEach((r) => {
-        const amb = String(r.codigoambiente || "").trim();
-        const inm = ambienteToInmueble[amb];
-        if (!inm || !acc[inm]) return;
-        acc[inm].totalInmueble += 1;
-        const est = normalizarEstado(r.estadoinventario);
-        if (est === "EN PROCESO") acc[inm].totalEnProceso += 1;
-        const isInventariado = Boolean(est && est !== "PENDIENTE" && est !== "EN PROCESO");
-        if (isInventariado) acc[inm].totalInventariado += 1;
-      });
+      for (const code of inmuebleCodes) {
+        // niveles del inmueble
+        const { data: nivelesRowsForInm, error: nivErr2 } = await supabase
+          .from("act_nivel")
+          .select("codigonivel")
+          .eq("codigoinmueble", code);
+        if (nivErr2) throw nivErr2;
+        const nivelCodesForInm = (nivelesRowsForInm || []).map((r) => String(r.codigonivel).trim()).filter(Boolean);
+        if (nivelCodesForInm.length === 0) continue;
+        // ambientes de esos niveles
+        const { data: ambientesRowsForInm, error: ambErr2 } = await supabase
+          .from("act_ambiente")
+          .select("codigoambiente")
+          .in("codigonivel", nivelCodesForInm);
+        if (ambErr2) throw ambErr2;
+        const ambCodes = (ambientesRowsForInm || []).map((r) => String(r.codigoambiente).trim()).filter(Boolean);
+        if (ambCodes.length === 0) continue;
+        const CHUNK = 1000;
+        let rows = [];
+        let start = 0;
+        for (;;) {
+          const { data, error } = await supabase
+            .from("act_activos")
+            .select("codigoambiente,estadoinventario")
+            .eq("ultimoregistro", 1)
+            .in("codigoambiente", ambCodes)
+            .order("codigoactivointerno", { ascending: true })
+            .range(start, start + CHUNK - 1);
+          if (error) throw error;
+          rows = rows.concat(data || []);
+          if (!data || data.length < CHUNK) break;
+          start += CHUNK;
+        }
+        rows.forEach((r) => {
+          acc[code].totalInmueble += 1;
+          const est = normalizarEstado(r.estadoinventario);
+          if (est === "EN PROCESO") acc[code].totalEnProceso += 1;
+          const isInventariado = Boolean(est && est !== "PENDIENTE" && est !== "EN PROCESO");
+          if (isInventariado) acc[code].totalInventariado += 1;
+        });
+      }
       return inmuebleCodes.map((code) => {
         const { totalInmueble, totalInventariado, totalEnProceso } = acc[code];
         const porcentaje = totalInmueble > 0 ? (totalInventariado / totalInmueble) * 100 : 0;
@@ -457,22 +462,30 @@ export const useInventarioData = () => {
       console.error("Error loading ciudad inmuebles stats:", e);
       return [];
     }
-  }, [inmuebles, niveles, ambientes]);
+  }, []);
 
   const loadInmuebleNivelesStats = useCallback(async ({ ciudad = "", inmueble = "" } = {}) => {
     const inmuebleCode = String(inmueble || "").trim();
     if (!inmuebleCode) return [];
     try {
-      const srcNiveles = niveles.length > 0 ? niveles : [];
-      const srcAmbientes = ambientes.length > 0 ? ambientes : (ambientesRef.current || []);
-      const nivelesRows = srcNiveles.filter((r) => String(r.codigoinmueble ?? "").trim() === inmuebleCode);
-      if (nivelesRows.length === 0) return [];
+      const { data: nivelesRows, error: nivErr } = await supabase
+        .from("act_nivel")
+        .select("codigonivel,nivel")
+        .eq("codigoinmueble", inmuebleCode)
+        .order("nivel", { ascending: true });
+      if (nivErr) throw nivErr;
+      if (!nivelesRows || nivelesRows.length === 0) return [];
       const nivelCodes = nivelesRows.map((r) => String(r.codigonivel).trim()).filter(Boolean);
       const nivelLabelMap = {};
       nivelesRows.forEach((r) => { nivelLabelMap[String(r.codigonivel).trim()] = r.nivel; });
+      const { data: ambientesRows, error: ambErr } = await supabase
+        .from("act_ambiente")
+        .select("codigoambiente,codigonivel")
+        .in("codigonivel", nivelCodes);
+      if (ambErr) throw ambErr;
       const ambienteToNivel = {};
       const allAmbienteCodes = [];
-      srcAmbientes.forEach((r) => {
+      (ambientesRows || []).forEach((r) => {
         const niv = String(r.codigonivel ?? "").trim();
         const amb = String(r.codigoambiente ?? "").trim();
         if (amb && nivelCodes.includes(niv)) { ambienteToNivel[amb] = niv; allAmbienteCodes.push(amb); }
@@ -496,6 +509,7 @@ export const useInventarioData = () => {
           .select("codigoambiente,estadoinventario")
           .eq("ultimoregistro", 1)
           .in("codigoambiente", allAmbienteCodes)
+          .order("codigoactivointerno", { ascending: true })
           .range(start, start + CHUNK - 1);
         if (error) throw error;
         activosRows = activosRows.concat(data || []);
@@ -530,15 +544,19 @@ export const useInventarioData = () => {
       console.error("Error loading inmueble niveles stats:", e);
       return [];
     }
-  }, [niveles, ambientes]);
+  }, []);
 
   const loadNivelAmbientesStats = useCallback(async ({ nivel = "" } = {}) => {
     const nivelCode = String(nivel || "").trim();
     if (!nivelCode) return [];
     try {
-      const srcAmbientes = ambientes.length > 0 ? ambientes : (ambientesRef.current || []);
-      const ambientesRows = srcAmbientes.filter((r) => String(r.codigonivel ?? "").trim() === nivelCode);
-      if (ambientesRows.length === 0) return [];
+      const { data: ambientesRows, error: ambErr } = await supabase
+        .from("act_ambiente")
+        .select("codigoambiente,ambiente")
+        .eq("codigonivel", nivelCode)
+        .order("ambiente", { ascending: true });
+      if (ambErr) throw ambErr;
+      if (!ambientesRows || ambientesRows.length === 0) return [];
       const ambienteCodes = ambientesRows.map((r) => String(r.codigoambiente).trim()).filter(Boolean);
       const ambienteLabelMap = {};
       ambientesRows.forEach((r) => { ambienteLabelMap[String(r.codigoambiente).trim()] = r.ambiente; });
@@ -551,6 +569,7 @@ export const useInventarioData = () => {
           .select("codigoambiente,estadoinventario")
           .eq("ultimoregistro", 1)
           .in("codigoambiente", ambienteCodes)
+          .order("codigoactivointerno", { ascending: true })
           .range(start, start + CHUNK - 1);
         if (error) throw error;
         activosRows = activosRows.concat(data || []);
@@ -584,7 +603,7 @@ export const useInventarioData = () => {
       console.error("Error loading nivel ambientes stats:", e);
       return [];
     }
-  }, [ambientes]);
+  }, []);
 
   const loadActivosPorFecha = useCallback(async ({ fechaDesde, fechaHasta } = {}) => {
     const start = `${fechaDesde}T00:00:00`;

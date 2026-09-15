@@ -1397,6 +1397,32 @@ const InventarioInmuebleModal = ({
               </div>
             ) : detalleInmuebleList.length > 0 ? (
               <>
+                {/* Resumen superior: Código / Ciudad / Totales en paneles */}
+                <div className="rounded-lg border bg-card p-3 sm:p-4 space-y-3">
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    <span>
+                      Código: <span className="font-mono font-semibold text-foreground">{detalleInmuebleTitle.replace("Activos — ", "").trim()}</span>
+                    </span>
+                    <span className="hidden sm:inline">·</span>
+                    <span>{detalleInmuebleSubtitle}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                    <div className="rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/20 p-2 sm:p-3 text-center">
+                      <div className="text-[10px] sm:text-xs font-semibold text-blue-600 dark:text-blue-400 tracking-wide">Total activos</div>
+                      <div className="text-xl sm:text-2xl font-extrabold text-blue-700 dark:text-blue-300 leading-none mt-1">{detalleInmuebleList.length}</div>
+                      <div className="text-[10px] text-blue-600 dark:text-blue-400 underline underline-offset-2 mt-1">Ver detalles</div>
+                    </div>
+                    <div className="rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/20 p-2 sm:p-3 text-center">
+                      <div className="text-[10px] sm:text-xs font-semibold text-red-600 dark:text-red-400 tracking-wide">No inventariados</div>
+                      <div className="text-xl sm:text-2xl font-extrabold text-red-700 dark:text-red-300 leading-none mt-1">{detalleNoInventariados.length}</div>
+                    </div>
+                    <div className="rounded-lg border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/20 p-2 sm:p-3 text-center">
+                      <div className="text-[10px] sm:text-xs font-semibold text-green-600 dark:text-green-400 tracking-wide">Inventariados</div>
+                      <div className="text-xl sm:text-2xl font-extrabold text-green-700 dark:text-green-300 leading-none mt-1">{detalleInventariados.length}</div>
+                    </div>
+                  </div>
+                </div>
+
                 <SeccionActivos
                   titulo="ACTIVOS NO INVENTARIADOS"
                   count={detalleNoInventariados.length}
