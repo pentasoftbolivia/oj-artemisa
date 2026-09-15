@@ -25,8 +25,32 @@ export const exportInmueblePdf = ({
   mapActivoRow,
   fileNamePrefix = "Activos_Inmueble",
   headerColor = [37, 99, 235],
+  getUbicacionParts,
 }) => {
   if (!items || items.length === 0) return;
+
+  // Ordenar ascendente por INMUEBLE si se provee getUbicacionParts (consistente con Excel 10 cols)
+  let sortedItems = items;
+  if (typeof getUbicacionParts === "function" && items.length > 1) {
+    sortedItems = [...items].sort((a, b) => {
+      const codeA = String(a.codigoAmbiente ?? a.codigoambiente ?? "").trim();
+      const codeB = String(b.codigoAmbiente ?? b.codigoambiente ?? "").trim();
+      const partsA = getUbicacionParts(codeA) || [];
+      const partsB = getUbicacionParts(codeB) || [];
+      // parts: [Ciudad, Inmueble, Nivel, Ambiente]
+      const inmA = String(partsA[1] ?? "").trim();
+      const inmB = String(partsB[1] ?? "").trim();
+      const cmp = inmA.localeCompare(inmB, "es", { sensitivity: "base", numeric: true });
+      if (cmp !== 0) return cmp;
+      const ciuCmp = String(partsA[0] ?? "").localeCompare(String(partsB[0] ?? ""), "es", { sensitivity: "base", numeric: true });
+      if (ciuCmp !== 0) return ciuCmp;
+      const nivCmp = String(partsA[2] ?? "").localeCompare(String(partsB[2] ?? ""), "es", { sensitivity: "base", numeric: true });
+      if (nivCmp !== 0) return nivCmp;
+      const ambCmp = String(partsA[3] ?? "").localeCompare(String(partsB[3] ?? ""), "es", { sensitivity: "base", numeric: true });
+      if (ambCmp !== 0) return ambCmp;
+      return String(a.codigoactivo ?? a.codigoActivo ?? "").localeCompare(String(b.codigoactivo ?? b.codigoActivo ?? ""), "es", { numeric: true });
+    });
+  }
 
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "letter" });
   addLogo(doc);
@@ -67,7 +91,7 @@ export const exportInmueblePdf = ({
     startY = 28;
   }
 
-  const body = items.map(mapActivoRow);
+  const body = sortedItems.map(mapActivoRow);
 
   autoTable(doc, {
     startY,
@@ -190,6 +214,10 @@ export const exportTransferenciasPdf = ({
 
 /**
  * Genera y descarga un reporte Excel (.xlsx) para los activos de un inmueble.
+ * Soporta dos layouts:
+ * - 7 columnas legacy: ["Código","Rubro","Tipo Rubro","Descripción","Ambiente","Responsable","CI Responsable"]
+ * - 10 columnas con ubicación desglosada: ["Código","Rubro","Tipo Rubro","Descripción","Ciudad","Inmueble","Nivel","Ambiente","Responsable","CI Responsable"]
+ * Detecta el layout por el largo del primer dataRow devuelto por mapActivoRow.
  */
 export const exportInmuebleExcel = ({
   items = [],
@@ -200,8 +228,29 @@ export const exportInmuebleExcel = ({
 }) => {
   if (!items || items.length === 0) return;
 
-  const headers = ["Código", "Rubro", "Tipo Rubro", "Descripción", "Ambiente", "Responsable", "CI Responsable"];
   const dataRows = items.map(mapActivoRow);
+  const is10Cols = dataRows.length > 0 && dataRows[0].length === 10;
+  const headers = is10Cols
+    ? ["Código", "Rubro", "Tipo Rubro", "Descripción", "Ciudad", "Inmueble", "Nivel", "Ambiente", "Responsable", "CI Responsable"]
+    : ["Código", "Rubro", "Tipo Rubro", "Descripción", "Ambiente", "Responsable", "CI Responsable"];
+
+  // Ordenar ascendente por INMUEBLE (col índice 5 en layout 10 cols) cuando aplica desglose
+  if (is10Cols && dataRows.length > 1) {
+    dataRows.sort((a, b) => {
+      const inmA = String(a[5] ?? "").trim();
+      const inmB = String(b[5] ?? "").trim();
+      const cmp = inmA.localeCompare(inmB, "es", { sensitivity: "base", numeric: true });
+      if (cmp !== 0) return cmp;
+      // desempate: Ciudad -> Nivel -> Ambiente -> Código
+      const ciuCmp = String(a[4] ?? "").localeCompare(String(b[4] ?? ""), "es", { sensitivity: "base", numeric: true });
+      if (ciuCmp !== 0) return ciuCmp;
+      const nivCmp = String(a[6] ?? "").localeCompare(String(b[6] ?? ""), "es", { sensitivity: "base", numeric: true });
+      if (nivCmp !== 0) return nivCmp;
+      const ambCmp = String(a[7] ?? "").localeCompare(String(b[7] ?? ""), "es", { sensitivity: "base", numeric: true });
+      if (ambCmp !== 0) return ambCmp;
+      return String(a[0] ?? "").localeCompare(String(b[0] ?? ""), "es", { numeric: true });
+    });
+  }
 
   const sheetData = [
     ["REPORTES DE ACTIVOS - ÓRGANO JUDICIAL"],
@@ -213,6 +262,12 @@ export const exportInmuebleExcel = ({
   ];
 
   const ws = XLSX.utils.aoa_to_sheet(sheetData);
+  // Ajustar anchos según layout
+  if (is10Cols) {
+    ws["!cols"] = [{ wch: 14 }, { wch: 18 }, { wch: 18 }, { wch: 32 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 22 }, { wch: 14 }];
+  } else {
+    ws["!cols"] = [{ wch: 14 }, { wch: 18 }, { wch: 18 }, { wch: 32 }, { wch: 24 }, { wch: 22 }, { wch: 14 }];
+  }
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Activos");
 

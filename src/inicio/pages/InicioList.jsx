@@ -137,6 +137,45 @@ const InicioList = () => {
     );
   };
 
+  // Mapa codigoambiente -> [Ciudad, Inmueble, Nivel, Ambiente] para Excel No Inventariados (4 columnas)
+  const ubicacionPartsMap = useMemo(() => {
+    const nivelMap = {};
+    (niveles || []).forEach((n) => {
+      nivelMap[String(n.codigonivel ?? "").trim()] = n;
+    });
+    const inmuebleMap = {};
+    (inmuebles || []).forEach((i) => {
+      inmuebleMap[String(i.codigoinmueble ?? "").trim()] = i;
+    });
+    const ciudadMap = {};
+    (ciudades || []).forEach((c) => {
+      ciudadMap[String(c.codigociudad ?? "").trim()] = c;
+    });
+    const m = {};
+    (ambientes || []).forEach((a) => {
+      const code = String(a.codigoambiente ?? "").trim();
+      if (!code) return;
+      const nivel = nivelMap[String(a.codigonivel ?? "").trim()];
+      const inmueble = nivel ? inmuebleMap[String(nivel.codigoinmueble ?? "").trim()] : null;
+      const ciudad = inmueble ? ciudadMap[String(inmueble.codigociudad ?? "").trim()] : null;
+      m[code] = [
+        ciudad?.descripcion || ciudad?.ciudad || "—",
+        inmueble?.inmueble || "—",
+        nivel?.nivel || "—",
+        a.ambiente || "—",
+      ];
+    });
+    return m;
+  }, [ambientes, niveles, inmuebles, ciudades]);
+
+  const getUbicacionParts = (code) => {
+    const c = String(code ?? "").trim();
+    if (ubicacionPartsMap[c]) return ubicacionPartsMap[c];
+    // fallback: si no hay jerarquía, devolver — en las 3 primeras y nombre disponible en Ambiente
+    const fallbackAmb = ambienteMap[c] || (c || "—");
+    return ["—", "—", "—", fallbackAmb];
+  };
+
   const getResponsableName = (cirun) => {
     const rawCi = String(cirun ?? "").trim();
     if (!rawCi) return "—";
@@ -191,6 +230,22 @@ const InicioList = () => {
       (tipoRubroDescMap[trId] ?? tipoRubroDescMap[String(trId)] ?? "").toString().trim(),
       a.descripcionactivo ?? a.descripcionActivo ?? "—",
       getAmbienteName(String(a.codigoambiente ?? a.codigoAmbiente ?? "").trim()),
+      getResponsableName(a.cirun),
+      a.cirun || "—",
+    ];
+  };
+
+  // Mapper exclusivo para Excel No Inventariados: desglosa Ambiente en 4 columnas
+  const mapNoInventariadosRow = (a) => {
+    const trId = a.tiporubroact ?? a.tipoRubroAct ?? "";
+    const codBase = (a.codigoactivo ?? a.codigoActivo ?? "").toString().trim();
+    const ubicParts = getUbicacionParts(String(a.codigoambiente ?? a.codigoAmbiente ?? "").trim());
+    return [
+      codBase ? `OJ-02-${codBase}` : "—",
+      (rubroFromTipo[trId] ?? rubroFromTipo[String(trId)] ?? "").toString().trim(),
+      (tipoRubroDescMap[trId] ?? tipoRubroDescMap[String(trId)] ?? "").toString().trim(),
+      a.descripcionactivo ?? a.descripcionActivo ?? "—",
+      ...ubicParts, // Ciudad, Inmueble, Nivel, Ambiente
       getResponsableName(a.cirun),
       a.cirun || "—",
     ];
@@ -331,9 +386,11 @@ const InicioList = () => {
         loadInmuebleNivelesStats={loadInmuebleNivelesStats}
         loadNivelAmbientesStats={loadNivelAmbientesStats}
         getAmbienteName={getAmbienteName}
+        getUbicacionParts={getUbicacionParts}
         getResponsableName={getResponsableName}
         rubroFromTipo={rubroFromTipo}
         tipoRubroDescMap={tipoRubroDescMap}
+        mapNoInventariadosRow={mapNoInventariadosRow}
         loadTransferenciasPorCodigos={loadTransferenciasPorCodigos}
       />
 

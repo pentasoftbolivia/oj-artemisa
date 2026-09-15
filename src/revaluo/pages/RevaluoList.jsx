@@ -508,22 +508,22 @@ const RevaluoList = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Scale className="h-6 w-6 text-emerald-600" />
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight flex items-center gap-2 leading-tight">
+            <Scale className="h-5 w-5 sm:h-6 sm:w-6 text-emerald-600 shrink-0" />
             REVALUO
           </h1>
-          <p className="text-muted-foreground">Listado de activos para Revalúo Ordenado por Ubicación</p>
+          <p className="text-sm text-muted-foreground leading-tight">Listado de activos para Revalúo Ordenado por Ubicación</p>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={handleGenerateReport} disabled={isGeneratingReport || filteredEnriched.length === 0} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-            {isGeneratingReport ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}
-            {isGeneratingReport ? "Generando..." : `Reporte con Fotos (${filteredEnriched.length})`}
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <Button onClick={handleGenerateReport} disabled={isGeneratingReport || filteredEnriched.length === 0} className="bg-emerald-600 hover:bg-emerald-700 text-white w-full sm:w-auto min-h-11 sm:min-h-9 text-xs sm:text-sm">
+            {isGeneratingReport ? <Loader2 className="mr-2 h-4 w-4 animate-spin shrink-0" /> : <FileDown className="mr-2 h-4 w-4 shrink-0" />}
+            <span className="truncate">{isGeneratingReport ? "Generando..." : `Reporte con Fotos (${filteredEnriched.length})`}</span>
           </Button>
-          <Button variant="outline" onClick={fetchRevaluo} disabled={isLoading}>
-            <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+          <Button variant="outline" onClick={fetchRevaluo} disabled={isLoading} className="w-full sm:w-auto min-h-11 sm:min-h-9">
+            <RefreshCw className={`mr-2 h-4 w-4 shrink-0 ${isLoading ? "animate-spin" : ""}`} />
             Actualizar
           </Button>
         </div>
@@ -538,32 +538,34 @@ const RevaluoList = () => {
         tipoRubroOptions={tipoRubroOptionsFiltered}
       />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between text-base">
+      <Card className="overflow-hidden">
+        <CardHeader className="p-3 sm:p-6">
+          <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-sm sm:text-base leading-tight">
             <span className="flex items-center gap-2">
-              <Scale className="h-4 w-4" />
+              <Scale className="h-4 w-4 shrink-0" />
               Activos para Revalúo
             </span>
-            <span className="text-sm font-normal text-muted-foreground">
+            <span className="text-xs sm:text-sm font-normal text-muted-foreground">
               {filteredEnriched.length} de {data.length} activos
             </span>
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-3 sm:p-6 pt-0">
           <RevaluoTable activos={paginatedData} hasActiveFilters={hasActiveFilters} onEdit={handleEdit} onOpenImages={handleOpenImages} photoCounts={photoCounts} />
           {filteredEnriched.length > 0 && (
-            <DataPagination
-              currentPage={safeCurrentPage}
-              totalPages={totalPages}
-              totalCount={filteredEnriched.length}
-              pageSize={pageSize}
-              onPageChange={setCurrentPage}
-              onPageSizeChange={(newSize) => {
-                setPageSize(newSize);
-                setCurrentPage(1);
-              }}
-            />
+            <div className="mt-4">
+              <DataPagination
+                currentPage={safeCurrentPage}
+                totalPages={totalPages}
+                totalCount={filteredEnriched.length}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={(newSize) => {
+                  setPageSize(newSize);
+                  setCurrentPage(1);
+                }}
+              />
+            </div>
           )}
         </CardContent>
       </Card>

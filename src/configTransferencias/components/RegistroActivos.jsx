@@ -178,19 +178,21 @@ const RegistroActivos = ({ onSuccess }) => {
   const isSubmitDisabled = saving || isLoading || !codigoActivo.trim() || !descripcionActivo.trim() || !valorActual.toString().trim() || !selAmbiente || !cirun || !tipoRubroSel;
 
   return (
-    <Card className="border-t-4 border-t-emerald-500">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <PackagePlus className="h-4 w-4" />
+    <Card className="border-t-4 border-t-emerald-500 overflow-hidden">
+      <CardHeader className="p-3 sm:p-6 pb-3 sm:pb-3">
+        <CardTitle className="flex items-center gap-2 text-sm sm:text-base leading-tight">
+          <PackagePlus className="h-4 w-4 shrink-0" />
           Datos importantes del Activo
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-6">
+      <CardContent className="p-3 sm:p-6 pt-0">
+        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
           {/* Identificación */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
             <div className="space-y-1.5">
-              <Label htmlFor="ra-codigoactivo">Código Activo *</Label>
+              <Label htmlFor="ra-codigoactivo" className="text-xs sm:text-sm">
+                Código Activo *
+              </Label>
               <Input
                 id="ra-codigoactivo"
                 type="number"
@@ -198,15 +200,16 @@ const RegistroActivos = ({ onSuccess }) => {
                 onChange={(e) => setCodigoActivo(e.target.value)}
                 placeholder={ultimoCodigo != null ? `Ej: ${ultimoCodigo + 1} (último: ${ultimoCodigo})` : "Ej: 45000"}
                 disabled={saving}
+                className="h-11 sm:h-9 text-sm"
               />
               {ultimoCodigo != null && (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-[11px] sm:text-xs text-muted-foreground leading-tight">
                   Último registro: <span className="font-mono font-semibold">{ultimoCodigo}</span> — sugerido: <span className="font-mono">{ultimoCodigo + 1}</span>
                 </p>
               )}
             </div>
             <div className="space-y-1.5">
-              <Label>Rubro *</Label>
+              <Label className="text-xs sm:text-sm">Rubro *</Label>
               <ComboboxField
                 value={rubroSel}
                 onValueChange={handleRubroChange}
@@ -219,7 +222,7 @@ const RegistroActivos = ({ onSuccess }) => {
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Tipo Rubro *</Label>
+              <Label className="text-xs sm:text-sm">Tipo Rubro *</Label>
               <ComboboxField
                 value={tipoRubroSel}
                 onValueChange={setTipoRubroSel}
@@ -233,70 +236,82 @@ const RegistroActivos = ({ onSuccess }) => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div className="space-y-1.5">
-              <Label htmlFor="ra-descripcion">Descripción Activo *</Label>
-              <Input id="ra-descripcion" value={descripcionActivo} onChange={(e) => setDescripcionActivo(e.target.value)} placeholder="Descripción del activo" disabled={saving} />
+              <Label htmlFor="ra-descripcion" className="text-xs sm:text-sm">
+                Descripción Activo *
+              </Label>
+              <Input id="ra-descripcion" value={descripcionActivo} onChange={(e) => setDescripcionActivo(e.target.value)} placeholder="Descripción del activo" disabled={saving} className="h-11 sm:h-9 text-sm" />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="ra-valoractual">Valor Actual *</Label>
-              <Input id="ra-valoractual" type="number" step="0.01" value={valorActual} onChange={(e) => setValorActual(e.target.value)} placeholder="Ej: 1500.00" disabled={saving} />
+              <Label htmlFor="ra-valoractual" className="text-xs sm:text-sm">
+                Valor Actual *
+              </Label>
+              <Input id="ra-valoractual" type="number" step="0.01" value={valorActual} onChange={(e) => setValorActual(e.target.value)} placeholder="Ej: 1500.00" disabled={saving} className="h-11 sm:h-9 text-sm" />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             <div className="space-y-1.5">
-              <Label htmlFor="ra-serie">Serie</Label>
-              <Input id="ra-serie" value={serie} onChange={(e) => setSerie(e.target.value)} placeholder="Serie" disabled={saving} />
+              <Label htmlFor="ra-serie" className="text-xs sm:text-sm">
+                Serie
+              </Label>
+              <Input id="ra-serie" value={serie} onChange={(e) => setSerie(e.target.value)} placeholder="Serie" disabled={saving} className="h-11 sm:h-9 text-sm" />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="ra-marca">Marca / Material</Label>
-              <Input id="ra-marca" value={marcaMaterial} onChange={(e) => setMarcaMaterial(e.target.value)} placeholder="Marca" disabled={saving} />
+              <Label htmlFor="ra-marca" className="text-xs sm:text-sm">
+                Marca / Material
+              </Label>
+              <Input id="ra-marca" value={marcaMaterial} onChange={(e) => setMarcaMaterial(e.target.value)} placeholder="Marca" disabled={saving} className="h-11 sm:h-9 text-sm" />
             </div>
             <div className="space-y-1.5">
-              <Label>Responsable (CI) *</Label>
+              <Label className="text-xs sm:text-sm">Responsable (CI) *</Label>
               <ComboboxField value={cirun} onValueChange={setCirun} options={responsableOptions} placeholder="Buscar responsable..." searchPlaceholder="Buscar por nombre o CI..." emptyMessage="Sin resultados" loading={isLoading} disabled={saving} />
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="ra-observaciones">Observaciones</Label>
-            <Textarea id="ra-observaciones" value={observaciones} onChange={(e) => setObservaciones(e.target.value)} placeholder="Observaciones..." rows={2} disabled={saving} />
+            <Label htmlFor="ra-observaciones" className="text-xs sm:text-sm">
+              Observaciones
+            </Label>
+            <Textarea id="ra-observaciones" value={observaciones} onChange={(e) => setObservaciones(e.target.value)} placeholder="Observaciones..." rows={2} disabled={saving} className="text-sm min-h-[88px] sm:min-h-[60px]" />
           </div>
 
           {/* Ubicación en cascada */}
-          <div className="rounded-lg border p-4 bg-muted/20 space-y-3">
-            <p className="text-sm font-semibold">Ubicación — Código Ambiente *</p>
-            <p className="text-xs text-muted-foreground">Seleccion en cascada </p>
+          <div className="rounded-lg border p-3 sm:p-4 bg-muted/20 space-y-3">
+            <p className="text-sm font-semibold leading-tight">Ubicación — Código Ambiente *</p>
+            <p className="text-[11px] sm:text-xs text-muted-foreground leading-tight">Selección en cascada</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Ciudad</Label>
+                <Label className="text-xs sm:text-sm">Ciudad</Label>
                 <ComboboxField value={selCiudad} onValueChange={(v) => handleSelectUbicacion("ciudad", v)} options={ciudadOptions} placeholder="Ciudad..." searchPlaceholder="Buscar ciudad..." emptyMessage="Sin resultados" loading={isLoading} disabled={saving} wrapText />
               </div>
               <div className="space-y-1.5">
-                <Label>Inmueble</Label>
+                <Label className="text-xs sm:text-sm">Inmueble</Label>
                 <ComboboxField value={selInmueble} onValueChange={(v) => handleSelectUbicacion("inmueble", v)} options={inmuebleOptionsByCiudad} placeholder="Inmueble..." searchPlaceholder="Buscar inmueble..." emptyMessage="Sin resultados" loading={isLoading} disabled={saving} wrapText />
               </div>
               <div className="space-y-1.5">
-                <Label>Nivel</Label>
+                <Label className="text-xs sm:text-sm">Nivel</Label>
                 <ComboboxField value={selNivel} onValueChange={(v) => handleSelectUbicacion("nivel", v)} options={nivelOptionsByInmueble} placeholder="Nivel..." searchPlaceholder="Buscar nivel..." emptyMessage="Sin resultados" loading={isLoading} disabled={saving} wrapText />
               </div>
               <div className="space-y-1.5">
-                <Label>Ambiente *</Label>
+                <Label className="text-xs sm:text-sm">Ambiente *</Label>
                 <ComboboxField value={selAmbiente} onValueChange={(v) => handleSelectUbicacion("ambiente", v)} options={ambienteOptionsByNivel} placeholder="Ambiente..." searchPlaceholder="Buscar ambiente..." emptyMessage="Sin resultados" loading={isLoading} disabled={saving} wrapText />
               </div>
             </div>
-            {selAmbiente && <p className="text-xs text-muted-foreground">Código ambiente seleccionado: <span className="font-mono font-semibold">{selAmbiente}</span></p>}
+            {selAmbiente && <p className="text-[11px] sm:text-xs text-muted-foreground break-all">Código ambiente seleccionado: <span className="font-mono font-semibold">{selAmbiente}</span></p>}
           </div>
 
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={resetForm} disabled={saving}>Limpiar</Button>
-            <Button type="submit" disabled={isSubmitDisabled}>
+          <div className="flex flex-col sm:flex-row sm:justify-end gap-2">
+            <Button type="button" variant="outline" onClick={resetForm} disabled={saving} className="w-full sm:w-auto min-h-11 sm:min-h-9 order-2 sm:order-1">
+              Limpiar
+            </Button>
+            <Button type="submit" disabled={isSubmitDisabled} className="w-full sm:w-auto min-h-11 sm:min-h-9 order-1 sm:order-2">
               {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
               Registrar Activo
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground">Campos con * obligatorios. Estado=1, ultimoregistro=1.</p>
+          <p className="text-[11px] sm:text-xs text-muted-foreground leading-tight">Campos con * obligatorios. Estado=1, ultimoregistro=1.</p>
         </form>
       </CardContent>
     </Card>

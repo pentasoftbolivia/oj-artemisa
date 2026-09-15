@@ -44,9 +44,11 @@ const InventarioInmuebleModal = ({
   loadInmuebleNivelesStats,
   loadNivelAmbientesStats,
   getAmbienteName,
+  getUbicacionParts,
   getResponsableName,
   rubroFromTipo,
   tipoRubroDescMap,
+  mapNoInventariadosRow,
   loadTransferenciasPorCodigos,
 }) => {
   const [ciudad, setCiudad] = useState("");
@@ -233,6 +235,27 @@ const InventarioInmuebleModal = ({
       getResponsableName(a.cirun),
       a.cirun || "—",
     ];
+  };
+
+  // Mapper para Excel No Inventariados con 4 columnas de ubicación; fallback a construir con getUbicacionParts si no viene prop
+  const mapNoInventariadosExcelRow = (a) => {
+    if (typeof mapNoInventariadosRow === "function") return mapNoInventariadosRow(a);
+    // fallback local si no se provee mapper externo pero sí getUbicacionParts
+    if (typeof getUbicacionParts === "function") {
+      const trId = a.tipoRubroAct || a.tiporubroact;
+      const codBase = (a.codigoActivo ?? a.codigoactivo ?? "").toString().trim();
+      const ubicParts = getUbicacionParts(String(a.codigoAmbiente ?? a.codigoambiente ?? "").trim());
+      return [
+        codBase ? `OJ-02-${codBase}` : "—",
+        (rubroFromTipo[trId] || "").trim(),
+        (tipoRubroDescMap[trId] || "").trim(),
+        a.descripcionActivo ?? a.descripcionactivo ?? "—",
+        ...(Array.isArray(ubicParts) ? ubicParts : ["—", "—", "—", "—"]),
+        getResponsableName(a.cirun),
+        a.cirun || "—",
+      ];
+    }
+    return mapActivoRow(a);
   };
 
   const handleBuscar = async () => {
@@ -469,6 +492,7 @@ const InventarioInmuebleModal = ({
         mapActivoRow,
         fileNamePrefix: `Activos_Inventariados_${detalleInmuebleName.replace(/\s+/g, "_")}`,
         headerColor: [37, 99, 235],
+        getUbicacionParts,
       });
     } catch (e) {
       console.error("Error generando PDF detalle inventariados:", e);
@@ -487,6 +511,7 @@ const InventarioInmuebleModal = ({
         mapActivoRow,
         fileNamePrefix: `Activos_NoInventariados_${detalleInmuebleName.replace(/\s+/g, "_")}`,
         headerColor: [220, 38, 38],
+        getUbicacionParts,
       });
     } catch (e) {
       console.error("Error generando PDF detalle no inventariados:", e);
@@ -507,6 +532,7 @@ const InventarioInmuebleModal = ({
         mapActivoRow,
         fileNamePrefix: "Activos_En_Proceso",
         headerColor: [202, 138, 4],
+        getUbicacionParts,
       });
     } catch (e) {
       console.error("Error generando PDF en proceso:", e);
@@ -650,6 +676,7 @@ const InventarioInmuebleModal = ({
         mapActivoRow,
         fileNamePrefix: "Activos_Inventariados",
         headerColor: [37, 99, 235],
+        getUbicacionParts,
       });
     } catch (e) {
       console.error("Error generando PDF inventariados:", e);
@@ -671,6 +698,7 @@ const InventarioInmuebleModal = ({
         mapActivoRow,
         fileNamePrefix: "Activos_Por_Inventariar",
         headerColor: [220, 38, 38],
+        getUbicacionParts,
       });
     } catch (e) {
       console.error("Error generando PDF pendientes:", e);
@@ -687,7 +715,7 @@ const InventarioInmuebleModal = ({
         items: pendientes,
         ciudadName: selectedCiudadName,
         inmuebleName: selectedInmuebleName,
-        mapActivoRow,
+        mapActivoRow: mapNoInventariadosExcelRow,
         fileNamePrefix: "Activos_Por_Inventariar",
       });
     } catch (e) {

@@ -115,10 +115,12 @@ const ConfigResponsableForm = ({ responsableToEdit, onSubmit, onCancel }) => {
   const isEditing = Boolean(responsableToEdit);
 
   return (
-    <form onSubmit={handleSubmit} className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="cirun">Carnet</Label>
+    <form onSubmit={handleSubmit} className="grid gap-3 sm:gap-4 py-2 sm:py-4 max-h-[65vh] sm:max-h-[60vh] overflow-y-auto pr-1 -mr-1">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="cirun" className="text-xs sm:text-sm">
+            Carnet
+          </Label>
           <Input
             id="cirun"
             value={formData.cirun}
@@ -126,26 +128,24 @@ const ConfigResponsableForm = ({ responsableToEdit, onSubmit, onCancel }) => {
             placeholder="ej: 1000043"
             disabled={isSubmitting || isEditing}
             maxLength={50}
-            className={errors.cirun ? "border-red-500" : ""}
+            className={`h-11 sm:h-9 ${errors.cirun ? "border-red-500" : ""}`}
           />
-          {errors.cirun && <p className="text-sm text-red-500">{errors.cirun}</p>}
+          {errors.cirun && <p className="text-xs sm:text-sm text-red-500">{errors.cirun}</p>}
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="cargo">Cargo</Label>
-          <Input
-            id="cargo"
-            value={formData.cargo}
-            onChange={handleChange}
-            placeholder="ej: CAJERO"
-            disabled={isSubmitting}
-          />
+        <div className="space-y-1.5">
+          <Label htmlFor="cargo" className="text-xs sm:text-sm">
+            Cargo
+          </Label>
+          <Input id="cargo" value={formData.cargo} onChange={handleChange} placeholder="ej: CAJERO" disabled={isSubmitting} className="h-11 sm:h-9" />
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="nombre1">Primer Nombre</Label>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="nombre1" className="text-xs sm:text-sm">
+            Primer Nombre
+          </Label>
           <Input
             id="nombre1"
             value={formData.nombre1}
@@ -153,59 +153,49 @@ const ConfigResponsableForm = ({ responsableToEdit, onSubmit, onCancel }) => {
             placeholder="ej: JUAN"
             required
             disabled={isSubmitting}
-            className={errors.nombre1 ? "border-red-500" : ""}
+            className={`h-11 sm:h-9 ${errors.nombre1 ? "border-red-500" : ""}`}
           />
-          {errors.nombre1 && <p className="text-sm text-red-500">{errors.nombre1}</p>}
+          {errors.nombre1 && <p className="text-xs sm:text-sm text-red-500">{errors.nombre1}</p>}
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="nombre2">Segundo Nombre</Label>
-          <Input
-            id="nombre2"
-            value={formData.nombre2}
-            onChange={handleChange}
-            placeholder="ej: CARLOS"
-            disabled={isSubmitting}
-          />
+        <div className="space-y-1.5">
+          <Label htmlFor="nombre2" className="text-xs sm:text-sm">
+            Segundo Nombre
+          </Label>
+          <Input id="nombre2" value={formData.nombre2} onChange={handleChange} placeholder="ej: CARLOS" disabled={isSubmitting} className="h-11 sm:h-9" />
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="paterno">Apellido Paterno</Label>
-          <Input
-            id="paterno"
-            value={formData.paterno}
-            onChange={handleChange}
-            placeholder="ej: LOPEZ"
-            disabled={isSubmitting}
-          />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="paterno" className="text-xs sm:text-sm">
+            Apellido Paterno
+          </Label>
+          <Input id="paterno" value={formData.paterno} onChange={handleChange} placeholder="ej: LOPEZ" disabled={isSubmitting} className="h-11 sm:h-9" />
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="materno">Apellido Materno</Label>
-          <Input
-            id="materno"
-            value={formData.materno}
-            onChange={handleChange}
-            placeholder="ej: MAMANI"
-            disabled={isSubmitting}
-          />
+        <div className="space-y-1.5">
+          <Label htmlFor="materno" className="text-xs sm:text-sm">
+            Apellido Materno
+          </Label>
+          <Input id="materno" value={formData.materno} onChange={handleChange} placeholder="ej: MAMANI" disabled={isSubmitting} className="h-11 sm:h-9" />
         </div>
+      </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="estado">Estado</Label>
-          <Select
-            value={formData.estado}
-            onValueChange={(value) => handleChange({ target: { id: "estado", value } })}
-            disabled={isSubmitting}
-          >
-            <SelectTrigger className="w-full [&>span]:line-clamp-1 text-left">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="estado" className="text-xs sm:text-sm">
+            Estado
+          </Label>
+          <Select value={formData.estado} onValueChange={(value) => handleChange({ target: { id: "estado", value } })} disabled={isSubmitting}>
+            <SelectTrigger className="w-full [&>span]:line-clamp-1 text-left h-11 sm:h-9">
               <SelectValue placeholder="Seleccionar estado" />
             </SelectTrigger>
             <SelectContent>
               {ESTADO_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -218,24 +208,12 @@ const ConfigResponsableForm = ({ responsableToEdit, onSubmit, onCancel }) => {
         </div>
       )}
 
-      <div className="flex justify-end space-x-2 pt-4">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          disabled={isSubmitting}
-        >
+      <div className="flex flex-col sm:flex-row sm:justify-end gap-2 pt-4">
+        <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting} className="w-full sm:w-auto min-h-11 sm:min-h-9 order-2 sm:order-1">
           Cancelar
         </Button>
-        <Button
-          type="submit"
-          disabled={isSubmitting || !formData.cirun.trim() || !formData.nombre1.trim()}
-        >
-          {isSubmitting
-            ? "Procesando..."
-            : responsableToEdit
-              ? "Actualizar"
-              : "Guardar"}
+        <Button type="submit" disabled={isSubmitting || !formData.cirun.trim() || !formData.nombre1.trim()} className="w-full sm:w-auto min-h-11 sm:min-h-9 order-1 sm:order-2">
+          {isSubmitting ? "Procesando..." : responsableToEdit ? "Actualizar" : "Guardar"}
         </Button>
       </div>
     </form>

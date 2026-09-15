@@ -202,21 +202,19 @@ const AmbienteEditor = memo(() => {
   ];
 
   return (
-    <Card className="flex flex-col">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Building2 className="h-4 w-4" />
+    <Card className="flex flex-col overflow-hidden">
+      <CardHeader className="p-3 sm:p-6 pb-3 sm:pb-3">
+        <CardTitle className="flex items-center gap-2 text-sm sm:text-base leading-tight">
+          <Building2 className="h-4 w-4 shrink-0" />
           Ambientes
         </CardTitle>
-        <CardDescription>
-          Búsqueda en cascada por ciudad, inmueble, nivel y ambiente
-        </CardDescription>
+        <CardDescription className="text-xs sm:text-sm leading-tight">Búsqueda en cascada por ciudad, inmueble, nivel y ambiente</CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-col gap-4 flex-1">
+      <CardContent className="flex flex-col gap-4 flex-1 p-3 sm:p-6 pt-0">
         <div className="space-y-3">
           {cascadaFields.map((f) => (
             <div key={f.level} className="space-y-1.5">
-              <Label>{f.label}</Label>
+              <Label className="text-xs sm:text-sm">{f.label}</Label>
               <ComboboxField
                 value={f.value}
                 onValueChange={(val) => handleSelect(f.level, val)}
@@ -232,26 +230,18 @@ const AmbienteEditor = memo(() => {
           ))}
         </div>
 
-        <Button onClick={handleSearch} disabled={searching}>
-          {searching ? (
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          ) : (
-            <Search className="h-4 w-4 mr-2" />
-          )}
+        <Button onClick={handleSearch} disabled={searching} className="w-full sm:w-auto min-h-11 sm:min-h-9">
+          {searching ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
           Buscar
         </Button>
 
         {status === "loading" ? (
-          <div className="text-sm text-muted-foreground animate-pulse py-6 text-center">
-            Buscando...
-          </div>
+          <div className="text-xs sm:text-sm text-muted-foreground animate-pulse py-6 text-center">Buscando...</div>
         ) : status === "notfound" ? (
-          <div className="text-center text-sm text-muted-foreground py-6 border rounded-md">
-            No se encontró el ambiente
-          </div>
+          <div className="text-center text-xs sm:text-sm text-muted-foreground py-6 border rounded-md px-2">No se encontró el ambiente</div>
         ) : status === "found" && result ? (
           <div className="grid gap-2">
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {result.ciudad && readOnlyHit("Ciudad", result.ciudad.codigociudad, result.ciudad.descripcion)}
               {result.inmueble && readOnlyHit("Inmueble", result.inmueble.codigoinmueble, result.inmueble.inmueble)}
               {result.nivel && readOnlyHit("Nivel", result.nivel.codigonivel, result.nivel.nivel)}
@@ -259,9 +249,7 @@ const AmbienteEditor = memo(() => {
             </div>
           </div>
         ) : (
-          <div className="text-center text-sm text-muted-foreground py-6 border rounded-md">
-            Complete la cascada y presione Buscar
-          </div>
+          <div className="text-center text-xs sm:text-sm text-muted-foreground py-6 border rounded-md px-2">Complete la cascada y presione Buscar</div>
         )}
       </CardContent>
     </Card>

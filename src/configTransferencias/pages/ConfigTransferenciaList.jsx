@@ -76,17 +76,13 @@ const EDITORS = [
 
 const ConfigTransferenciaList = () => {
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">
-          Actualización Transferencias
-        </h1>
-        <p className="text-muted-foreground">
-          Busca, edita y guarda registros en sus respectivas tablas
-        </p>
+    <div className="space-y-4 sm:space-y-6">
+      <div className="space-y-1">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight leading-tight">Actualización Transferencias</h1>
+        <p className="text-sm text-muted-foreground leading-tight">Busca, edita y guarda registros en sus respectivas tablas</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-start">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 items-start">
         {EDITORS.slice(0, 1).map((editor) => (
           <TableEditor key={editor.title} {...editor} />
         ))}

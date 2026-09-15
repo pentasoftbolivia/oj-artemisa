@@ -32,83 +32,77 @@ const RevaluoFilters = memo(({ filters, onFilterChange, onClearFilters, onSearch
     Boolean(filters.inventariador);
 
   return (
-    <Card>
-      <CardContent className="pt-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="codigoActivo">Código Activo</Label>
+    <Card className="overflow-hidden">
+      <CardContent className="pt-3 sm:pt-6 p-3 sm:p-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="codigoActivo" className="text-xs sm:text-sm">
+              Código Activo
+            </Label>
             <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="codigoActivo"
-                placeholder="Ej: 12345 o OJ-02-12345"
-                className="pl-8"
-                value={filters.codigoActivo}
-                onChange={(e) => onFilterChange("codigoActivo", e.target.value)}
-              />
+              <Search className="absolute left-2.5 top-3 sm:top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input id="codigoActivo" placeholder="Ej: 12345 o OJ-02-12345" className="pl-8 h-11 sm:h-9 text-sm" value={filters.codigoActivo} onChange={(e) => onFilterChange("codigoActivo", e.target.value)} />
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="ubicacion">Ubicación</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="ubicacion" className="text-xs sm:text-sm">
+              Ubicación
+            </Label>
             <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="ubicacion"
-                placeholder="Ciudad / Inmueble / Nivel / Ambiente"
-                className="pl-8"
-                value={filters.ubicacion}
-                onChange={(e) => onFilterChange("ubicacion", e.target.value)}
-              />
+              <Search className="absolute left-2.5 top-3 sm:top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input id="ubicacion" placeholder="Ciudad / Inmueble / Nivel / Ambiente" className="pl-8 h-11 sm:h-9 text-sm" value={filters.ubicacion} onChange={(e) => onFilterChange("ubicacion", e.target.value)} />
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="carnet">Carnet</Label>
-            <Input
-              id="carnet"
-              placeholder="CI Responsable"
-              value={filters.carnet}
-              onChange={(e) => onFilterChange("carnet", e.target.value)}
+          <div className="space-y-1.5">
+            <Label htmlFor="carnet" className="text-xs sm:text-sm">
+              Carnet
+            </Label>
+            <Input id="carnet" placeholder="CI Responsable" className="h-11 sm:h-9 text-sm" value={filters.carnet} onChange={(e) => onFilterChange("carnet", e.target.value)} />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="inventariador" className="text-xs sm:text-sm">
+              Inventariador
+            </Label>
+            <Input id="inventariador" placeholder="Email o nombre" className="h-11 sm:h-9 text-sm" value={filters.inventariador} onChange={(e) => onFilterChange("inventariador", e.target.value)} />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs sm:text-sm">  </Label>
+            <ComboboxField
+              label="Rubro"
+              value={filters.rubro || "TODOS"}
+              onValueChange={(v) => onFilterChange("rubro", v)}
+              options={[{ value: "TODOS", label: "Todos" }, ...rubroOptions]}
+              placeholder="Todos los rubros"
+              searchPlaceholder="Buscar rubro..."
+              emptyMessage="Sin resultados"
+              wrapText
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="inventariador">Inventariador</Label>
-            <Input
-              id="inventariador"
-              placeholder="Email o nombre"
-              value={filters.inventariador}
-              onChange={(e) => onFilterChange("inventariador", e.target.value)}
+          <div className="space-y-1.5">
+            <Label className="text-xs sm:text-sm">  </Label>
+            <ComboboxField
+              label="Tipo Rubro"
+              value={filters.tipoRubro || "TODOS"}
+              onValueChange={(v) => onFilterChange("tipoRubro", v)}
+              options={[{ value: "TODOS", label: "Todos" }, ...tipoRubroOptions]}
+              placeholder="Todos los tipos"
+              searchPlaceholder="Buscar tipo rubro..."
+              emptyMessage="Sin resultados"
+              wrapText
             />
           </div>
 
-          <ComboboxField
-            label="Rubro"
-            value={filters.rubro || "TODOS"}
-            onValueChange={(v) => onFilterChange("rubro", v)}
-            options={[{ value: "TODOS", label: "Todos" }, ...rubroOptions]}
-            placeholder="Todos los rubros"
-            searchPlaceholder="Buscar rubro..."
-            emptyMessage="Sin resultados"
-            wrapText
-          />
-
-          <ComboboxField
-            label="Tipo Rubro"
-            value={filters.tipoRubro || "TODOS"}
-            onValueChange={(v) => onFilterChange("tipoRubro", v)}
-            options={[{ value: "TODOS", label: "Todos" }, ...tipoRubroOptions]}
-            placeholder="Todos los tipos"
-            searchPlaceholder="Buscar tipo rubro..."
-            emptyMessage="Sin resultados"
-            wrapText
-          />
-
-          <div className="space-y-2">
-            <Label htmlFor="estadoConservacion">Estado Conservación</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="estadoConservacion" className="text-xs sm:text-sm">
+              Estado Conservación
+            </Label>
             <Select value={filters.estadoConservacion} onValueChange={(v) => onFilterChange("estadoConservacion", v)}>
-              <SelectTrigger id="estadoConservacion">
+              <SelectTrigger id="estadoConservacion" className="h-11 sm:h-9 text-sm">
                 <SelectValue placeholder="Seleccionar estado" />
               </SelectTrigger>
               <SelectContent>
@@ -121,10 +115,12 @@ const RevaluoFilters = memo(({ filters, onFilterChange, onClearFilters, onSearch
             </Select>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="estado">Estado (Alta/Baja)</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="estado" className="text-xs sm:text-sm">
+              Estado (Alta/Baja)
+            </Label>
             <Select value={filters.estado || "TODOS"} onValueChange={(v) => onFilterChange("estado", v)}>
-              <SelectTrigger id="estado">
+              <SelectTrigger id="estado" className="h-11 sm:h-9 text-sm">
                 <SelectValue placeholder="Seleccionar estado" />
               </SelectTrigger>
               <SelectContent>
@@ -137,13 +133,13 @@ const RevaluoFilters = memo(({ filters, onFilterChange, onClearFilters, onSearch
             </Select>
           </div>
 
-          <div className="flex items-end gap-2">
-            <Button onClick={onSearch} className="flex-1">
-              <Search className="mr-2 h-4 w-4" />
+          <div className="flex flex-col sm:flex-row sm:items-end gap-2 sm:col-span-2 lg:col-span-4">
+            <Button onClick={onSearch} className="w-full sm:w-auto flex-1 sm:flex-none min-h-11 sm:min-h-9">
+              <Search className="mr-2 h-4 w-4 shrink-0" />
               Buscar
             </Button>
-            <Button variant="outline" onClick={onClearFilters} disabled={!hasActive} className="flex-1">
-              <X className="mr-2 h-4 w-4" />
+            <Button variant="outline" onClick={onClearFilters} disabled={!hasActive} className="w-full sm:w-auto flex-1 sm:flex-none min-h-11 sm:min-h-9">
+              <X className="mr-2 h-4 w-4 shrink-0" />
               Limpiar
             </Button>
           </div>

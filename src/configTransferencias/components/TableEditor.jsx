@@ -99,17 +99,19 @@ const TableEditor = memo(({
   const editableFields = fields.filter((f) => !f.readOnly);
 
   return (
-    <Card className="flex flex-col">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
+    <Card className="flex flex-col overflow-hidden">
+      <CardHeader className="p-3 sm:p-6 pb-3 sm:pb-3">
+        <CardTitle className="flex items-center gap-2 text-sm sm:text-base leading-tight">
           {icon}
-          {title}
+          <span className="truncate">{title}</span>
         </CardTitle>
-        {description ? <CardDescription>{description}</CardDescription> : null}
+        {description ? <CardDescription className="text-xs sm:text-sm leading-tight">{description}</CardDescription> : null}
       </CardHeader>
-      <CardContent className="flex flex-col gap-4 flex-1">
-        <div className="space-y-2">
-          <Label htmlFor={`${title}-query`}>Buscar</Label>
+      <CardContent className="flex flex-col gap-4 flex-1 p-3 sm:p-6 pt-0">
+        <div className="space-y-1.5">
+          <Label htmlFor={`${title}-query`} className="text-xs sm:text-sm">
+            Buscar
+          </Label>
           <div className="flex gap-2">
             <Input
               id={`${title}-query`}
@@ -120,42 +122,34 @@ const TableEditor = memo(({
                 if (e.key === "Enter") handleSearch();
               }}
               disabled={status === "loading"}
+              className="h-11 sm:h-9 text-sm flex-1 min-w-0"
             />
             <Button
               onClick={handleSearch}
               disabled={status === "loading" || !query.trim()}
               size="icon"
               aria-label="Buscar"
+              className="h-11 w-11 sm:h-9 sm:w-9 shrink-0"
             >
-              {status === "loading" ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Search className="h-4 w-4" />
-              )}
+              {status === "loading" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
             </Button>
           </div>
         </div>
 
         {status === "loading" ? (
-          <div className="text-sm text-muted-foreground animate-pulse py-6 text-center">
-            Buscando...
-          </div>
+          <div className="text-xs sm:text-sm text-muted-foreground animate-pulse py-6 text-center">Buscando...</div>
         ) : status === "notfound" ? (
-          <div className="text-center text-sm text-muted-foreground py-6 border rounded-md">
-            No se encontró el registro
-          </div>
+          <div className="text-center text-xs sm:text-sm text-muted-foreground py-6 border rounded-md px-2">No se encontró el registro</div>
         ) : status === "found" && form ? (
           <div className="grid gap-3">
             {fields.map((f) => (
               <div key={f.id} className="space-y-1.5">
-                <Label htmlFor={`${title}-${f.id}`}>{f.label}</Label>
+                <Label htmlFor={`${title}-${f.id}`} className="text-xs sm:text-sm">
+                  {f.label}
+                </Label>
                 {f.type === "select" ? (
-                  <Select
-                    value={form[f.id] || ""}
-                    onValueChange={(value) => handleChange(f.id, value)}
-                    disabled={saving || f.readOnly}
-                  >
-                    <SelectTrigger className="w-full [&>span]:line-clamp-1 text-left">
+                  <Select value={form[f.id] || ""} onValueChange={(value) => handleChange(f.id, value)} disabled={saving || f.readOnly}>
+                    <SelectTrigger className="w-full [&>span]:line-clamp-1 text-left h-11 sm:h-9 text-sm">
                       <SelectValue placeholder="Seleccionar..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -173,23 +167,18 @@ const TableEditor = memo(({
                     value={form[f.id] || ""}
                     onChange={(e) => handleChange(f.id, e.target.value)}
                     disabled={saving || f.readOnly}
+                    className="h-11 sm:h-9 text-sm"
                   />
                 )}
               </div>
             ))}
-            <Button onClick={handleSave} disabled={saving || editableFields.length === 0} className="mt-2">
-              {saving ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Save className="h-4 w-4 mr-2" />
-              )}
+            <Button onClick={handleSave} disabled={saving || editableFields.length === 0} className="mt-2 w-full sm:w-auto min-h-11 sm:min-h-9">
+              {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
               Guardar
             </Button>
           </div>
         ) : (
-          <div className="text-center text-sm text-muted-foreground py-6 border rounded-md">
-            Ingrese un criterio y presione Buscar
-          </div>
+          <div className="text-center text-xs sm:text-sm text-muted-foreground py-6 border rounded-md px-2">Ingrese un criterio y presione Buscar</div>
         )}
       </CardContent>
     </Card>
