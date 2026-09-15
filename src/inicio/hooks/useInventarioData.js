@@ -321,7 +321,7 @@ export const useInventarioData = () => {
       });
       return rows.filter((r) => {
         const est = normalizarEstado(r.estadoinventario ?? r.estadoInventario);
-        return !est || est === "PENDIENTE";
+        return !est || est === "PENDIENTE" || est === "EN PROCESO";
       });
     },
     [fetchActivosPorAmbientes],

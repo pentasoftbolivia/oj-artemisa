@@ -17,7 +17,7 @@ import {
   TablaActivos,
   SeccionActivos,
 } from "./InmuebleActivosTable";
-import { normalizarEstado } from "../constants/inventarioConstants";
+import { normalizarEstado, INMUEBLE_ACTIVO_COLUMNAS_PENDIENTES } from "../constants/inventarioConstants";
 
 const PAGE_SIZE = 3;
 
@@ -237,14 +237,42 @@ const InventarioInmuebleModal = ({
     ];
   };
 
-  // Mapper para Excel No Inventariados con 4 columnas de ubicación; fallback a construir con getUbicacionParts si no viene prop
+  // Mapper para listado Activo por inventariar (pendientes) con Estado y Usuario al final - 9 columnas (texto exacto de act_activos)
+  const mapPendientesRow = (a) => {
+    const base = mapActivoRow(a);
+    const estadoRaw = a.estadoinventario ?? a.estadoInventario ?? a.estado ?? "";
+    const estado = String(estadoRaw ?? "").trim() || "—";
+    const usuarioRaw = a.usuarioinventario ?? a.usuarioInventario ?? "";
+    const usuarioTrim = String(usuarioRaw || "").trim();
+    const usuarioDisplay = usuarioTrim ? (getDisplayName ? getDisplayName(usuarioTrim) || usuarioTrim : usuarioTrim) : "—";
+    return [...base, estado, usuarioDisplay];
+  };
+
+  // Mapper para Excel No Inventariados con 4 columnas de ubicación + Estado y Usuario al final - 12 columnas
   const mapNoInventariadosExcelRow = (a) => {
-    if (typeof mapNoInventariadosRow === "function") return mapNoInventariadosRow(a);
-    // fallback local si no se provee mapper externo pero sí getUbicacionParts
+    // Usa mapper externo si existe (ya incluye 12 cols)
+    if (typeof mapNoInventariadosRow === "function") {
+      const row = mapNoInventariadosRow(a);
+      // Si externo aún es 10, extender con estado/usuario
+      if (row.length === 10) {
+        const estadoRaw = a.estadoinventario ?? a.estadoInventario ?? "";
+        const estado = normalizarEstado(estadoRaw) || String(estadoRaw || "—").trim() || "—";
+        const usuarioRaw = a.usuarioinventario ?? a.usuarioInventario ?? "";
+        const usuarioTrim = String(usuarioRaw || "").trim();
+        const usuarioDisplay = usuarioTrim ? (getDisplayName ? getDisplayName(usuarioTrim) || usuarioTrim : usuarioTrim) : "—";
+        return [...row, estado, usuarioDisplay];
+      }
+      return row;
+    }
     if (typeof getUbicacionParts === "function") {
       const trId = a.tipoRubroAct || a.tiporubroact;
       const codBase = (a.codigoActivo ?? a.codigoactivo ?? "").toString().trim();
       const ubicParts = getUbicacionParts(String(a.codigoAmbiente ?? a.codigoambiente ?? "").trim());
+      const estadoRaw = a.estadoinventario ?? a.estadoInventario ?? "";
+      const estado = String(estadoRaw ?? "").trim() || "—";
+      const usuarioRaw = a.usuarioinventario ?? a.usuarioInventario ?? "";
+      const usuarioTrim = String(usuarioRaw || "").trim();
+      const usuarioDisplay = usuarioTrim ? (getDisplayName ? getDisplayName(usuarioTrim) || usuarioTrim : usuarioTrim) : "—";
       return [
         codBase ? `OJ-02-${codBase}` : "—",
         (rubroFromTipo[trId] || "").trim(),
@@ -253,9 +281,11 @@ const InventarioInmuebleModal = ({
         ...(Array.isArray(ubicParts) ? ubicParts : ["—", "—", "—", "—"]),
         getResponsableName(a.cirun),
         a.cirun || "—",
+        estado,
+        usuarioDisplay,
       ];
     }
-    return mapActivoRow(a);
+    return mapPendientesRow(a);
   };
 
   const handleBuscar = async () => {
@@ -508,7 +538,7 @@ const InventarioInmuebleModal = ({
         items: detalleNoInventariados,
         ciudadName: selectedCiudadName,
         inmuebleName: detalleInmuebleName,
-        mapActivoRow,
+        mapActivoRow: mapPendientesRow,
         fileNamePrefix: `Activos_NoInventariados_${detalleInmuebleName.replace(/\s+/g, "_")}`,
         headerColor: [220, 38, 38],
         getUbicacionParts,
@@ -695,7 +725,7 @@ const InventarioInmuebleModal = ({
         items: pendientes,
         ciudadName: selectedCiudadName,
         inmuebleName: selectedInmuebleName,
-        mapActivoRow,
+        mapActivoRow: mapPendientesRow,
         fileNamePrefix: "Activos_Por_Inventariar",
         headerColor: [220, 38, 38],
         getUbicacionParts,
@@ -1210,7 +1240,7 @@ const InventarioInmuebleModal = ({
                     tituloClass="text-red-600 dark:text-red-400"
                     headerClass="bg-red-50 dark:bg-red-950/20"
                   >
-                    <TablaActivos items={pendientesPageData} mapRow={mapActivoRow} />
+                    <TablaActivos items={pendientesPageData} mapRow={mapPendientesRow} columnas={INMUEBLE_ACTIVO_COLUMNAS_PENDIENTES} />
                     <PaginacionTabla
                       count={pendientes.length}
                       mostrados={pendientesPageData.length}
@@ -1431,7 +1461,7 @@ const InventarioInmuebleModal = ({
                 >
                   {detalleNoInventariados.length > 0 ? (
                     <>
-                      <TablaActivos items={detalleNoInventariadosPageData} mapRow={mapActivoRow} />
+                      <TablaActivos items={detalleNoInventariadosPageData} mapRow={mapPendientesRow} columnas={INMUEBLE_ACTIVO_COLUMNAS_PENDIENTES} />
                       <PaginacionTabla
                         count={detalleNoInventariados.length}
                         mostrados={detalleNoInventariadosPageData.length}

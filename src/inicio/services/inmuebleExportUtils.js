@@ -92,23 +92,38 @@ export const exportInmueblePdf = ({
   }
 
   const body = sortedItems.map(mapActivoRow);
+  const isPendientesPdf = body.length > 0 && body[0].length === 9;
 
   autoTable(doc, {
     startY,
-    head: [["Código", "Rubro", "Tipo Rubro", "Descripción", "Ambiente", "Responsable", "CI Responsable"]],
+    head: isPendientesPdf
+      ? [["Código", "Rubro", "Tipo Rubro", "Descripción", "Ambiente", "Responsable", "CI Responsable", "Estado Inventario", "Usuario Inventario"]]
+      : [["Código", "Rubro", "Tipo Rubro", "Descripción", "Ambiente", "Responsable", "CI Responsable"]],
     body,
     theme: "striped",
-    styles: { font: "helvetica", fontSize: 7, cellPadding: 1.2, overflow: "linebreak" },
+    styles: { font: "helvetica", fontSize: isPendientesPdf ? 6 : 7, cellPadding: 1.2, overflow: "linebreak" },
     headStyles: { fillColor: headerColor, textColor: [255, 255, 255], halign: "center" },
-    columnStyles: {
-      0: { cellWidth: 28 },
-      1: { cellWidth: 30 },
-      2: { cellWidth: 30 },
-      3: { cellWidth: "auto" },
-      4: { cellWidth: 45 },
-      5: { cellWidth: 38 },
-      6: { cellWidth: 22, halign: "center" },
-    },
+    columnStyles: isPendientesPdf
+      ? {
+          0: { cellWidth: 22 },
+          1: { cellWidth: 24 },
+          2: { cellWidth: 24 },
+          3: { cellWidth: "auto" },
+          4: { cellWidth: 32 },
+          5: { cellWidth: 28 },
+          6: { cellWidth: 18, halign: "center" },
+          7: { cellWidth: 22, halign: "center" },
+          8: { cellWidth: 32 },
+        }
+      : {
+          0: { cellWidth: 28 },
+          1: { cellWidth: 30 },
+          2: { cellWidth: 30 },
+          3: { cellWidth: "auto" },
+          4: { cellWidth: 45 },
+          5: { cellWidth: 38 },
+          6: { cellWidth: 22, halign: "center" },
+        },
     margin: { left: 14, right: 14 },
   });
 
@@ -214,9 +229,11 @@ export const exportTransferenciasPdf = ({
 
 /**
  * Genera y descarga un reporte Excel (.xlsx) para los activos de un inmueble.
- * Soporta dos layouts:
+ * Soporta layouts:
  * - 7 columnas legacy: ["Código","Rubro","Tipo Rubro","Descripción","Ambiente","Responsable","CI Responsable"]
+ * - 9 columnas pendientes: ["Código","Rubro","Tipo Rubro","Descripción","Ambiente","Responsable","CI Responsable","Estado Inventario","Usuario Inventario"]
  * - 10 columnas con ubicación desglosada: ["Código","Rubro","Tipo Rubro","Descripción","Ciudad","Inmueble","Nivel","Ambiente","Responsable","CI Responsable"]
+ * - 12 columnas pendientes desglosada: ["Código","Rubro","Tipo Rubro","Descripción","Ciudad","Inmueble","Nivel","Ambiente","Responsable","CI Responsable","Estado Inventario","Usuario Inventario"]
  * Detecta el layout por el largo del primer dataRow devuelto por mapActivoRow.
  */
 export const exportInmuebleExcel = ({
@@ -229,19 +246,24 @@ export const exportInmuebleExcel = ({
   if (!items || items.length === 0) return;
 
   const dataRows = items.map(mapActivoRow);
-  const is10Cols = dataRows.length > 0 && dataRows[0].length === 10;
-  const headers = is10Cols
-    ? ["Código", "Rubro", "Tipo Rubro", "Descripción", "Ciudad", "Inmueble", "Nivel", "Ambiente", "Responsable", "CI Responsable"]
-    : ["Código", "Rubro", "Tipo Rubro", "Descripción", "Ambiente", "Responsable", "CI Responsable"];
+  const colLen = dataRows.length > 0 ? dataRows[0].length : 0;
+  const is12Cols = colLen === 12;
+  const is10Cols = colLen === 10;
+  const is9Cols = colLen === 9;
+  let headers;
+  if (is12Cols) headers = ["Código", "Rubro", "Tipo Rubro", "Descripción", "Ciudad", "Inmueble", "Nivel", "Ambiente", "Responsable", "CI Responsable", "Estado Inventario", "Usuario Inventario"];
+  else if (is10Cols) headers = ["Código", "Rubro", "Tipo Rubro", "Descripción", "Ciudad", "Inmueble", "Nivel", "Ambiente", "Responsable", "CI Responsable"];
+  else if (is9Cols) headers = ["Código", "Rubro", "Tipo Rubro", "Descripción", "Ambiente", "Responsable", "CI Responsable", "Estado Inventario", "Usuario Inventario"];
+  else headers = ["Código", "Rubro", "Tipo Rubro", "Descripción", "Ambiente", "Responsable", "CI Responsable"];
 
-  // Ordenar ascendente por INMUEBLE (col índice 5 en layout 10 cols) cuando aplica desglose
-  if (is10Cols && dataRows.length > 1) {
+  // Ordenar ascendente por INMUEBLE cuando hay desglose (10 o 12)
+  const isDesglosado = is10Cols || is12Cols;
+  if (isDesglosado && dataRows.length > 1) {
     dataRows.sort((a, b) => {
       const inmA = String(a[5] ?? "").trim();
       const inmB = String(b[5] ?? "").trim();
       const cmp = inmA.localeCompare(inmB, "es", { sensitivity: "base", numeric: true });
       if (cmp !== 0) return cmp;
-      // desempate: Ciudad -> Nivel -> Ambiente -> Código
       const ciuCmp = String(a[4] ?? "").localeCompare(String(b[4] ?? ""), "es", { sensitivity: "base", numeric: true });
       if (ciuCmp !== 0) return ciuCmp;
       const nivCmp = String(a[6] ?? "").localeCompare(String(b[6] ?? ""), "es", { sensitivity: "base", numeric: true });
@@ -262,12 +284,10 @@ export const exportInmuebleExcel = ({
   ];
 
   const ws = XLSX.utils.aoa_to_sheet(sheetData);
-  // Ajustar anchos según layout
-  if (is10Cols) {
-    ws["!cols"] = [{ wch: 14 }, { wch: 18 }, { wch: 18 }, { wch: 32 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 22 }, { wch: 14 }];
-  } else {
-    ws["!cols"] = [{ wch: 14 }, { wch: 18 }, { wch: 18 }, { wch: 32 }, { wch: 24 }, { wch: 22 }, { wch: 14 }];
-  }
+  if (is12Cols) ws["!cols"] = [{ wch: 14 }, { wch: 18 }, { wch: 18 }, { wch: 32 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 20 }, { wch: 12 }, { wch: 16 }, { wch: 20 }];
+  else if (is10Cols) ws["!cols"] = [{ wch: 14 }, { wch: 18 }, { wch: 18 }, { wch: 32 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 22 }, { wch: 14 }];
+  else if (is9Cols) ws["!cols"] = [{ wch: 14 }, { wch: 18 }, { wch: 18 }, { wch: 32 }, { wch: 20 }, { wch: 20 }, { wch: 12 }, { wch: 16 }, { wch: 20 }];
+  else ws["!cols"] = [{ wch: 14 }, { wch: 18 }, { wch: 18 }, { wch: 32 }, { wch: 24 }, { wch: 22 }, { wch: 14 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Activos");
 

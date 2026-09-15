@@ -20,6 +20,7 @@ import {
   normalizeCi,
   normalizeCiLoose,
   getCiPrefix,
+  normalizarEstado,
 } from "../constants/inventarioConstants";
 
 const InicioList = () => {
@@ -235,11 +236,16 @@ const InicioList = () => {
     ];
   };
 
-  // Mapper exclusivo para Excel No Inventariados: desglosa Ambiente en 4 columnas
+  // Mapper exclusivo para Excel No Inventariados: desglosa Ambiente en 4 columnas + Estado/Usuario al final (12 cols) - texto exacto de BD
   const mapNoInventariadosRow = (a) => {
     const trId = a.tiporubroact ?? a.tipoRubroAct ?? "";
     const codBase = (a.codigoactivo ?? a.codigoActivo ?? "").toString().trim();
     const ubicParts = getUbicacionParts(String(a.codigoambiente ?? a.codigoAmbiente ?? "").trim());
+    const estadoRaw = a.estadoinventario ?? a.estadoInventario ?? "";
+    const estado = String(estadoRaw ?? "").trim() || "—";
+    const usuarioRaw = a.usuarioinventario ?? a.usuarioInventario ?? "";
+    const usuarioTrim = String(usuarioRaw || "").trim();
+    const usuarioDisplay = usuarioTrim ? getDisplayName(usuarioTrim) || usuarioTrim : "—";
     return [
       codBase ? `OJ-02-${codBase}` : "—",
       (rubroFromTipo[trId] ?? rubroFromTipo[String(trId)] ?? "").toString().trim(),
@@ -248,6 +254,8 @@ const InicioList = () => {
       ...ubicParts, // Ciudad, Inmueble, Nivel, Ambiente
       getResponsableName(a.cirun),
       a.cirun || "—",
+      estado,
+      usuarioDisplay,
     ];
   };
 

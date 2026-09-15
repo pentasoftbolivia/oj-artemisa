@@ -36,6 +36,18 @@ export const INMUEBLE_ACTIVO_COLUMNAS = [
   { head: "CI Responsable", headClass: "w-[90px]", cellClass: "font-mono text-xs" },
 ];
 
+export const INMUEBLE_ACTIVO_COLUMNAS_PENDIENTES = [
+  { head: "Código", headClass: "w-[90px]", cellClass: "font-mono text-xs" },
+  { head: "Rubro", headClass: "w-[110px]", cellClass: "text-xs whitespace-normal break-words max-w-[110px]" },
+  { head: "Tipo Rubro", headClass: "w-[110px]", cellClass: "text-xs whitespace-normal break-words max-w-[110px]" },
+  { head: "Descripción", headClass: "w-[200px]", cellClass: "text-xs whitespace-normal break-words max-w-[200px]" },
+  { head: "Ambiente", headClass: "w-[160px]", cellClass: "text-xs whitespace-normal break-words max-w-[160px]" },
+  { head: "Responsable", headClass: "w-[130px]", cellClass: "text-xs whitespace-normal break-words max-w-[130px]" },
+  { head: "CI Responsable", headClass: "w-[90px]", cellClass: "font-mono text-xs" },
+  { head: "Estado Inventario", headClass: "w-[120px]", cellClass: "text-xs text-center" },
+  { head: "Usuario Inventario", headClass: "w-[160px]", cellClass: "text-xs whitespace-normal break-words max-w-[160px]" },
+];
+
 export const RUBRO_FIELDS_RAW = {
   "EQUIPO EDUCACIONAL Y RECREATIVO": [
     { key: "modelo", label: "Modelo" },
