@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Building2, CalendarDays, FileSpreadsheet, Loader2 } from "lucide-react";
+import { Building2, CalendarDays, FileSpreadsheet, FileDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
  * - Móvil (<640px): columna Reporte de Paneles → POR INMUEBLE → POR FECHA.
  */
 const InventarioHeader = memo(
-  ({ onOpenInmueble, onOpenFecha, onExportPaneles, isGeneratingExcel }) => {
+  ({ onOpenInmueble, onOpenFecha, onExportPaneles, isGeneratingExcel, onGenerateInventarioGeneral, isGeneratingGeneral, onGeneratePorUbicacion, isGeneratingUbicacion }) => {
     return (
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1 space-y-1">
@@ -54,6 +54,34 @@ const InventarioHeader = memo(
           >
             <CalendarDays className="mr-2 h-4 w-4" />
             POR FECHA
+          </Button>
+          <Button
+            onClick={onGenerateInventarioGeneral}
+            disabled={isGeneratingGeneral || isGeneratingUbicacion}
+            className="w-full sm:w-auto justify-center bg-blue-700 hover:bg-blue-800 text-white min-h-11 sm:min-h-0 order-4"
+            aria-label="Generar Inventario General"
+            title="PDF con todos los activos ultimoregistro=1 ordenados por código"
+          >
+            {isGeneratingGeneral ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <FileDown className="h-4 w-4 mr-2" />
+            )}
+            INVENTARIO GENERAL
+          </Button>
+          <Button
+            onClick={onGeneratePorUbicacion}
+            disabled={isGeneratingUbicacion || isGeneratingGeneral}
+            className="w-full sm:w-auto justify-center bg-teal-700 hover:bg-teal-800 text-white min-h-11 sm:min-h-0 order-5"
+            aria-label="Generar Reporte por Ubicación"
+            title="PDF con todos los activos ultimoregistro=1 ordenados por ubicación (EL ALTO, LA PAZ, ...)"
+          >
+            {isGeneratingUbicacion ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <FileDown className="h-4 w-4 mr-2" />
+            )}
+            REPORTE POR UBICACION
           </Button>
         </div>
       </div>

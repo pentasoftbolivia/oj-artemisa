@@ -14,6 +14,8 @@ import InventarioFechaModal from "../components/InventarioFechaModal";
 import { exportPanelesToExcel } from "../services/inventarioExport";
 
 import { useInventarioData } from "../hooks/useInventarioData";
+import { useReporteInventarioGeneral } from "../hooks/useReporteInventarioGeneral";
+import { useReportePorUbicacion } from "../hooks/useReportePorUbicacion";
 import { useUbicacionOptions } from "@/hooks/useUbicacionOptions";
 import { useUserDisplayNames } from "@/hooks/useUserDisplayNames";
 import {
@@ -79,6 +81,8 @@ const InicioList = () => {
   const [isInmuebleModalOpen, setIsInmuebleModalOpen] = useState(false);
   const [isFechaModalOpen, setIsFechaModalOpen] = useState(false);
   const [isGeneratingExcel, setIsGeneratingExcel] = useState(false);
+  const { generate: generateInventarioGeneral, isGenerating: isGeneratingGeneral } = useReporteInventarioGeneral();
+  const { generate: generatePorUbicacion, isGenerating: isGeneratingUbicacion } = useReportePorUbicacion();
 
   const PAGE_SIZE = 3;
   const [isUsuarioModalOpen, setIsUsuarioModalOpen] = useState(false);
@@ -356,6 +360,10 @@ const InicioList = () => {
         onOpenFecha={() => setIsFechaModalOpen(true)}
         onExportPaneles={handleGenerarExcelPaneles}
         isGeneratingExcel={isGeneratingExcel}
+        onGenerateInventarioGeneral={generateInventarioGeneral}
+        isGeneratingGeneral={isGeneratingGeneral}
+        onGeneratePorUbicacion={generatePorUbicacion}
+        isGeneratingUbicacion={isGeneratingUbicacion}
       />
 
       <InventarioSummary

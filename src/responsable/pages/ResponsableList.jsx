@@ -14,11 +14,10 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import LoadingSpinner from "@/components/ui/loading-spinner";
 import DataPagination from "@/components/ui/data-pagination";
-import { Plus, Users } from "lucide-react";
+import { Users, Printer, Loader2 } from "lucide-react";
 
 import ResponsableFilters from "../components/ResponsableFilters";
 import ResponsableTable from "../components/ResponsableTable";
@@ -37,6 +36,7 @@ import { useResponsableUbicacion } from "../hooks/useResponsableUbicacion";
 import ResponsableForm from "./ResponsableForm";
 import { useCrudModal } from "@/hooks/useCrudModal";
 import { useResponsableState } from "../hooks/useResponsableState";
+import { useActaAsignacion } from "../hooks/useActaAsignacion";
 
 const MESSAGES = {
   success: {
@@ -74,7 +74,6 @@ const ResponsableList = () => {
     isFormOpen,
     setIsFormOpen,
     editingItem: editingResponsable,
-    handleAdd,
     handleEdit,
     handleCancelForm: handleCancel,
     itemToDelete: responsableToDelete,
@@ -108,6 +107,9 @@ const ResponsableList = () => {
     ambienteOptionsByNivel,
     isLoading: isLoadingCatalogos,
   } = useResponsableUbicacion(draftFilters);
+
+  const { printActasMasivas, isPrinting: isPrintingMasivo, printingId, masivasStats } = useActaAsignacion();
+  const isPrintingMasivas = isPrintingMasivo && printingId === "masivo";
 
   const confirmDelete = useCallback(async () => {
     if (!responsableToDelete) return;
@@ -184,39 +186,48 @@ const ResponsableList = () => {
           </p>
         </div>
 
-        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={handleAdd}>
-              <Plus className="mr-2 h-4 w-4" />
-              Nuevo
-            </Button>
-          </DialogTrigger>
-          <DialogContent
-            className="sm:max-w-[700px]"
-            onInteractOutside={(e) => {
-              e.preventDefault();
-              handleCancel();
-            }}
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <Button
+            onClick={printActasMasivas}
+            disabled={isPrintingMasivas || masivasStats.isLoading}
+            title="Imprimir todas las actas con número asignado"
           >
-            <DialogHeader>
-              <DialogTitle>
-                {editingResponsable
-                  ? "Editar Responsable"
-                  : "Nuevo Responsable"}
-              </DialogTitle>
-              <DialogDescription>
-                {editingResponsable
-                  ? "Modifica los datos del responsable"
-                  : "Ingresa la información del nuevo responsable"}
-              </DialogDescription>
-            </DialogHeader>
-            <ResponsableForm
-              responsableToEdit={editingResponsable}
-              onSubmit={handleSubmit}
-              onCancel={handleCancel}
-            />
-          </DialogContent>
-        </Dialog>
+            {isPrintingMasivas || masivasStats.isLoading ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Printer className="mr-2 h-4 w-4" />
+            )}
+            {masivasStats.isLoading ? "Generar Actas Masivas..." : "Generar Actas Masivas"}
+          </Button>
+
+          <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+            <DialogContent
+              className="sm:max-w-[700px]"
+              onInteractOutside={(e) => {
+                e.preventDefault();
+                handleCancel();
+              }}
+            >
+              <DialogHeader>
+                <DialogTitle>
+                  {editingResponsable
+                    ? "Editar Responsable"
+                    : "Nuevo Responsable"}
+                </DialogTitle>
+                <DialogDescription>
+                  {editingResponsable
+                    ? "Modifica los datos del responsable"
+                    : "Ingresa la información del nuevo responsable"}
+                </DialogDescription>
+              </DialogHeader>
+              <ResponsableForm
+                responsableToEdit={editingResponsable}
+                onSubmit={handleSubmit}
+                onCancel={handleCancel}
+              />
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <ResponsableFilters
@@ -258,6 +269,7 @@ const ResponsableList = () => {
               ambiente: appliedFilters.ambiente,
             }}
             ambienteCodes={appliedAmbienteCodes}
+            numeroActaFilter={appliedFilters.numeroActa}
           />
 
           {hasActiveFilters && filteredResponsables.length > 0 && (
