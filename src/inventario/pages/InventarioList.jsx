@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSelector } from "react-redux";
-import { Package } from "lucide-react";
+import { Package, FileDown, Loader2 } from "lucide-react";
 import { selectUser } from "@/store/auth/authSlice";
 import { fetchActivoImages } from "../services/inventarioService";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import LoadingSpinner from "@/components/ui/loading-spinner";
+import { useReporteInventariados } from "../hooks/useReporteInventariados";
 
 import InventarioFilters from "../components/InventarioFilters";
 import InventarioTable from "../components/InventarioTable";
@@ -372,6 +375,18 @@ const InventarioList = () => {
     [page, totalPages],
   );
 
+  const { generateChunk: generateReporteChunk, isGenerating: isGeneratingReporte, totalCount: totalInventariados, isCounting: isCountingInventariados } = useReporteInventariados();
+  const [activeChunk, setActiveChunk] = useState(null);
+  const [isReporteMasivoOpen, setIsReporteMasivoOpen] = useState(false);
+  const handleChunkClick = async (idx) => {
+    setActiveChunk(idx);
+    try {
+      await generateReporteChunk(idx);
+    } finally {
+      setActiveChunk(null);
+    }
+  };
+
   const [photoCounts, setPhotoCounts] = useState({});
   useEffect(() => {
     let cancelled = false;
@@ -464,7 +479,59 @@ const InventarioList = () => {
 
   return (
     <div className="space-y-6">
-      <InventarioHeader />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex-1 min-w-0">
+          <InventarioHeader />
+        </div>
+        <div className="text-xs text-muted-foreground sm:text-right shrink-0">
+          {totalInventariados != null && !isCountingInventariados ? `${totalInventariados} inventariados` : isCountingInventariados ? "Contando..." : ""}
+        </div>
+      </div>
+
+      <Dialog open={isReporteMasivoOpen} onOpenChange={setIsReporteMasivoOpen}>
+        <DialogTrigger asChild>
+          <Button variant="default" size="default" className="w-full sm:w-auto">
+            <FileDown className="h-4 w-4 mr-2" />
+            Generar Reporte Activos Masivos
+            {totalInventariados != null && !isCountingInventariados ? ` (${totalInventariados})` : isCountingInventariados ? " (Contando...)" : ""}
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm">
+              <FileDown className="h-4 w-4" />
+              Reporte Activos Inventariados por bloques (2000 c/u)
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Cada botón genera un PDF de 2000 activos ordenados por ubicación (1: 1-2000, 2: 2001-4000, ... 22: 42001-44000).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2 pt-2">
+            {Array.from({ length: 22 }, (_, i) => {
+              const start = i * 2000 + 1;
+              const end = (i + 1) * 2000;
+              const isActive = activeChunk === i && isGeneratingReporte;
+              const label = `${start}-${end}`;
+              const disabled = isGeneratingReporte || isLoading || isCountingInventariados;
+              return (
+                <Button
+                  key={i}
+                  onClick={() => handleChunkClick(i)}
+                  disabled={disabled}
+                  variant={isActive ? "default" : "outline"}
+                  size="sm"
+                  className="text-xs"
+                  title={`Generar reporte activos ${start} al ${end} ordenados por ubicación`}
+                >
+                  {isActive ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <FileDown className="h-3 w-3 mr-1" />}
+                  {label}
+                </Button>
+              );
+            })}
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">Cada botón genera un PDF de 2000 activos</p>
+        </DialogContent>
+      </Dialog>
 
       <InventarioFilters
         filtroCodigoActivo={filtroCodigoActivo}
