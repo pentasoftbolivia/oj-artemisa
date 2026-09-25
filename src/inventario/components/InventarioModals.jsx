@@ -390,7 +390,9 @@ export const InventarioImagesModal = ({
                     <img
                       src={file.url}
                       alt={file.name}
-                      className="w-full h-40 object-cover hover:opacity-80 transition-opacity"
+                      loading="lazy"
+                      decoding="async"
+                      className="w-full h-40 object-cover hover:opacity-80 transition-opacity bg-muted"
                     />
                   </a>
                   <div className="p-2 flex justify-between items-center bg-muted/20">

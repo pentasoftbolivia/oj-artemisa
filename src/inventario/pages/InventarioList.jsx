@@ -2,13 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSelector } from "react-redux";
 import { Package, FileDown, Loader2 } from "lucide-react";
 import { selectUser } from "@/store/auth/authSlice";
-import { fetchActivoImages } from "../services/inventarioService";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import LoadingSpinner from "@/components/ui/loading-spinner";
 import { useReporteInventariados } from "../hooks/useReporteInventariados";
+import { usePhotoCounts } from "../hooks/usePhotoCounts";
 
 import InventarioFilters from "../components/InventarioFilters";
 import InventarioTable from "../components/InventarioTable";
@@ -42,6 +42,9 @@ const {
     rubros,
     tipoRubros,
     ambientes,
+    ciudades,
+    inmuebles,
+    niveles,
     directAmbMap,
     directRespMap,
     ambientesRef,
@@ -54,7 +57,6 @@ const {
     tipoRubroDescMap,
     ambienteMap,
     responsableMap,
-    inmuebleCount,
     page,
     pageSize,
     setPage,
@@ -64,10 +66,8 @@ const {
     adjustStatsLocal,
     totalCount,
     totalPages,
-    loadCatalogos,
     loadActivos,
     loadInitialData,
-    handleFetchPhotoCounts,
   } = useInventarioData();
 
   const {
@@ -161,12 +161,6 @@ const {
 
   const firstEstadoRef = useRef(true);
   const firstRevaluoRef = useRef(true);
-
-  // Wrapper para abrir modal de imágenes y también contar fotos
-  const handleOpenImagesModal = async (activo) => {
-    await handleOpenImages(activo);
-    await handleFetchPhotoCounts(activo.codigoActivo);
-  };
 
   useEffect(() => {
     loadInitialData();
@@ -394,61 +388,19 @@ const {
     }
   };
 
-  const [photoCounts, setPhotoCounts] = useState({});
-  const { photoCountsRef } = useInventarioData();
+  const { photoCounts, refreshOne: refreshPhotoCount } = usePhotoCounts(
+    paginatedData,
+    photoCountsRef,
+  );
 
-  useEffect(() => {
-    // Initialize from cache if available (only on first mount or when cache changes)
-    if (Object.keys(photoCountsRef.current).length > 0 && Object.keys(photoCounts).length === 0) {
-      setPhotoCounts(photoCountsRef.current);
-    }
-  }, [photoCountsRef, photoCounts]);
-
-  const handleFetchPhotoCounts = async (codigoActivo?) => {
-    setPhotoCounts({});
-    setPhotoCountsRef((prev) => {
-      const next = { ...prev };
-      let changed = false;
-      
-      // If specific activo requested, only fetch for that one
-      if (codigoActivo) {
-        const key = String(codigoActivo);
-        try {
-          const files = await fetchActivoImages(codigoActivo);
-          next[key] = files.length;
-          changed = true;
-          photoCountsRef.current = next;
-          setPhotoCounts(next);
-          return next;
-        } catch {
-          next[key] = 0;
-          photoCountsRef.current = next;
-          setPhotoCounts(next);
-          return next;
-        }
-      } else {
-        // Fetch for all actives in the page (initial load)
-        const entries = await Promise.all(
-          paginatedData.map(async (a) => {
-            const key = String(a.codigoActivo);
-            try {
-              const files = await fetchActivoImages(a.codigoActivo);
-              next[key] = files.length;
-              changed = true;
-              return [key, files.length];
-            } catch {
-              next[key] = 0;
-              return [key, 0];
-            }
-          })
-        );
-        if (changed) {
-          photoCountsRef.current = next;
-          setPhotoCounts(next);
-        }
-        return next;
-      }
-    });
+  // Wrapper para abrir modal de imágenes y actualizar solo ese conteo.
+  // handleOpenImages ya trae las fotos; aquí solo sincronizamos el número
+  // sin refetch de toda la página. Las fotos del modal se muestran al
+  // instante porque vienen del fetch del modal + caché.
+  const handleOpenImagesModal = async (activo) => {
+    await handleOpenImages(activo);
+    // imageFiles ya está cargado por handleOpenImages; reusarlo evita 2.º request
+    await refreshPhotoCount(activo.codigoActivo);
   };
 
   if (isLoading && activos.length === 0 && rubros.length === 0) {
