@@ -208,15 +208,24 @@ export const useInventarioActions = ({
   };
 
   const handleToggleAprobado = async (activo) => {
-    try {
-      const isRevisado = activo.estadoinventario === "REVISADO";
-      const updateData = isRevisado
-        ? { estadoinventario: "INVENTARIADO", aprobadorinventario: null }
-        : {
-            estadoinventario: "REVISADO",
-            aprobadorinventario: currentUser?.email || "unknown",
-          };
+    const isRevisado = activo.estadoinventario === "REVISADO";
+    const updateData = isRevisado
+      ? { estadoinventario: "INVENTARIADO", aprobadorinventario: null }
+      : {
+          estadoinventario: "REVISADO",
+          aprobadorinventario: currentUser?.email || "unknown",
+        };
 
+    // Optimistic update: immediately update UI for instant feedback
+    setActivos((prev) =>
+      prev.map((a) =>
+        a.codigoActivoInterno === activo.codigoActivoInterno
+          ? { ...a, ...updateData }
+          : a,
+      ),
+    );
+
+    try {
       await updateEstadoInventario(activo.codigoActivoInterno, updateData);
 
       toast({
@@ -225,15 +234,15 @@ export const useInventarioActions = ({
           ? "Estado de inventario cambiado a INVENTARIADO."
           : "Estado de inventario cambiado a REVISADO.",
       });
+    } catch (err) {
+      // Revert optimistic update on error
       setActivos((prev) =>
         prev.map((a) =>
           a.codigoActivoInterno === activo.codigoActivoInterno
-            ? { ...a, ...updateData }
+            ? { ...a, estadoinventario: isRevisado ? "REVISADO" : "PENDIENTE" }
             : a,
         ),
       );
-      adjustStatsLocal(activo, updateData.estadoinventario);
-    } catch (err) {
       toast({
         title: "Error",
         description: `Error al actualizar: ${err.message}`,
