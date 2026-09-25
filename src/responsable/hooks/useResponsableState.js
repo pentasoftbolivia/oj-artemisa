@@ -8,6 +8,7 @@ import { normalizeCi } from "@/inventario/constants/inventarioConstants";
 const INITIAL_FILTERS = {
   search: "",
   carnet: "",
+  numeroActa: "",
   ciudad: "",
   inmueble: "",
   nivel: "",
@@ -47,10 +48,11 @@ export const useResponsableState = (responsables) => {
   }, []);
 
   const handleSearch = useCallback(async () => {
-    if (!draftFilters.ambiente) {
+    const hasNumeroActa = Boolean(String(draftFilters.numeroActa || "").trim());
+    if (!draftFilters.ambiente && !hasNumeroActa) {
       toast({
         title: "Seleccione un ambiente",
-        description: "Debe seleccionar un ambiente para poder buscar.",
+        description: "Debe seleccionar un ambiente o ingresar un número de acta para poder buscar.",
         variant: "destructive",
       });
       return;
@@ -116,7 +118,7 @@ export const useResponsableState = (responsables) => {
   const filteredResponsables = useMemo(() => {
     if (!hasSearchFilters && !appliedFilters.ambiente) return [];
 
-    return responsables.filter((resp) => {
+    const filtered = responsables.filter((resp) => {
       if (matchingCiruns !== null && !matchingCiruns.has(resp.cirun)) {
         return false;
       }
@@ -138,8 +140,48 @@ export const useResponsableState = (responsables) => {
         }
       }
 
+      if (appliedFilters.numeroActa) {
+        const query = String(appliedFilters.numeroActa).trim().toLowerCase();
+        const numeroActaStr = String(resp.numeroacta ?? "").trim().toLowerCase();
+        const actasStr = Array.isArray(resp.actas)
+          ? resp.actas.map((a) => String(a.numeroacta ?? "").trim().toLowerCase()).join(" ")
+          : "";
+        const combined = `${numeroActaStr} ${actasStr}`.trim();
+        if (!combined.includes(query)) {
+          return false;
+        }
+      }
+
       return true;
     });
+
+    // Orden ascendente por Número de Acta cuando se busca por acta
+    if (appliedFilters.numeroActa) {
+      const getNumeroActaValue = (r) => {
+        const candidates = [];
+        if (r.numeroacta != null && String(r.numeroacta).trim() !== "") {
+          const n = Number(String(r.numeroacta).trim());
+          if (!Number.isNaN(n)) candidates.push(n);
+        }
+        if (Array.isArray(r.actas)) {
+          r.actas.forEach((a) => {
+            const n = Number(String(a.numeroacta ?? "").trim());
+            if (!Number.isNaN(n)) candidates.push(n);
+          });
+        }
+        if (candidates.length === 0) return Infinity;
+        return Math.min(...candidates);
+      };
+      filtered.sort((a, b) => {
+        const va = getNumeroActaValue(a);
+        const vb = getNumeroActaValue(b);
+        if (va !== vb) return va - vb;
+        // desempate por CI
+        return String(a.cirun || "").localeCompare(String(b.cirun || ""));
+      });
+    }
+
+    return filtered;
   }, [responsables, appliedFilters, matchingCiruns, hasSearchFilters]);
 
   const totalPages = Math.max(1, Math.ceil(filteredResponsables.length / pageSize));

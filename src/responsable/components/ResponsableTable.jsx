@@ -36,15 +36,19 @@ const ResponsableTable = memo(({
   onDelete,
   messages,
   locationFilters,
-  ambienteCodes
+  ambienteCodes,
+  numeroActaFilter
 }) => {
   const { printActaAsignacion, printActaListado, isPrinting, printingId } = useActaAsignacion();
   const { toast } = useToast();
   const [printModalOpen, setPrintModalOpen] = useState(false);
   const [selectedPrintData, setSelectedPrintData] = useState(null);
 
+  const canPrintActa = Boolean(locationFilters?.ambiente || String(numeroActaFilter || "").trim());
+
   const handlePrintClick = (r, type) => {
-    if (!locationFilters?.ambiente) {
+    // Permitir impresión cuando se busca por Número de Acta aunque no haya ambiente seleccionado
+    if (type === "asignacion" && !canPrintActa) {
       toast({
         title: "Seleccione un ambiente",
         description: "Debe seleccionar un ambiente para imprimir el acta de asignación.",
@@ -52,7 +56,17 @@ const ResponsableTable = memo(({
       });
       return;
     }
-    setSelectedPrintData({ responsable: r, type, locationFilters: locationFilters || {} });
+    // Si se buscó por acta y no hay ambiente, inferir codigoambiente del acta coincidente
+    let effectiveFilters = locationFilters || {};
+    if (!effectiveFilters.ambiente && String(numeroActaFilter || "").trim() && Array.isArray(r.actas)) {
+      const query = String(numeroActaFilter).trim().toLowerCase();
+      const matched = r.actas.find((a) => String(a.numeroacta ?? "").trim().toLowerCase() === query)
+        || r.actas.find((a) => String(a.numeroacta ?? "").trim().toLowerCase().includes(query));
+      if (matched?.codigoambiente) {
+        effectiveFilters = { ...effectiveFilters, ambiente: String(matched.codigoambiente).trim() };
+      }
+    }
+    setSelectedPrintData({ responsable: r, type, locationFilters: effectiveFilters });
     setPrintModalOpen(true);
   };
 
@@ -115,7 +129,7 @@ const ResponsableTable = memo(({
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex space-x-1 justify-end">
-                    {locationFilters?.ambiente ? (
+                    {canPrintActa ? (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -129,6 +143,16 @@ const ResponsableTable = memo(({
                         ) : (
                           <Printer className="h-4 w-4" />
                         )}
+                      </Button>
+                    ) : hasActiveFilters ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        title="Imprimir Acta de Asignación (requiere ambiente o búsqueda por N° Acta)"
+                        className="text-blue-500/40"
+                        disabled
+                      >
+                        <Printer className="h-4 w-4" />
                       </Button>
                     ) : null}
                     <Button

@@ -30,7 +30,7 @@ const ResponsableFilters = memo(({
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="search">Buscar</Label>
               <Input
@@ -48,6 +48,16 @@ const ResponsableFilters = memo(({
                 placeholder={messages.placeholders.carnet}
                 value={filters.carnet}
                 onChange={(e) => onFilterChange("carnet", e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="numeroActa">Número de Acta</Label>
+              <Input
+                id="numeroActa"
+                placeholder="Buscar por N° de acta..."
+                value={filters.numeroActa || ""}
+                onChange={(e) => onFilterChange("numeroActa", e.target.value)}
               />
             </div>
           </div>
@@ -110,7 +120,7 @@ const ResponsableFilters = memo(({
               )}
               Buscar
             </Button>
-            {hasActiveFilters || filters.search || filters.carnet ? (
+            {hasActiveFilters || filters.search || filters.carnet || filters.numeroActa ? (
               <Button variant="outline" onClick={onClearFilters}>
                 <X className="h-4 w-4 mr-2" />
                 Limpiar
