@@ -90,11 +90,18 @@ export const fetchActivoImages = async (codigoActivo) => {
   if (error) throw error;
   if (!data) return [];
 
+  // Obtener URLs públicas en lote para reducir llamadas API
+  const filesWithUrls = await Promise.all(
+    data
+      .filter((f) => f.name.startsWith(prefix))
+      .map((f) => supabase.storage.from(BUCKET_NAME).getPublicUrl(f.name))
+  );
+
   return data
     .filter((f) => f.name.startsWith(prefix))
-    .map((f) => ({
+    .map((f, i) => ({
       name: f.name,
-      url: supabase.storage.from(BUCKET_NAME).getPublicUrl(f.name).data.publicUrl,
+      url: filesWithUrls[i].data.publicUrl,
     }));
 };
 

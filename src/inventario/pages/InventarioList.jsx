@@ -35,7 +35,7 @@ const InventarioList = () => {
   const currentUser = useSelector(selectUser);
   const { getDisplayName } = useUserDisplayNames();
 
-  const {
+const {
     isLoading,
     activos,
     setActivos,
@@ -48,14 +48,13 @@ const InventarioList = () => {
     responsablesRef,
     directAmbRef,
     directRespRef,
+    photoCountsRef,
     rubroDescMap,
     rubroFromTipo,
     tipoRubroDescMap,
     ambienteMap,
     responsableMap,
-    ciudades,
-    inmuebles,
-    niveles,
+    inmuebleCount,
     page,
     pageSize,
     setPage,
@@ -65,8 +64,10 @@ const InventarioList = () => {
     adjustStatsLocal,
     totalCount,
     totalPages,
+    loadCatalogos,
     loadActivos,
     loadInitialData,
+    handleFetchPhotoCounts,
   } = useInventarioData();
 
   const {
@@ -160,6 +161,12 @@ const InventarioList = () => {
 
   const firstEstadoRef = useRef(true);
   const firstRevaluoRef = useRef(true);
+
+  // Wrapper para abrir modal de imágenes y también contar fotos
+  const handleOpenImagesModal = async (activo) => {
+    await handleOpenImages(activo);
+    await handleFetchPhotoCounts(activo.codigoActivo);
+  };
 
   useEffect(() => {
     loadInitialData();
@@ -388,40 +395,61 @@ const InventarioList = () => {
   };
 
   const [photoCounts, setPhotoCounts] = useState({});
+  const { photoCountsRef } = useInventarioData();
+
   useEffect(() => {
-    let cancelled = false;
-    const fetchCounts = async () => {
-      if (paginatedData.length === 0) return;
-      const entries = await Promise.all(
-        paginatedData.map(async (a) => {
-          const key = String(a.codigoActivo);
-          try {
-            const files = await fetchActivoImages(a.codigoActivo);
-            return [key, files.length];
-          } catch {
-            return [key, 0];
-          }
-        })
-      );
-      if (!cancelled) {
-        setPhotoCounts((prev) => {
-          const next = { ...prev };
-          let changed = false;
-          entries.forEach(([k, v]) => {
-            if (next[k] !== v) {
-              next[k] = v;
+    // Initialize from cache if available (only on first mount or when cache changes)
+    if (Object.keys(photoCountsRef.current).length > 0 && Object.keys(photoCounts).length === 0) {
+      setPhotoCounts(photoCountsRef.current);
+    }
+  }, [photoCountsRef, photoCounts]);
+
+  const handleFetchPhotoCounts = async (codigoActivo?) => {
+    setPhotoCounts({});
+    setPhotoCountsRef((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      
+      // If specific activo requested, only fetch for that one
+      if (codigoActivo) {
+        const key = String(codigoActivo);
+        try {
+          const files = await fetchActivoImages(codigoActivo);
+          next[key] = files.length;
+          changed = true;
+          photoCountsRef.current = next;
+          setPhotoCounts(next);
+          return next;
+        } catch {
+          next[key] = 0;
+          photoCountsRef.current = next;
+          setPhotoCounts(next);
+          return next;
+        }
+      } else {
+        // Fetch for all actives in the page (initial load)
+        const entries = await Promise.all(
+          paginatedData.map(async (a) => {
+            const key = String(a.codigoActivo);
+            try {
+              const files = await fetchActivoImages(a.codigoActivo);
+              next[key] = files.length;
               changed = true;
+              return [key, files.length];
+            } catch {
+              next[key] = 0;
+              return [key, 0];
             }
-          });
-          return changed ? next : prev;
-        });
+          })
+        );
+        if (changed) {
+          photoCountsRef.current = next;
+          setPhotoCounts(next);
+        }
+        return next;
       }
-    };
-    fetchCounts();
-    return () => {
-      cancelled = true;
-    };
-  }, [paginatedData]);
+    });
+  };
 
   if (isLoading && activos.length === 0 && rubros.length === 0) {
     return <LoadingSpinner />;
@@ -576,7 +604,7 @@ const InventarioList = () => {
             getResponsableName={getResponsableName}
             getInventariadorName={getDisplayName}
             onEdit={handleEdit}
-            onOpenImages={handleOpenImages}
+            onOpenImages={handleOpenImagesModal}
             onToggleAprobado={handleToggleAprobado}
             currentUser={currentUser}
             photoCounts={photoCounts}

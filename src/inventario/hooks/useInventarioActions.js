@@ -275,7 +275,7 @@ export const useInventarioActions = ({
     }
   };
 
-  const handleOpenImages = async (activo) => {
+const handleOpenImages = async (activo) => {
     setSelectedActivoImages(activo);
     setIsLoadingImages(true);
     setIsImageModalOpen(true);

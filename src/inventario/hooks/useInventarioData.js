@@ -29,6 +29,7 @@ export const useInventarioData = () => {
   const responsablesRef = useRef([]);
   const directAmbRef = useRef({});
   const directRespRef = useRef({});
+  const photoCountsRef = useRef({}); // Cache for photo counts
 
   const [page, setPageState] = useState(1);
   const [pageSize, setPageSizeState] = useState(DEFAULT_PAGE_SIZE);
@@ -368,6 +369,7 @@ export const useInventarioData = () => {
     responsablesRef,
     directAmbRef,
     directRespRef,
+    photoCountsRef,
     rubroDescMap,
     rubroFromTipo,
     tipoRubroDescMap,
