@@ -34,6 +34,9 @@ import {
 const InventarioList = () => {
   const currentUser = useSelector(selectUser);
   const { getDisplayName } = useUserDisplayNames();
+  const canSeeReporteMasivo =
+    String(currentUser?.email ?? "").trim().toLowerCase() ===
+    "javiercostasaliaga@gmail.com";
 
 const {
     isLoading,
@@ -468,7 +471,8 @@ const {
         </div>
       </div>
 
-      <Dialog open={isReporteMasivoOpen} onOpenChange={setIsReporteMasivoOpen}>
+      {canSeeReporteMasivo && (
+        <Dialog open={isReporteMasivoOpen} onOpenChange={setIsReporteMasivoOpen}>
         <DialogTrigger asChild>
           <Button variant="default" size="default" className="w-full sm:w-auto">
             <FileDown className="h-4 w-4 mr-2" />
@@ -511,7 +515,8 @@ const {
           </div>
           <p className="text-xs text-muted-foreground mt-2">Cada botón genera un PDF de 2000 activos</p>
         </DialogContent>
-      </Dialog>
+        </Dialog>
+      )}
 
       <InventarioFilters
         filtroCodigoActivo={filtroCodigoActivo}
