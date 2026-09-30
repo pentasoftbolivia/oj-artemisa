@@ -79,6 +79,45 @@ export const updateEstadoInventario = async (codigoActivoInterno, updateData) =>
 };
 
 /**
+ * Obtiene el conteo de fotos por activo de TODO el bucket en pocas llamadas.
+ * Mucho más rápido que consultar activo por activo cuando se filtra por fotos.
+ * Los archivos siguen el formato `${codigoActivo}_${timestamp}_${i}.${ext}`.
+ * Usa caché en memoria (TTL 2 min) para no re-listar el bucket en cada búsqueda.
+ */
+let allPhotoCountsCache = { data: null, fetchedAt: 0 };
+const PHOTO_COUNTS_TTL = 2 * 60 * 1000;
+
+export const invalidatePhotoCountsCache = () => {
+  allPhotoCountsCache = { data: null, fetchedAt: 0 };
+};
+
+export const fetchAllPhotoCounts = async ({ force = false } = {}) => {
+  const now = Date.now();
+  if (!force && allPhotoCountsCache.data && now - allPhotoCountsCache.fetchedAt < PHOTO_COUNTS_TTL) {
+    return allPhotoCountsCache.data;
+  }
+  const counts = {};
+  const PAGE = 1000;
+  let offset = 0;
+  for (;;) {
+    const { data, error } = await supabase.storage
+      .from(BUCKET_NAME)
+      .list("", { limit: PAGE, offset, sortBy: { column: "name", order: "asc" } });
+    if (error) throw error;
+    const list = data || [];
+    list.forEach((f) => {
+      const code = String(f?.name || "").split("_")[0];
+      if (!code) return;
+      counts[code] = (counts[code] || 0) + 1;
+    });
+    if (list.length < PAGE) break;
+    offset += PAGE;
+  }
+  allPhotoCountsCache = { data: counts, fetchedAt: Date.now() };
+  return counts;
+};
+
+/**
  * Obtiene la lista de fotos asociadas a un activo desde Supabase Storage.
  */
 export const fetchActivoImages = async (codigoActivo) => {
@@ -120,6 +159,7 @@ export const uploadActivoImages = async (codigoActivo, files) => {
     if (error) throw error;
     uploadedNames.push(fileName);
   }
+  invalidatePhotoCountsCache();
   return uploadedNames;
 };
 
@@ -131,6 +171,7 @@ export const deleteActivoImage = async (fileName) => {
     .from(BUCKET_NAME)
     .remove([fileName]);
   if (error) throw error;
+  invalidatePhotoCountsCache();
 };
 
 /**

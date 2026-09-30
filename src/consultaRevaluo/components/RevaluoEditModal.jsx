@@ -82,7 +82,6 @@ const RevaluoEditModal = ({
                   <SelectValue placeholder="Seleccionar estado" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="NUEVO">NUEVO</SelectItem>
                   <SelectItem value="BUENO">BUENO</SelectItem>
                   <SelectItem value="REGULAR">REGULAR</SelectItem>
                   <SelectItem value="MALO">MALO</SelectItem>

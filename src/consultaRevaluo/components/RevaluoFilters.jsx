@@ -9,7 +9,6 @@ import ComboboxField from "@/components/ui/combobox-field";
 
 const ESTADO_CONSERVACION_OPTIONS = [
   { value: "TODOS", label: "Todos" },
-  { value: "NUEVO", label: "NUEVO" },
   { value: "BUENO", label: "BUENO" },
   { value: "REGULAR", label: "REGULAR" },
   { value: "MALO", label: "MALO" },
@@ -21,12 +20,6 @@ const ESTADO_ALTA_BAJA_OPTIONS = [
   { value: "BAJA", label: "Baja" },
 ];
 
-const FOTOS_OPTIONS = [
-  { value: "TODOS", label: "Todas" },
-  { value: "SIN_FOTOS", label: "Sin fotos (0)" },
-  { value: "UNA_FOTO_O_MAS", label: "1 foto o más" },
-];
-
 const RevaluoFilters = memo(({ filters, onFilterChange, onClearFilters, onSearch, rubroOptions = [], tipoRubroOptions = [] }) => {
   const hasActive =
     Boolean(filters.codigoActivo) ||
@@ -36,7 +29,7 @@ const RevaluoFilters = memo(({ filters, onFilterChange, onClearFilters, onSearch
     Boolean(filters.carnet) ||
     (filters.rubro && filters.rubro !== "TODOS") ||
     (filters.tipoRubro && filters.tipoRubro !== "TODOS") ||
-    (filters.fotos && filters.fotos !== "TODOS");
+    Boolean(filters.inventariador);
 
   return (
     <Card className="overflow-hidden">
@@ -70,21 +63,10 @@ const RevaluoFilters = memo(({ filters, onFilterChange, onClearFilters, onSearch
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="fotos" className="text-xs sm:text-sm">
-              Cantidad de fotos
+            <Label htmlFor="inventariador" className="text-xs sm:text-sm">
+              Inventariador
             </Label>
-            <Select value={filters.fotos || "TODOS"} onValueChange={(v) => onFilterChange("fotos", v)}>
-              <SelectTrigger id="fotos" className="h-11 sm:h-9 text-sm">
-                <SelectValue placeholder="Todas" />
-              </SelectTrigger>
-              <SelectContent>
-                {FOTOS_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Input id="inventariador" placeholder="Email o nombre" className="h-11 sm:h-9 text-sm" value={filters.inventariador} onChange={(e) => onFilterChange("inventariador", e.target.value)} />
           </div>
 
           <div className="space-y-1.5">

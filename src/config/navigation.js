@@ -14,13 +14,13 @@ export const DEFAULT_NAV_ITEMS = [
       { title: "Responsables", href: "/responsables-config" },
       { title: "Actualización Transferencias", href: "/actualizacion-transferencias" },
       { title: "Registro Activos", href: "/registro-activos" },
-      { title: "REVALUO", href: "/revaluo" },
+      { title: "Consulta revaluo", href: "/consulta-revaluo" },
     ],
   },
   { title: "Activos fijos", href: "/activos" },
   { title: "Responsables", href: "/responsables" },
   { title: "Inventario", href: "/inventario" },
-  { title: "Asignaciones", href: "/asignaciones" },
+  { title: "REVALUO", href: "/revaluo", adminOnly: true },
 /*   { title: "Movimientos", href: "/movimientos" }, */
 /*   { title: "Revaluo", href: "/" }, */
 ];

@@ -36,7 +36,7 @@ const getEstadoAltaBajaLabel = (v) => {
   return s || "—";
 };
 
-export const generateRevaluoReportWithPhotos = async ({ activos = [], onProgress } = {}) => {
+export const generateConsultaRevaluoReportWithPhotos = async ({ activos = [], onProgress } = {}) => {
   if (!activos || activos.length === 0) return;
 
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
@@ -49,7 +49,7 @@ export const generateRevaluoReportWithPhotos = async ({ activos = [], onProgress
   addLogo(doc);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(13);
-  doc.text("REPORTE DE ACTIVOS PARA REVALÚO", pageWidth / 2, 12, { align: "center" });
+  doc.text("REPORTE DE CONSULTA DE REVALÚO", pageWidth / 2, 12, { align: "center" });
   doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
   doc.text(`Total activos: ${activos.length}  |  Fecha: ${new Date().toLocaleString("es-BO")}`, pageWidth / 2, 18, { align: "center" });
@@ -66,39 +66,9 @@ export const generateRevaluoReportWithPhotos = async ({ activos = [], onProgress
     }
   };
 
-  // Descarga con concurrencia limitada para no saturar la red
-  const mapWithConcurrency = async (items, limit, fn) => {
-    const results = new Array(items.length);
-    let i = 0;
-    const worker = async () => {
-      while (i < items.length) {
-        const idx = i++;
-        results[idx] = await fn(items[idx], idx);
-      }
-    };
-    await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
-    return results;
-  };
-
-  // Pre-carga las listas de fotos de todos los activos en paralelo (8 a la vez)
-  // en lugar de una por una dentro del bucle.
-  const allFotos = await mapWithConcurrency(
-    activos,
-    8,
-    async (a, idx) => {
-      try {
-        const fotos = await fetchActivoImages(a.codigoActivo);
-        if (onProgress) onProgress(idx + 1, activos.length);
-        return fotos || [];
-      } catch {
-        if (onProgress) onProgress(idx + 1, activos.length);
-        return [];
-      }
-    }
-  );
-
   for (let idx = 0; idx < activos.length; idx++) {
     const a = activos[idx];
+    if (onProgress) onProgress(idx + 1, activos.length);
 
     const codigo = a._codigoActivo || (a.codigoActivo ? `OJ-02-${a.codigoActivo}` : "—");
     const estadoAltaBaja = getEstadoAltaBajaLabel(a.estado ?? a.estadoActivo);
@@ -195,7 +165,12 @@ export const generateRevaluoReportWithPhotos = async ({ activos = [], onProgress
     doc.text("Fotos:", margin + 2, y);
     y += 4;
 
-    let fotos = allFotos[idx] || [];
+    let fotos = [];
+    try {
+      fotos = await fetchActivoImages(a.codigoActivo);
+    } catch {
+      fotos = [];
+    }
 
     if (!fotos || fotos.length === 0) {
       doc.setFont("helvetica", "normal");
@@ -211,9 +186,6 @@ export const generateRevaluoReportWithPhotos = async ({ activos = [], onProgress
       const perRow = Math.floor(contentWidth / (imgW + gap));
       let col = 0;
 
-      // Descarga las imágenes en paralelo (6 a la vez) en lugar de una por una
-      const base64List = await mapWithConcurrency(fotos, 6, (f) => urlToBase64(f.url));
-
       for (let fIdx = 0; fIdx < fotos.length; fIdx++) {
         if (col === 0) {
           // antes de cada fila, verificar que quepa la fila completa
@@ -223,7 +195,7 @@ export const generateRevaluoReportWithPhotos = async ({ activos = [], onProgress
             addLogo(doc);
           }
         }
-        const base64 = base64List[fIdx];
+        const base64 = await urlToBase64(fotos[fIdx].url);
         const x = margin + 2 + col * (imgW + gap);
         if (base64) {
           try {
@@ -284,52 +256,13 @@ export const generateRevaluoReportWithPhotos = async ({ activos = [], onProgress
     doc.setFontSize(7);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(120);
-    doc.text(`Página ${i} de ${totalPages}  |  REVALUO - Órgano Judicial`, pageWidth / 2, pageHeight - 6, { align: "center" });
+    doc.text(`Página ${i} de ${totalPages}  |  CONSULTA REVALUO - Órgano Judicial`, pageWidth / 2, pageHeight - 6, { align: "center" });
   }
 
-  doc.save(`REVALUO_Reporte_Fotos_${new Date().toISOString().slice(0, 10)}.pdf`);
+  doc.save(`CONSULTA_REVALUO_Reporte_Fotos_${new Date().toISOString().slice(0, 10)}.pdf`);
 };
 
-export const generateRevaluoFaltantesReport = async ({ activos = [], filtrosResumen = "" } = {}) => {
-  if (!activos || activos.length === 0) return;
-
-  const headers = ["N°", "Código Activo", "Ubicación"];
-
-  const sorted = [...activos].sort((a, b) => {
-    const numA = Number(a.codigoActivo);
-    const numB = Number(b.codigoActivo);
-    if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-    return String(a.codigoActivo ?? "").localeCompare(String(b.codigoActivo ?? ""), "es", { numeric: true });
-  });
-
-  const dataRows = sorted.map((a, idx) => [
-    idx + 1,
-    a._codigoActivo || (a.codigoActivo ? `OJ-02-${a.codigoActivo}` : ""),
-    String(a._ubicacion || ""),
-  ]);
-
-  const titleRow = [`REPORTE DE ACTIVOS SIN FOTOS Y SIN CONSERVACIÓN - Total: ${activos.length} | Fecha: ${new Date().toLocaleString("es-BO")}`];
-  const filterRow = filtrosResumen ? [`Filtros: ${filtrosResumen}`] : null;
-  const sheetData = filterRow ? [titleRow, filterRow, headers, ...dataRows] : [titleRow, headers, ...dataRows];
-
-  const ws = XLSX.utils.aoa_to_sheet(sheetData);
-  ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } }];
-  if (filterRow) {
-    ws["!merges"].push({ s: { r: 1, c: 0 }, e: { r: 1, c: headers.length - 1 } });
-  }
-  const headerRowIdx = filterRow ? 2 : 1;
-  ws["!cols"] = [{ wch: 6 }, { wch: 18 }, { wch: 70 }];
-  ws["!autoFilter"] = {
-    s: { r: headerRowIdx, c: 0 },
-    e: { r: headerRowIdx, c: headers.length - 1 },
-  };
-
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Faltantes");
-  XLSX.writeFile(wb, `REVALUO_SinFotos_SinConservacion_${new Date().toISOString().slice(0, 10)}.xlsx`);
-};
-
-export const generateRevaluoReportSimple = async ({ activos = [], filtrosResumen = "", filePrefix = "REVALUO_Reporte", tituloReporte = "REPORTE DE ACTIVOS PARA REVALÚO" } = {}) => {
+export const generateConsultaRevaluoReportSimple = async ({ activos = [], filtrosResumen = "" } = {}) => {
   if (!activos || activos.length === 0) return;
 
   const headers = [
@@ -377,7 +310,7 @@ export const generateRevaluoReportSimple = async ({ activos = [], filtrosResumen
     String(a.observaciones ?? ""),
   ]);
 
-  const titleRow = [`${tituloReporte} - Total: ${activos.length} | Fecha: ${new Date().toLocaleString("es-BO")}`];
+  const titleRow = [`REPORTE DE ACTIVOS PARA CONSULTA DE REVALÚO - Total: ${activos.length} | Fecha: ${new Date().toLocaleString("es-BO")}`];
   const filterRow = filtrosResumen ? [`Filtros: ${filtrosResumen}`] : null;
   const sheetData = filterRow ? [titleRow, filterRow, headers, ...dataRows] : [titleRow, headers, ...dataRows];
 
@@ -401,5 +334,5 @@ export const generateRevaluoReportSimple = async ({ activos = [], filtrosResumen
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Revaluo");
-  XLSX.writeFile(wb, `${filePrefix}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  XLSX.writeFile(wb, `CONSULTA_REVALUO_Reporte_${new Date().toISOString().slice(0, 10)}.xlsx`);
 };
