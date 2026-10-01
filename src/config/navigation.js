@@ -21,6 +21,7 @@ export const DEFAULT_NAV_ITEMS = [
   { title: "Responsables", href: "/responsables" },
   { title: "Inventario", href: "/inventario" },
   { title: "REVALUO", href: "/revaluo", adminOnly: true },
+  { title: "Reportes", href: "/reportes", adminOnly: true },
 /*   { title: "Movimientos", href: "/movimientos" }, */
 /*   { title: "Revaluo", href: "/" }, */
 ];

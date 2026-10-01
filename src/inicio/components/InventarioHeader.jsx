@@ -1,26 +1,17 @@
 import { memo } from "react";
-import { useSelector } from "react-redux";
-import { Building2, CalendarDays, FileSpreadsheet, FileDown, Loader2 } from "lucide-react";
+import { Building2, CalendarDays, FileSpreadsheet, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { selectUser } from "@/store/auth/authSlice";
-
-const ALLOWED_RESTRICTED_REPORT_EMAIL = "javiercostasaliaga@gmail.com";
 
 /**
  * Header responsivo del módulo Inventario.
  * KISS: mobile-first.
- * - Web (≥640px): los 3 botones en una sola fila horizontal a la derecha del título.
+ * - Web (≥640px): botones en una sola fila horizontal a la derecha del título.
  * - Móvil (<640px): columna Reporte de Paneles → POR INMUEBLE → POR FECHA.
+ * NOTA: los reportes generales (INVENTARIO GENERAL, INVENTARIO GENERAL EXCEL
+ * y REPORTE POR UBICACION) viven en la pestaña "Reportes".
  */
 const InventarioHeader = memo(
-  ({ onOpenInmueble, onOpenFecha, onExportPaneles, isGeneratingExcel, onGenerateInventarioGeneral, isGeneratingGeneral, onGeneratePorUbicacion, isGeneratingUbicacion, canSeeRestrictedReports }) => {
-    const user = useSelector(selectUser);
-    const currentEmail = String(user?.email ?? "").trim().toLowerCase();
-    const showRestrictedReports =
-      typeof canSeeRestrictedReports === "boolean"
-        ? canSeeRestrictedReports
-        : currentEmail === ALLOWED_RESTRICTED_REPORT_EMAIL;
-
+  ({ onOpenInmueble, onOpenFecha, onExportPaneles, isGeneratingExcel }) => {
     return (
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1 space-y-1">
@@ -66,38 +57,6 @@ const InventarioHeader = memo(
             <CalendarDays className="mr-2 h-4 w-4" />
             POR FECHA
           </Button>
-          {showRestrictedReports && (
-            <>
-              <Button
-                onClick={onGenerateInventarioGeneral}
-                disabled={isGeneratingGeneral || isGeneratingUbicacion}
-                className="w-full sm:w-auto justify-center bg-blue-700 hover:bg-blue-800 text-white min-h-11 sm:min-h-0 order-4"
-                aria-label="Generar Inventario General"
-                title="PDF con todos los activos ultimoregistro=1 ordenados por código"
-              >
-                {isGeneratingGeneral ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <FileDown className="h-4 w-4 mr-2" />
-                )}
-                INVENTARIO GENERAL
-              </Button>
-              <Button
-                onClick={onGeneratePorUbicacion}
-                disabled={isGeneratingUbicacion || isGeneratingGeneral}
-                className="w-full sm:w-auto justify-center bg-teal-700 hover:bg-teal-800 text-white min-h-11 sm:min-h-0 order-5"
-                aria-label="Generar Reporte por Ubicación"
-                title="PDF con todos los activos ultimoregistro=1 ordenados por ubicación (EL ALTO, LA PAZ, ...)"
-              >
-                {isGeneratingUbicacion ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <FileDown className="h-4 w-4 mr-2" />
-                )}
-                REPORTE POR UBICACION
-              </Button>
-            </>
-          )}
         </div>
       </div>
     );

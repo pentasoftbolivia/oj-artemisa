@@ -1,11 +1,9 @@
 import { useState, useCallback } from "react";
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
 import { supabase } from "@/lib/supabase";
 import { getCachedCatalog } from "@/lib/catalogCache";
 import { toCamelCaseArray } from "@/lib/mapFields";
 import { useToast } from "@/hooks/use-toast";
-import { LOGO_JPG_DATA_URL } from "@/lib/logoJpgBase64";
 import { ACTIVO_COLUMNS } from "@/lib/activoColumns";
 import { normalizeCi, normalizeCiLoose, getCiPrefix } from "../constants/inventarioConstants";
 
@@ -22,22 +20,19 @@ const formatError = (err) => {
   }
 };
 
-const LOGO_W = 48;
-const LOGO_H = LOGO_W * (57 / 256);
-const addLogo = (doc) => {
-  try {
-    doc.addImage(LOGO_JPG_DATA_URL, "JPEG", 14, 8, LOGO_W, LOGO_H);
-  } catch { }
-};
-
-export const useReporteInventarioGeneral = () => {
+/**
+ * Genera el Inventario General en Excel.
+ * Mismos datos y orden que el PDF (ultimoregistro=1 ordenados por código):
+ * [Código Activo, Rubro, Tipo Rubro, Descripción, Ubicación, Responsable, Carnet]
+ */
+export const useReporteInventarioGeneralExcel = () => {
   const { toast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
 
   const generate = useCallback(async () => {
     setIsGenerating(true);
     try {
-      toast({ title: "Generando Inventario General", description: "Cargando catálogos..." });
+      toast({ title: "Generando Inventario General (Excel)", description: "Cargando catálogos..." });
 
       const [rubros, tipoRubros, ambientes, responsables, ciudades, inmuebles, niveles] = await Promise.all([
         getCachedCatalog("act_rubro"),
@@ -133,7 +128,6 @@ export const useReporteInventarioGeneral = () => {
         return;
       }
 
-      // Asegurar orden ascendente numérico por codigoActivo (por si DB devuelve string)
       allActivos.sort((a, b) => {
         const codA = String(a.codigoActivo ?? "").trim();
         const codB = String(b.codigoActivo ?? "").trim();
@@ -143,7 +137,7 @@ export const useReporteInventarioGeneral = () => {
         return codA.localeCompare(codB, "es", { numeric: true });
       });
 
-      const body = allActivos.map((a, idx) => {
+      const dataRows = allActivos.map((a) => {
         const tipoDesc = tipoRubroDescMap[a.tipoRubroAct] ?? tipoRubroDescMap[String(a.tipoRubroAct)] ?? "—";
         const rubroDesc = rubroFromTipo[a.tipoRubroAct] ?? rubroFromTipo[String(a.tipoRubroAct)] ?? "—";
         const ambCode = String(a.codigoAmbiente ?? "").trim();
@@ -152,64 +146,34 @@ export const useReporteInventarioGeneral = () => {
         const ci = String(a.cirun ?? "").trim() || "—";
         const codigoFormateado = a.codigoActivo != null ? `OJ-02-${a.codigoActivo}` : "—";
         const descripcion = String(a.descripcionActivo ?? a.descripcionactivo ?? "—").replace(/\s+/g, " ").trim() || "—";
-        return [String(idx + 1), codigoFormateado, rubroDesc, tipoDesc, descripcion, ubicacion, responsableName, ci];
+        return [codigoFormateado, rubroDesc, tipoDesc, descripcion, ubicacion, responsableName, ci];
       });
 
-      toast({ title: "Generando PDF", description: `Construyendo reporte con ${body.length} activos...` });
-
-      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "letter" });
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-      addLogo(doc);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(13);
-      doc.text("INVENTARIO GENERAL - ÓRGANO JUDICIAL", pageWidth / 2, 16, { align: "center" });
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.text(`Total activos: ${body.length}  |  Fecha: ${new Date().toLocaleString("es-BO")}`, pageWidth / 2, 21, { align: "center" });
-
-      autoTable(doc, {
-        startY: 26,
-        head: [["N°", "Código Activo", "Rubro", "Tipo Rubro", "Descripción del Activo", "Ubicación", "Responsable", "Carnet"]],
-        body,
-        foot: [["", "", "", "", "", "", "TOTAL ACTIVOS", String(body.length)]],
-        showFoot: "lastPage",
-        theme: "striped",
-        styles: { font: "helvetica", fontSize: 6.5, cellPadding: 1.2, overflow: "linebreak", valign: "top" },
-        headStyles: { fillColor: [16, 70, 140], textColor: [255, 255, 255], halign: "center", valign: "middle", fontSize: 7, fontStyle: "bold" },
-        footStyles: { fillColor: [230, 240, 255], textColor: [16, 70, 140], halign: "center", fontStyle: "bold", fontSize: 7 },
-        columnStyles: {
-          0: { cellWidth: 12, halign: "center" },
-          1: { cellWidth: 24, halign: "center", fontStyle: "bold" },
-          2: { cellWidth: 28, halign: "left" },
-          3: { cellWidth: 28, halign: "left" },
-          4: { cellWidth: "auto", halign: "left" },
-          5: { cellWidth: 52, halign: "left" },
-          6: { cellWidth: 36, halign: "left" },
-          7: { cellWidth: 20, halign: "center" },
-        },
-        margin: { left: 10, right: 10, top: 26 },
-        didParseCell: (data) => {
-          // Mantener alineación consistente
-          if (data.section === "body" && data.column.index === 4) data.cell.styles.halign = "left";
-        },
-      });
-
-      const totalPages = doc.getNumberOfPages();
-      for (let i = 1; i <= totalPages; i++) {
-        doc.setPage(i);
-        if (i > 1) addLogo(doc);
-        doc.setFontSize(7);
-        doc.setFont("helvetica", "normal");
-        doc.setTextColor(80);
-        doc.text(`Página ${i} de ${totalPages}`, pageWidth / 2, pageHeight - 7, { align: "center" });
-      }
+      toast({ title: "Generando Excel", description: `Construyendo reporte con ${dataRows.length} activos...` });
 
       const dateStr = new Date().toISOString().slice(0, 10);
-      doc.save(`Inventario_General_ultimoregistro1_${dateStr}.pdf`);
-      toast({ title: "Reporte generado", description: `Se exportaron ${body.length} activos ordenados por código.` });
+      const headers = ["Código Activo", "Rubro", "Tipo Rubro", "Descripción del Activo", "Ubicación", "Responsable", "Carnet"];
+      const sheetData = [
+        ["INVENTARIO GENERAL - ÓRGANO JUDICIAL"],
+        [`Total activos: ${dataRows.length} (ultimoregistro=1, ordenados por código)`],
+        [`Fecha: ${dateStr}`],
+        [],
+        headers,
+        ...dataRows,
+      ];
+
+      const ws = XLSX.utils.aoa_to_sheet(sheetData);
+      ws["!cols"] = [{ wch: 16 }, { wch: 28 }, { wch: 28 }, { wch: 50 }, { wch: 55 }, { wch: 30 }, { wch: 16 }];
+      // Congelar encabezado (fila 5) para facilitar lectura
+      ws["!freeze"] = "A5";
+      ws["!autofilter"] = { ref: `A5:G${sheetData.length}` };
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Inventario General");
+      XLSX.writeFile(wb, `Inventario_General_ultimoregistro1_${dateStr}.xlsx`);
+
+      toast({ title: "Reporte generado", description: `Se exportaron ${dataRows.length} activos ordenados por código.` });
     } catch (err) {
-      console.error("Error generando Inventario General", err);
+      console.error("Error generando Inventario General (Excel)", err);
       toast({ title: "Error", description: `No se pudo generar el reporte: ${formatError(err)}`, variant: "destructive" });
     } finally {
       setIsGenerating(false);

@@ -1,11 +1,9 @@
 import { useState, useCallback } from "react";
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
 import { supabase } from "@/lib/supabase";
 import { getCachedCatalog } from "@/lib/catalogCache";
 import { toCamelCaseArray } from "@/lib/mapFields";
 import { useToast } from "@/hooks/use-toast";
-import { LOGO_JPG_DATA_URL } from "@/lib/logoJpgBase64";
 import { ACTIVO_COLUMNS } from "@/lib/activoColumns";
 import { normalizeCi, normalizeCiLoose, getCiPrefix } from "../constants/inventarioConstants";
 
@@ -22,15 +20,7 @@ const formatError = (err) => {
   }
 };
 
-const LOGO_W = 48;
-const LOGO_H = LOGO_W * (57 / 256);
-const addLogo = (doc) => {
-  try {
-    doc.addImage(LOGO_JPG_DATA_URL, "JPEG", 14, 8, LOGO_W, LOGO_H);
-  } catch { }
-};
-
-// Orden exacto solicitado - normalizado a upper para matching
+// Mismo orden del reporte POR UBICACION en PDF
 const CIUDAD_ORDEN = [
   "EL ALTO",
   "LA PAZ",
@@ -69,14 +59,20 @@ const CIUDAD_ORDEN = [
 const ciudadOrdenMap = {};
 CIUDAD_ORDEN.forEach((name, idx) => { ciudadOrdenMap[name] = idx; });
 
-export const useReportePorUbicacion = () => {
+/**
+ * Genera el Reporte por Ubicación en Excel.
+ * Mismos datos y orden que el PDF (ultimoregistro=1, por ciudad y código):
+ * [N°, Ciudad, Código Activo, Rubro, Tipo Rubro, Descripción, Ubicación, Responsable, Carnet]
+ * Hojas: "Resumen" (totales por ciudad) y "Activos" (detalle).
+ */
+export const useReportePorUbicacionExcel = () => {
   const { toast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
 
   const generate = useCallback(async () => {
     setIsGenerating(true);
     try {
-      toast({ title: "Generando Reporte por Ubicación", description: "Cargando catálogos..." });
+      toast({ title: "Generando Reporte por Ubicación (Excel)", description: "Cargando catálogos..." });
 
       const [rubros, tipoRubros, ambientes, responsables, ciudades, inmuebles, niveles] = await Promise.all([
         getCachedCatalog("act_rubro"),
@@ -119,11 +115,7 @@ export const useReportePorUbicacion = () => {
         const inmueble = nivel ? inmuebleMap[inmuebleCode] : null;
         const ciudad = inmueble ? ciudadMap[String(inmueble.codigociudad ?? "").trim()] : null;
         let ciudadDesc = String(ciudad?.descripcion ?? ciudad?.ciudad ?? "").trim().toUpperCase();
-        // Reglas especiales solo para reporte POR UBICACION:
-        // - codigoinmueble=2309 de LA PAZ se cuenta en ACHOCALLA
-        // - codigoinmueble=2327 de LA PAZ se cuenta en LAJA
-        // - codigoinmueble=2341 de LA PAZ se cuenta en PALOS BLANCOS
-        // - codigoinmueble=2371 de LA PAZ se cuenta en SAN ANDRES DE MACHACA
+        // Mismas reglas especiales del reporte POR UBICACION en PDF
         const esLaPaz2309 = inmuebleCode === "2309" && ciudadDesc === "LA PAZ";
         const esLaPaz2327 = inmuebleCode === "2327" && ciudadDesc === "LA PAZ";
         const esLaPaz2341 = inmuebleCode === "2341" && ciudadDesc === "LA PAZ";
@@ -188,7 +180,7 @@ export const useReportePorUbicacion = () => {
         return;
       }
 
-      // Ordenar por Ciudad según CIUDAD_ORDEN, luego por código activo ascendente
+      // Mismo orden que el PDF: ciudad según CIUDAD_ORDEN, luego código ascendente
       allActivos.sort((a, b) => {
         const ambA = String(a.codigoAmbiente ?? "").trim();
         const ambB = String(b.codigoAmbiente ?? "").trim();
@@ -209,7 +201,6 @@ export const useReportePorUbicacion = () => {
         return codA.localeCompare(codB, "es", { numeric: true });
       });
 
-      // Agrupar por ciudad manteniendo orden CIUDAD_ORDEN
       const grupos = new Map();
       allActivos.forEach((a) => {
         const ambCode = String(a.codigoAmbiente ?? "").trim();
@@ -220,129 +211,68 @@ export const useReportePorUbicacion = () => {
       });
       const ordenCiudades = [
         ...CIUDAD_ORDEN.filter((c) => grupos.has(c)),
-        ...[...grupos.keys()].filter((c) => !ciudadOrdenMap.hasOwnProperty(c)).sort((a, b) => a.localeCompare(b, "es")),
+        ...[...grupos.keys()].filter((c) => !(c in ciudadOrdenMap)).sort((a, b) => a.localeCompare(b, "es")),
       ];
 
-      toast({ title: "Generando PDF", description: `Construyendo reporte por ubicación con ${allActivos.length} activos en ${ordenCiudades.length} ciudades...` });
-
-      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "letter" });
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-      addLogo(doc);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(13);
-      doc.text("REPORTE POR UBICACIÓN - ÓRGANO JUDICIAL", pageWidth / 2, 16, { align: "center" });
-
-      let currentY = 26;
-      // Resumen por ciudad - totales
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(9);
-      doc.setTextColor(16, 70, 140);
-      doc.text("RESUMEN POR CIUDAD", pageWidth / 2, currentY, { align: "center" });
-      currentY += 4;
-      const resumenBody = ordenCiudades.map((c, idx) => [String(idx + 1), c, String((grupos.get(c) || []).length)]);
-      resumenBody.push(["", "TOTAL GENERAL", String(allActivos.length)]);
-      const resumenTableWidth = 12 + 70 + 30; // 112mm
-      const resumenMarginLeft = (pageWidth - resumenTableWidth) / 2;
-      autoTable(doc, {
-        startY: currentY,
-        head: [["#", "Ciudad", "Total Activos"]],
-        body: resumenBody,
-        theme: "striped",
-        tableWidth: resumenTableWidth,
-        styles: { font: "helvetica", fontSize: 7, cellPadding: 1.6, halign: "center", valign: "middle" },
-        headStyles: { fillColor: [16, 70, 140], textColor: [255, 255, 255], halign: "center", fontStyle: "bold", fontSize: 7 },
-        columnStyles: {
-          0: { cellWidth: 12, halign: "center" },
-          1: { cellWidth: 70, halign: "left" },
-          2: { cellWidth: 30, halign: "center", fontStyle: "bold" },
-        },
-        margin: { left: resumenMarginLeft, right: resumenMarginLeft, top: 26 },
-        didParseCell: (data) => {
-          if (data.row.index === resumenBody.length - 1) {
-            data.cell.styles.fontStyle = "bold";
-            data.cell.styles.fillColor = [230, 240, 255];
-          }
-        },
-      });
-      currentY = doc.lastAutoTable.finalY + 8;
-
-      const headRow = [["N°", "Código Activo", "Rubro", "Tipo Rubro", "Descripción del Activo", "Ubicación", "Responsable", "Carnet"]];
-
-      for (let gIdx = 0; gIdx < ordenCiudades.length; gIdx++) {
-        const ciudad = ordenCiudades[gIdx];
-        const itemsCiudad = grupos.get(ciudad) || [];
-        // Correlativo por ciudad: reinicia en 1 en cada ciudad
-        const bodyCiudad = itemsCiudad.map((a, nCiudad) => {
-          const tipoDesc = tipoRubroDescMap[a.tipoRubroAct] ?? tipoRubroDescMap[String(a.tipoRubroAct)] ?? "—";
-          const rubroDesc = rubroFromTipo[a.tipoRubroAct] ?? rubroFromTipo[String(a.tipoRubroAct)] ?? "—";
-          const ambCode = String(a.codigoAmbiente ?? "").trim();
-          const ubicacion = ubicacionJerarquiaMap[ambCode] || ambCode || "—";
-          const responsableName = resolveResponsableName(a.cirun);
-          const ci = String(a.cirun ?? "").trim() || "—";
-          const codigoFormateado = a.codigoActivo != null ? `OJ-02-${a.codigoActivo}` : "—";
-          const descripcion = String(a.descripcionActivo ?? a.descripcionactivo ?? "—").replace(/\s+/g, " ").trim() || "—";
-          return [String(nCiudad + 1), codigoFormateado, rubroDesc, tipoDesc, descripcion, ubicacion, responsableName, ci];
-        });
-
-        // Verificar espacio para subtítulo + header tabla (~14mm). Si no cabe, nueva página
-        if (currentY + 14 > pageHeight - 12) {
-          doc.addPage();
-          currentY = 26;
-        }
-
-        // Subtítulo ciudad
-        doc.setFillColor(16, 70, 140);
-        doc.rect(10, currentY, pageWidth - 20, 8, "F");
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(8);
-        doc.setTextColor(255, 255, 255);
-        doc.text(`${ciudad}  —  ${bodyCiudad.length} activos`, 12, currentY + 5.2);
-        currentY += 10;
-
-        autoTable(doc, {
-          startY: currentY,
-          head: headRow,
-          body: bodyCiudad,
-          theme: "striped",
-          styles: { font: "helvetica", fontSize: 6.5, cellPadding: 1.2, overflow: "linebreak", valign: "top" },
-          headStyles: { fillColor: [16, 70, 140], textColor: [255, 255, 255], halign: "center", valign: "middle", fontSize: 7, fontStyle: "bold" },
-          columnStyles: {
-            0: { cellWidth: 12, halign: "center" },
-            1: { cellWidth: 24, halign: "center", fontStyle: "bold" },
-            2: { cellWidth: 28, halign: "left" },
-            3: { cellWidth: 28, halign: "left" },
-            4: { cellWidth: "auto", halign: "left" },
-            5: { cellWidth: 52, halign: "left" },
-            6: { cellWidth: 36, halign: "left" },
-            7: { cellWidth: 20, halign: "center" },
-          },
-          margin: { left: 10, right: 10, top: 26 },
-          didParseCell: (data) => {
-            if (data.section === "body" && data.column.index === 4) data.cell.styles.halign = "left";
-          },
-        });
-
-        currentY = doc.lastAutoTable.finalY + 6;
-        // Ceder event loop cada 5 ciudades para no bloquear UI
-        if (gIdx % 5 === 4) await new Promise((r) => setTimeout(r, 0));
-      }
-
-      const totalPages = doc.getNumberOfPages();
-      for (let i = 1; i <= totalPages; i++) {
-        doc.setPage(i);
-        if (i > 1) addLogo(doc);
-        doc.setFontSize(7);
-        doc.setFont("helvetica", "normal");
-        doc.setTextColor(80);
-        doc.text(`Página ${i} de ${totalPages}`, pageWidth / 2, pageHeight - 7, { align: "center" });
-      }
+      toast({ title: "Generando Excel", description: `Construyendo reporte con ${allActivos.length} activos en ${ordenCiudades.length} ciudades...` });
 
       const dateStr = new Date().toISOString().slice(0, 10);
-      doc.save(`Reporte_Por_Ubicacion_${dateStr}.pdf`);
+      const rowOf = (a, n) => {
+        const tipoDesc = tipoRubroDescMap[a.tipoRubroAct] ?? tipoRubroDescMap[String(a.tipoRubroAct)] ?? "—";
+        const rubroDesc = rubroFromTipo[a.tipoRubroAct] ?? rubroFromTipo[String(a.tipoRubroAct)] ?? "—";
+        const ambCode = String(a.codigoAmbiente ?? "").trim();
+        const ciudad = (ciudadPorAmbiente[ambCode] || "SIN CIUDAD").toUpperCase();
+        const label = ciudad === "SIN CIUDAD" ? "SIN CIUDAD" : CIUDAD_ORDEN.find((c) => c === ciudad) || ciudad;
+        const ubicacion = ubicacionJerarquiaMap[ambCode] || ambCode || "—";
+        const responsableName = resolveResponsableName(a.cirun);
+        const ci = String(a.cirun ?? "").trim() || "—";
+        const codigoFormateado = a.codigoActivo != null ? `OJ-02-${a.codigoActivo}` : "—";
+        const descripcion = String(a.descripcionActivo ?? a.descripcionactivo ?? "—").replace(/\s+/g, " ").trim() || "—";
+        return [n, label, codigoFormateado, rubroDesc, tipoDesc, descripcion, ubicacion, responsableName, ci];
+      };
+
+      // Hoja Resumen
+      const resumenRows = ordenCiudades.map((c, idx) => [idx + 1, c, (grupos.get(c) || []).length]);
+      const resumenSheet = [
+        ["REPORTE POR UBICACIÓN - RESUMEN POR CIUDAD - ÓRGANO JUDICIAL"],
+        [`Total activos: ${allActivos.length} (ultimoregistro=1)`],
+        [`Fecha: ${dateStr}`],
+        [],
+        ["#", "Ciudad", "Total Activos"],
+        ...resumenRows,
+        ["", "TOTAL GENERAL", allActivos.length],
+      ];
+
+      // Hoja Activos (detalle en el mismo orden del PDF)
+      let n = 0;
+      const detalleRows = [];
+      ordenCiudades.forEach((c) => {
+        (grupos.get(c) || []).forEach((a) => {
+          n += 1;
+          detalleRows.push(rowOf(a, n));
+        });
+      });
+      const detalleSheet = [
+        ["REPORTE POR UBICACIÓN - ÓRGANO JUDICIAL"],
+        [`Total activos: ${allActivos.length} (ultimoregistro=1, ordenados por ciudad y código)`],
+        [`Fecha: ${dateStr}`],
+        [],
+        ["N°", "Ciudad", "Código Activo", "Rubro", "Tipo Rubro", "Descripción del Activo", "Ubicación", "Responsable", "Carnet"],
+        ...detalleRows,
+      ];
+
+      const wb = XLSX.utils.book_new();
+      const wsResumen = XLSX.utils.aoa_to_sheet(resumenSheet);
+      wsResumen["!cols"] = [{ wch: 6 }, { wch: 30 }, { wch: 16 }];
+      const wsDetalle = XLSX.utils.aoa_to_sheet(detalleSheet);
+      wsDetalle["!cols"] = [{ wch: 7 }, { wch: 24 }, { wch: 16 }, { wch: 28 }, { wch: 28 }, { wch: 50 }, { wch: 55 }, { wch: 30 }, { wch: 16 }];
+      XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen");
+      XLSX.utils.book_append_sheet(wb, wsDetalle, "Activos");
+      XLSX.writeFile(wb, `Reporte_Por_Ubicacion_${dateStr}.xlsx`);
+
       toast({ title: "Reporte generado", description: `Se exportaron ${allActivos.length} activos en ${ordenCiudades.length} ciudades.` });
     } catch (err) {
-      console.error("Error generando Reporte por Ubicación", err);
+      console.error("Error generando Reporte por Ubicación (Excel)", err);
       toast({ title: "Error", description: `No se pudo generar el reporte: ${formatError(err)}`, variant: "destructive" });
     } finally {
       setIsGenerating(false);

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import DataPagination from "@/components/ui/data-pagination";
 import LoadingSpinner from "@/components/ui/loading-spinner";
-import { RefreshCw, Scale, FileDown, Loader2, Image as ImageIcon } from "lucide-react";
+import { RefreshCw, Scale, FileDown, Loader2, Image as ImageIcon, Dices, FileText } from "lucide-react";
 import { useRevaluoData } from "../hooks/useRevaluoData";
 import RevaluoFilters from "../components/RevaluoFilters";
 import RevaluoTable from "../components/RevaluoTable";
@@ -13,8 +13,48 @@ import { useUserDisplayNames } from "@/hooks/useUserDisplayNames";
 import { useToast } from "@/hooks/use-toast";
 import { normalizeCi, normalizeCiLoose, getCiPrefix } from "@/inventario/constants/inventarioConstants";
 import { InventarioImagesModal } from "@/inventario/components/InventarioModals";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { fetchActivoImages, fetchAllPhotoCounts, updateActivoFields } from "@/inventario/services/inventarioService";
-import { generateRevaluoReportWithPhotos, generateRevaluoReportSimple, generateRevaluoFaltantesReport } from "../services/revaluoReport";
+import { generateRevaluoReportSimple, generateRevaluoFaltantesReport, generateRevaluoLotesPDFReport } from "../services/revaluoReport";
+
+const RANGOS_EXCEL_SIN_FOTOS = [
+  { from: 1, to: 650 },
+  { from: 651, to: 1300 },
+  { from: 1301, to: 1950 },
+  { from: 1951, to: 2600 },
+];
+
+// Rango de precios (Bs) para cotizaciones aleatorias según rubro/tipo rubro
+const RANGO_PRECIO_POR_RUBRO = [
+  [/COMPUTACION/, [1500, 12000]],
+  [/OFICINA/, [300, 6000]],
+  [/COMUNICACION/, [500, 9000]],
+  [/EDUCACIONAL/, [400, 8000]],
+  [/TRANSPORTE|TRACCION|ELEVACION/, [15000, 120000]],
+  [/MAQUINARIA/, [3000, 50000]],
+];
+const RANGO_PRECIO_DEFECTO = [200, 15000];
+
+// Respaldos (fuentes) de donde se obtiene cada precio de cotización
+const PROVEEDORES_RESPALDO = [
+  "TECNO MUNDO",
+  "COMPUCENTER",
+  "OFIMARKET",
+  "ELECTRO HOGAR",
+  "MULTIOFERTAS",
+  "DISTRIBUIDORA ANDINA",
+  "IMPORTADORA SUCRE",
+  "CENTER OFFICE",
+  "MUEBLERÍA EL ROBLE",
+  "COMERCIAL LOS ANDES",
+];
+
+const normRubroTxt = (s) =>
+  String(s || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+// Solo las filas que tienen dato en la columna Conservación
+const tieneConservacion = (a) =>
+  String(a.estadoconservacion ?? a.estadoConservacion ?? "").trim() !== "";
 
 const INITIAL_FILTERS = {
   codigoActivo: "",
@@ -59,7 +99,6 @@ const RevaluoList = () => {
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [imageFiles, setImageFiles] = useState([]);
   const [isLoadingImages, setIsLoadingImages] = useState(false);
-  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [isGeneratingSimpleReport, setIsGeneratingSimpleReport] = useState(false);
 
   // Factores por defecto (B=Bueno, R=Regular, M=Malo, Ba=Baja) cuando la fila está vacía
@@ -193,6 +232,41 @@ const RevaluoList = () => {
       return ubicacionJerarquiaMap[c] || c || "—";
     },
     [ubicacionJerarquiaMap]
+  );
+
+  const ubicacionDetalleMap = useMemo(() => {
+    const nivelMap = {};
+    (niveles || []).forEach((n) => {
+      nivelMap[String(n.codigonivel ?? "").trim()] = n;
+    });
+    const inmuebleMap = {};
+    (inmuebles || []).forEach((i) => {
+      inmuebleMap[String(i.codigoinmueble ?? "").trim()] = i;
+    });
+    const ciudadMap = {};
+    (ciudades || []).forEach((c) => {
+      ciudadMap[String(c.codigociudad ?? "").trim()] = c;
+    });
+    const detMap = {};
+    (ambientes || []).forEach((a) => {
+      const code = String(a.codigoambiente ?? "").trim();
+      if (!code) return;
+      const nivel = nivelMap[String(a.codigonivel ?? "").trim()];
+      const inmueble = nivel ? inmuebleMap[String(nivel.codigoinmueble ?? "").trim()] : null;
+      const ciudad = inmueble ? ciudadMap[String(inmueble.codigociudad ?? "").trim()] : null;
+      detMap[code] = {
+        ciudad: String(ciudad?.descripcion ?? "").trim(),
+        inmueble: String(inmueble?.inmueble ?? "").trim(),
+        nivel: String(nivel?.nivel ?? "").trim(),
+        ambiente: String(a.ambiente ?? "").trim(),
+      };
+    });
+    return detMap;
+  }, [ambientes, niveles, inmuebles, ciudades]);
+
+  const getUbicacionDetalle = useCallback(
+    (code) => ubicacionDetalleMap[String(code ?? "").trim()] || null,
+    [ubicacionDetalleMap]
   );
 
   const responsableMap = useMemo(() => {
@@ -382,6 +456,7 @@ const RevaluoList = () => {
       const tipoDesc = tipoRubroDescMap[tipoRubroAct] ?? tipoRubroDescMap[String(tipoRubroAct)] ?? String(tipoRubroAct || "—");
       const ambCode = String(a.codigoambiente ?? a.codigoAmbiente ?? "").trim();
       const ubicacion = getAmbienteName(ambCode);
+      const ubicDet = getUbicacionDetalle(ambCode);
       const ciRaw = String(a.cirun ?? "").trim();
       const responsableName = getResponsableName(ciRaw);
       const inventariador = getDisplayName(a.usuarioinventario) || a.usuarioinventario || "—";
@@ -400,6 +475,10 @@ const RevaluoList = () => {
         _rubro: rubroDesc,
         _tipoRubro: tipoDesc,
         _ubicacion: ubicacion,
+        _ciudad: ubicDet?.ciudad || "",
+        _inmueble: ubicDet?.inmueble || "",
+        _nivel: ubicDet?.nivel || "",
+        _ambiente: ubicDet?.ambiente || "",
         _responsableName: responsableName,
         _carnet: ciRaw || "—",
         _inventariador: inventariador,
@@ -417,7 +496,7 @@ const RevaluoList = () => {
       };
     });
     return mapped.sort((a, b) => String(a._ubicacion || "").localeCompare(String(b._ubicacion || ""), "es", { sensitivity: "base" }));
-  }, [data, rubroFromTipo, tipoRubroDescMap, getAmbienteName, getResponsableName, getDisplayName, vidaUtilPorRubro]);
+  }, [data, rubroFromTipo, tipoRubroDescMap, getAmbienteName, getUbicacionDetalle, getResponsableName, getDisplayName, vidaUtilPorRubro]);
 
   const filteredBase = useMemo(() => {
     const codigo = String(appliedFilters.codigoActivo || "").trim().toLowerCase();
@@ -651,43 +730,19 @@ const RevaluoList = () => {
     }
   };
 
-  const handleGenerateReport = async () => {
-    if (filteredEnriched.length === 0) {
-      toast({ title: "Sin datos", description: "No hay activos para generar el reporte con los filtros actuales.", variant: "destructive" });
-      return;
-    }
-    if (filteredEnriched.length > 200) {
-      const confirmed = window.confirm(
-        `Se generará un reporte con ${filteredEnriched.length} activos incluyendo fotos. Esto puede tardar varios minutos. ¿Desea continuar?`
-      );
-      if (!confirmed) return;
-    }
-    setIsGeneratingReport(true);
-    toast({ title: "Generando reporte", description: `Preparando ${filteredEnriched.length} activos con fotos...` });
-    try {
-      await generateRevaluoReportWithPhotos({
-        activos: filteredEnriched,
-        onProgress: (current, total) => {
-          if (current % 50 === 0 || current === total) {
-            console.log(`Reporte progreso ${current}/${total}`);
-          }
-        },
-      });
-      toast({ title: "Reporte generado", description: `PDF con ${filteredEnriched.length} activos y sus fotos descargado.` });
-    } catch (err) {
-      console.error("Error generando reporte:", err);
-      toast({ title: "Error", description: `No se pudo generar el reporte: ${err.message || ""}`, variant: "destructive" });
-    } finally {
-      setIsGeneratingReport(false);
-    }
-  };
-
   const handleGenerateSimpleReport = async () => {
     if (filteredEnriched.length === 0) {
       toast({ title: "Sin datos", description: "No hay activos para generar el reporte con los filtros actuales.", variant: "destructive" });
       return;
     }
+    if (filteredEnriched.length > 100) {
+      const confirmed = window.confirm(
+        `Se generará un Excel con ${filteredEnriched.length} activos incluyendo las direcciones de las fotos. Esto puede tardar un momento. ¿Desea continuar?`
+      );
+      if (!confirmed) return;
+    }
     setIsGeneratingSimpleReport(true);
+    toast({ title: "Generando Excel", description: `Preparando ${filteredEnriched.length} activos con todos los datos y direcciones de fotos...` });
     try {
       const parts = [];
       if (appliedFilters.codigoActivo) parts.push(`Código: ${appliedFilters.codigoActivo}`);
@@ -701,8 +756,15 @@ const RevaluoList = () => {
       await generateRevaluoReportSimple({
         activos: filteredEnriched,
         filtrosResumen: parts.join(" | "),
+        worksheet,
+        photoCounts,
+        onProgress: (current, total) => {
+          if (current % 25 === 0 || current === total) {
+            console.log(`Excel progreso ${current}/${total}`);
+          }
+        },
       });
-      toast({ title: "Reporte generado", description: `Excel con ${filteredEnriched.length} activos descargado.` });
+      toast({ title: "Reporte generado", description: `Excel con ${filteredEnriched.length} activos, datos completos y direcciones de fotos descargado.` });
     } catch (err) {
       console.error("Error generando reporte simple:", err);
       toast({ title: "Error", description: `No se pudo generar el reporte: ${err.message || ""}`, variant: "destructive" });
@@ -711,46 +773,179 @@ const RevaluoList = () => {
     }
   };
 
-  const [isGeneratingMissingReport, setIsGeneratingMissingReport] = useState(false);
+  const [isRangeModalOpen, setIsRangeModalOpen] = useState(false);
+  const [isDatosModalOpen, setIsDatosModalOpen] = useState(false);
+  const [rangoList, setRangoList] = useState([]);
+  const [rangoFiltros, setRangoFiltros] = useState("");
+  const [generatingRangeIdx, setGeneratingRangeIdx] = useState(null);
+  const [generatingRangePDFIdx, setGeneratingRangePDFIdx] = useState(null);
 
-  const handleGenerateMissingReport = async () => {
-    if (filteredBase.length === 0) {
+  const handleGenerateMissingReport = () => {
+    if (filteredEnriched.length === 0) {
       toast({ title: "Sin datos", description: "No hay activos para generar el reporte con los filtros actuales.", variant: "destructive" });
       return;
     }
-    setIsGeneratingMissingReport(true);
-    try {
-      const counts = await fetchAllPhotoCounts();
-      const merged = { ...photoCountsRef.current, ...counts };
-      photoCountsRef.current = merged;
-      setPhotoCounts(merged);
-      const faltantes = filteredBase.filter((a) => {
-        const fotos = merged[String(a.codigoActivo)] || 0;
-        if (fotos !== 0) return false;
-        const conservacion = String(a.estadoconservacion ?? a.estadoConservacion ?? "").trim();
-        return conservacion === "";
+    const parts = [];
+    if (appliedFilters.codigoActivo) parts.push(`Código: ${appliedFilters.codigoActivo}`);
+    if (appliedFilters.estadoConservacion && appliedFilters.estadoConservacion !== "TODOS") parts.push(`Est. Cons.: ${appliedFilters.estadoConservacion}`);
+    if (appliedFilters.estado && appliedFilters.estado !== "TODOS") parts.push(`Estado: ${appliedFilters.estado}`);
+    if (appliedFilters.ubicacion) parts.push(`Ubicación: ${appliedFilters.ubicacion}`);
+    if (appliedFilters.carnet) parts.push(`Carnet: ${appliedFilters.carnet}`);
+    if (appliedFilters.rubro && appliedFilters.rubro !== "TODOS") parts.push(`Rubro: ${appliedFilters.rubro}`);
+    if (appliedFilters.tipoRubro && appliedFilters.tipoRubro !== "TODOS") parts.push(`Tipo Rubro: ${appliedFilters.tipoRubro}`);
+    if (appliedFilters.fotos && appliedFilters.fotos !== "TODOS") parts.push(`Fotos: ${FOTOS_LABELS[appliedFilters.fotos] || appliedFilters.fotos}`);
+    setRangoList(filteredEnriched);
+    setRangoFiltros(parts.join(" | "));
+    setIsRangeModalOpen(true);
+  };
+
+  const rowKeyOfList = (a) =>
+    String(a.codigoActivoInterno ?? a.codigoactivointerno ?? a.codigoActivo ?? a._codigoActivo ?? "");
+
+  const resolveRangoPrecio = (a) => {
+    const txt = normRubroTxt(`${a._rubro || ""} ${a._tipoRubro || ""}`);
+    const match = RANGO_PRECIO_POR_RUBRO.find(([re]) => re.test(txt));
+    return match ? match[1] : RANGO_PRECIO_DEFECTO;
+  };
+
+  const randomRespaldo = () => {
+    const prov = PROVEEDORES_RESPALDO[Math.floor(Math.random() * PROVEEDORES_RESPALDO.length)];
+    const num = Math.floor(Math.random() * 9000 + 1000);
+    return `${prov} Nº ${num}`;
+  };
+
+  // Genera cotizaciones aleatorias (según tipo rubro) y su respaldo (N° cotización)
+  // SOLO en las filas que tienen dato en la columna Conservación.
+  const handleGenerateRandomData = () => {
+    const rows = filteredEnriched.filter(tieneConservacion);
+    if (rows.length === 0) {
+      toast({ title: "Sin datos", description: "No hay filas con dato en Conservación en la lista actual.", variant: "destructive" });
+      return;
+    }
+    setWorksheet((prev) => {
+      const next = { ...prev };
+      rows.forEach((a) => {
+        const [min, max] = resolveRangoPrecio(a);
+        const base = min + Math.random() * (max - min);
+        const vary = () => Math.max(1, base * (0.9 + Math.random() * 0.2));
+        next[rowKeyOfList(a)] = {
+          c1: vary().toFixed(2),
+          c2: vary().toFixed(2),
+          c3: vary().toFixed(2),
+          n1: randomRespaldo(),
+          n2: randomRespaldo(),
+          n3: randomRespaldo(),
+        };
       });
-      if (faltantes.length === 0) {
-        toast({ title: "Sin resultados", description: "No hay activos sin fotos y sin conservación con los filtros actuales." });
-        return;
-      }
-      const parts = ["Sin fotos", "Sin conservación"];
+      return next;
+    });
+    toast({ title: "Datos generados", description: `Cotizaciones y respaldos aleatorios para ${rows.length} filas con Conservación.` });
+  };
+
+  const [isGeneratingDatosReport, setIsGeneratingDatosReport] = useState(false);
+
+  // Reporte en Excel de TODOS los activos de la lista que tienen dato en Conservación.
+  const handleGenerateConservacionReport = async () => {
+    const rows = filteredEnriched.filter(tieneConservacion);
+    if (rows.length === 0) {
+      toast({ title: "Sin datos", description: "No hay filas con dato en Conservación en la lista actual.", variant: "destructive" });
+      return;
+    }
+    setIsGeneratingDatosReport(true);
+    try {
+      const parts = ["Con dato en Conservación"];
       if (appliedFilters.codigoActivo) parts.push(`Código: ${appliedFilters.codigoActivo}`);
+      if (appliedFilters.estadoConservacion && appliedFilters.estadoConservacion !== "TODOS") parts.push(`Est. Cons.: ${appliedFilters.estadoConservacion}`);
       if (appliedFilters.estado && appliedFilters.estado !== "TODOS") parts.push(`Estado: ${appliedFilters.estado}`);
       if (appliedFilters.ubicacion) parts.push(`Ubicación: ${appliedFilters.ubicacion}`);
       if (appliedFilters.carnet) parts.push(`Carnet: ${appliedFilters.carnet}`);
       if (appliedFilters.rubro && appliedFilters.rubro !== "TODOS") parts.push(`Rubro: ${appliedFilters.rubro}`);
       if (appliedFilters.tipoRubro && appliedFilters.tipoRubro !== "TODOS") parts.push(`Tipo Rubro: ${appliedFilters.tipoRubro}`);
+      if (appliedFilters.fotos && appliedFilters.fotos !== "TODOS") parts.push(`Fotos: ${FOTOS_LABELS[appliedFilters.fotos] || appliedFilters.fotos}`);
       await generateRevaluoFaltantesReport({
-        activos: faltantes,
+        activos: rows,
         filtrosResumen: parts.join(" | "),
+        worksheet,
+        filePrefix: "REVALUO_ReporteConservacion",
+        tituloReporte: "ACTIVOS REVALUADOS",
       });
-      toast({ title: "Reporte generado", description: `Excel con ${faltantes.length} activos descargado.` });
+      toast({ title: "Reporte generado", description: `Excel con ${rows.length} activos con Conservación descargado.` });
     } catch (err) {
-      console.error("Error generando reporte de faltantes:", err);
+      console.error("Error generando reporte de conservación:", err);
       toast({ title: "Error", description: `No se pudo generar el reporte: ${err.message || ""}`, variant: "destructive" });
     } finally {
-      setIsGeneratingMissingReport(false);
+      setIsGeneratingDatosReport(false);
+    }
+  };
+
+  const handleGenerateRangeReport = async (rangeIdx) => {
+    const rango = RANGOS_EXCEL_SIN_FOTOS[rangeIdx];
+    if (!rango || rangoList.length === 0) return;
+    const slice = rangoList.slice(rango.from - 1, rango.to);
+    if (slice.length === 0) {
+      toast({ title: "Sin datos", description: `No hay activos del ${rango.from} al ${rango.to}.`, variant: "destructive" });
+      return;
+    }
+    const realTo = rango.from - 1 + slice.length;
+    setGeneratingRangeIdx(rangeIdx);
+    try {
+      const resumen = rangoFiltros
+        ? `${rangoFiltros} | Rango: del ${rango.from} al ${realTo}`
+        : `Rango: del ${rango.from} al ${realTo}`;
+      await generateRevaluoFaltantesReport({
+        activos: slice,
+        filtrosResumen: resumen,
+        worksheet,
+        filePrefix: `REVALUO_ExcelSinFotos_${rango.from}-${realTo}`,
+        numeroInicial: rango.from,
+      });
+      toast({ title: "Reporte generado", description: `Excel con ${slice.length} activos (del ${rango.from} al ${realTo}) descargado.` });
+    } catch (err) {
+      console.error("Error generando reporte por rango:", err);
+      toast({ title: "Error", description: `No se pudo generar el reporte: ${err.message || ""}`, variant: "destructive" });
+    } finally {
+      setGeneratingRangeIdx(null);
+    }
+  };
+
+  const handleGenerateRangePDFReport = async (rangeIdx) => {
+    const rango = RANGOS_EXCEL_SIN_FOTOS[rangeIdx];
+    if (!rango || rangoList.length === 0) return;
+    const slice = rangoList.slice(rango.from - 1, rango.to);
+    if (slice.length === 0) {
+      toast({ title: "Sin datos", description: `No hay activos del ${rango.from} al ${rango.to}.`, variant: "destructive" });
+      return;
+    }
+    if (slice.length > 200) {
+      const confirmed = window.confirm(
+        `Se generará un PDF con ${slice.length} activos incluyendo fotos. Esto puede tardar varios minutos. ¿Desea continuar?`
+      );
+      if (!confirmed) return;
+    }
+    const realTo = rango.from - 1 + slice.length;
+    setGeneratingRangePDFIdx(rangeIdx);
+    try {
+      const resumen = rangoFiltros
+        ? `${rangoFiltros} | Rango: del ${rango.from} al ${realTo}`
+        : `Rango: del ${rango.from} al ${realTo}`;
+      await generateRevaluoLotesPDFReport({
+        activos: slice,
+        filtrosResumen: resumen,
+        worksheet,
+        filePrefix: `REPORTE_LOTES_PDF_${rango.from}-${realTo}`,
+        numeroInicial: rango.from,
+        onProgress: (current, total) => {
+          if (current % 50 === 0 || current === total) {
+            console.log(`PDF lote progreso ${current}/${total}`);
+          }
+        },
+      });
+      toast({ title: "Reporte generado", description: `PDF con ${slice.length} activos (del ${rango.from} al ${realTo}) descargado.` });
+    } catch (err) {
+      console.error("Error generando PDF por rango:", err);
+      toast({ title: "Error", description: `No se pudo generar el PDF: ${err.message || ""}`, variant: "destructive" });
+    } finally {
+      setGeneratingRangePDFIdx(null);
     }
   };
 
@@ -779,17 +974,17 @@ const RevaluoList = () => {
           <p className="text-sm text-muted-foreground leading-tight">Listado de activos para Revalúo Ordenado por Ubicación</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-          <Button onClick={handleGenerateMissingReport} disabled={isGeneratingMissingReport || filteredBase.length === 0} className="bg-amber-600 hover:bg-amber-700 text-white w-full sm:w-auto min-h-11 sm:min-h-9 text-xs sm:text-sm">
-            {isGeneratingMissingReport ? <Loader2 className="mr-2 h-4 w-4 animate-spin shrink-0" /> : <FileDown className="mr-2 h-4 w-4 shrink-0" />}
-            <span className="truncate">{isGeneratingMissingReport ? "Generando..." : "Sin fotos ni conservación"}</span>
+          <Button onClick={handleGenerateMissingReport} disabled={filteredEnriched.length === 0} className="bg-amber-600 hover:bg-amber-700 text-white w-full sm:w-auto min-h-11 sm:min-h-9 text-xs sm:text-sm">
+            <FileDown className="mr-2 h-4 w-4 shrink-0" />
+            <span className="truncate">Reporte por Lotes</span>
+          </Button>
+          <Button onClick={() => setIsDatosModalOpen(true)} disabled={filteredEnriched.length === 0} className="bg-violet-600 hover:bg-violet-700 text-white w-full sm:w-auto min-h-11 sm:min-h-9 text-xs sm:text-sm">
+            <Dices className="mr-2 h-4 w-4 shrink-0" />
+            <span className="truncate">Datos Aleatorios</span>
           </Button>
           <Button onClick={handleGenerateSimpleReport} disabled={isGeneratingSimpleReport || filteredEnriched.length === 0} className="bg-sky-600 hover:bg-sky-700 text-white w-full sm:w-auto min-h-11 sm:min-h-9 text-xs sm:text-sm">
             {isGeneratingSimpleReport ? <Loader2 className="mr-2 h-4 w-4 animate-spin shrink-0" /> : <FileDown className="mr-2 h-4 w-4 shrink-0" />}
             <span className="truncate">{isGeneratingSimpleReport ? "Generando..." : `Excel (${filteredEnriched.length})`}</span>
-          </Button>
-          <Button onClick={handleGenerateReport} disabled={isGeneratingReport || filteredEnriched.length === 0} className="bg-emerald-600 hover:bg-emerald-700 text-white w-full sm:w-auto min-h-11 sm:min-h-9 text-xs sm:text-sm">
-            {isGeneratingReport ? <Loader2 className="mr-2 h-4 w-4 animate-spin shrink-0" /> : <FileDown className="mr-2 h-4 w-4 shrink-0" />}
-            <span className="truncate">{isGeneratingReport ? "Generando..." : `Reporte con Fotos (${filteredEnriched.length})`}</span>
           </Button>
         </div>
       </div>
@@ -960,6 +1155,92 @@ const RevaluoList = () => {
         imageFiles={imageFiles}
         setImageFiles={setImageFiles}
       />
+
+      <Dialog open={isDatosModalOpen} onOpenChange={setIsDatosModalOpen}>
+        <DialogContent className="w-[94vw] sm:max-w-[440px] p-4 sm:p-6">
+          <DialogHeader className="space-y-1">
+            <DialogTitle className="text-base sm:text-lg leading-tight">Datos Aleatorios</DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm leading-tight">
+              {filteredEnriched.length > 0
+                ? "Genera cotizaciones (según tipo rubro) y su respaldo en N° Cotización solo en las filas con dato en Conservación. El reporte en Excel incluye todos los activos con Conservación."
+                : "No hay activos en la lista con los filtros actuales."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2 py-2">
+            <Button
+              onClick={handleGenerateRandomData}
+              disabled={filteredEnriched.length === 0}
+              className="bg-violet-600 hover:bg-violet-700 text-white w-full min-h-11 text-xs sm:text-sm"
+            >
+              <Dices className="mr-2 h-4 w-4 shrink-0" />
+              Generar Datos
+            </Button>
+            <Button
+              onClick={handleGenerateConservacionReport}
+              disabled={filteredEnriched.length === 0 || isGeneratingDatosReport}
+              className="bg-amber-600 hover:bg-amber-700 text-white w-full min-h-11 text-xs sm:text-sm"
+            >
+              {isGeneratingDatosReport ? <Loader2 className="mr-2 h-4 w-4 animate-spin shrink-0" /> : <FileDown className="mr-2 h-4 w-4 shrink-0" />}
+              {isGeneratingDatosReport ? "Generando..." : "Generar reporte"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isRangeModalOpen} onOpenChange={setIsRangeModalOpen}>
+        <DialogContent className="w-[94vw] sm:max-w-[440px] p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="space-y-1">
+            <DialogTitle className="text-base sm:text-lg leading-tight">Reporte por Lotes</DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm leading-tight">
+              {rangoList.length > 0
+                ? `Se encontraron ${rangoList.length} activos en la lista. Elija el rango y el formato a descargar.`
+                : "No hay activos en la lista con los filtros actuales."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground pt-1">Excel</div>
+          <div className="grid gap-2 py-1">
+            {RANGOS_EXCEL_SIN_FOTOS.map((rango, idx) => {
+              const count = Math.max(0, Math.min(rango.to, rangoList.length) - rango.from + 1);
+              const isGenerating = generatingRangeIdx === idx;
+              return (
+                <Button
+                  key={`excel-${rango.from}-${rango.to}`}
+                  onClick={() => handleGenerateRangeReport(idx)}
+                  disabled={count === 0 || isGenerating || generatingRangeIdx !== null || generatingRangePDFIdx !== null}
+                  className="bg-amber-600 hover:bg-amber-700 text-white w-full min-h-11 text-xs sm:text-sm justify-between"
+                >
+                  <span className="flex items-center gap-2">
+                    {isGenerating ? <Loader2 className="h-4 w-4 animate-spin shrink-0" /> : <FileDown className="h-4 w-4 shrink-0" />}
+                    {isGenerating ? "Generando..." : `Del ${rango.from} al ${rango.to}`}
+                  </span>
+                  <span className="font-mono text-[11px] opacity-90">({count})</span>
+                </Button>
+              );
+            })}
+          </div>
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground pt-1">PDF con fotografía</div>
+          <div className="grid gap-2 py-1">
+            {RANGOS_EXCEL_SIN_FOTOS.map((rango, idx) => {
+              const count = Math.max(0, Math.min(rango.to, rangoList.length) - rango.from + 1);
+              const isGenerating = generatingRangePDFIdx === idx;
+              return (
+                <Button
+                  key={`pdf-${rango.from}-${rango.to}`}
+                  onClick={() => handleGenerateRangePDFReport(idx)}
+                  disabled={count === 0 || isGenerating || generatingRangeIdx !== null || generatingRangePDFIdx !== null}
+                  className="bg-red-600 hover:bg-red-700 text-white w-full min-h-11 text-xs sm:text-sm justify-between"
+                >
+                  <span className="flex items-center gap-2">
+                    {isGenerating ? <Loader2 className="h-4 w-4 animate-spin shrink-0" /> : <FileText className="h-4 w-4 shrink-0" />}
+                    {isGenerating ? "Generando..." : `Del ${rango.from} al ${rango.to}`}
+                  </span>
+                  <span className="font-mono text-[11px] opacity-90">({count})</span>
+                </Button>
+              );
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
