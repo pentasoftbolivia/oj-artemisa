@@ -72,6 +72,31 @@ const FOTOS_LABELS = {
   UNA_FOTO_O_MAS: "1 foto o más",
 };
 
+// Hojas por lote PDF ya generado, para continuar el correlativo de hojas entre
+// lotes como si fuera un solo proyecto. Se guarda en localStorage por proyecto
+// (tamaño de lista + filtros) para que valga entre sesiones.
+const LOTE_PAGES_STORAGE_KEY = "revaluo_pdf_lotes_pages_v1";
+
+const loadLotePages = (sig) => {
+  try {
+    const raw = localStorage.getItem(LOTE_PAGES_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.sig === sig && parsed.pages && typeof parsed.pages === "object") return parsed.pages;
+  } catch {
+    // ignorar: sin persistencia se numera por archivo
+  }
+  return null;
+};
+
+const saveLotePages = (sig, pages) => {
+  try {
+    localStorage.setItem(LOTE_PAGES_STORAGE_KEY, JSON.stringify({ sig, pages }));
+  } catch {
+    // ignorar
+  }
+};
+
 const RevaluoList = () => {
   const { data, isLoading, error, fetchRevaluo } = useRevaluoData();
   const { getDisplayName } = useUserDisplayNames();
@@ -779,6 +804,25 @@ const RevaluoList = () => {
   const [rangoFiltros, setRangoFiltros] = useState("");
   const [generatingRangeIdx, setGeneratingRangeIdx] = useState(null);
   const [generatingRangePDFIdx, setGeneratingRangePDFIdx] = useState(null);
+  const [isGeneratingAllPDF, setIsGeneratingAllPDF] = useState(false);
+  // Hojas por lote PDF ya generado en esta sesión, para continuar el correlativo
+  // de hojas entre lotes del mismo proyecto (misma lista + filtros).
+  const pdfLotePagesRef = useRef({ sig: "", pages: {} });
+
+  // Hojas registradas del proyecto actual (sesión + localStorage).
+  const getLotePages = useCallback((sig) => {
+    if (pdfLotePagesRef.current.sig !== sig) pdfLotePagesRef.current = { sig, pages: {} };
+    const stored = loadLotePages(sig) || {};
+    const pages = { ...stored, ...pdfLotePagesRef.current.pages };
+    pdfLotePagesRef.current.pages = pages;
+    return pages;
+  }, []);
+
+  const resumenRango = useCallback((rango, realTo) => (
+    rangoFiltros
+      ? `${rangoFiltros} | Rango: del ${rango.from} al ${realTo}`
+      : `Rango: del ${rango.from} al ${realTo}`
+  ), [rangoFiltros]);
 
   const handleGenerateMissingReport = () => {
     if (filteredEnriched.length === 0) {
@@ -923,29 +967,140 @@ const RevaluoList = () => {
       if (!confirmed) return;
     }
     const realTo = rango.from - 1 + slice.length;
+    // Correlativo de hojas continuo: si los lotes anteriores del mismo proyecto
+    // ya se generaron (esta sesión o anteriores), este lote continúa su numeración.
+    // Si el primer bloque terminó en la hoja 498, este empieza en la 499.
+    const sigLotes = `${rangoList.length}|${rangoFiltros}`;
+    const paginasRegistradas = getLotePages(sigLotes);
+    let paginaInicial = 1;
+    let continuoExacto = rangeIdx === 0;
+    if (rangeIdx > 0) {
+      continuoExacto = true;
+      for (let j = 0; j < rangeIdx; j++) {
+        if (paginasRegistradas[j] == null) { continuoExacto = false; break; }
+        paginaInicial += paginasRegistradas[j];
+      }
+      if (!continuoExacto) paginaInicial = 1;
+    }
+    const conteosLotes = RANGOS_EXCEL_SIN_FOTOS.map((r) => Math.max(0, Math.min(r.to, rangoList.length) - r.from + 1));
+    const todosRegistrados = conteosLotes.every((c, j) => c === 0 || paginasRegistradas[j] != null);
+    const totalPaginasProyecto = todosRegistrados ? conteosLotes.reduce((s, c, j) => s + (paginasRegistradas[j] || 0), 0) : null;
     setGeneratingRangePDFIdx(rangeIdx);
     try {
-      const resumen = rangoFiltros
-        ? `${rangoFiltros} | Rango: del ${rango.from} al ${realTo}`
-        : `Rango: del ${rango.from} al ${realTo}`;
-      await generateRevaluoLotesPDFReport({
+      const resumen = resumenRango(rango, realTo);
+      const res = await generateRevaluoLotesPDFReport({
         activos: slice,
         filtrosResumen: resumen,
         worksheet,
-        filePrefix: `REPORTE_LOTES_PDF_${rango.from}-${realTo}`,
+        filePrefix: `REPORTE_LOTES_PDF_Lote${rangeIdx + 1}_${rango.from}-${realTo}`,
         numeroInicial: rango.from,
+        totalProyecto: rangoList.length,
+        paginaInicial,
+        totalPaginasProyecto,
         onProgress: (current, total) => {
           if (current % 50 === 0 || current === total) {
             console.log(`PDF lote progreso ${current}/${total}`);
           }
         },
       });
-      toast({ title: "Reporte generado", description: `PDF con ${slice.length} activos (del ${rango.from} al ${realTo}) descargado.` });
+      if (res && res.totalPages) {
+        paginasRegistradas[rangeIdx] = res.totalPages;
+        saveLotePages(sigLotes, paginasRegistradas);
+      }
+      let detalleHojas = "";
+      if (res && res.totalPages) {
+        if (paginaInicial > 1 || totalPaginasProyecto) {
+          detalleHojas = ` Hojas ${paginaInicial}–${paginaInicial + res.totalPages - 1} del proyecto.`;
+        } else if (rangeIdx > 0) {
+          detalleHojas = " Para hojas continuas (499 tras 498) genere antes los lotes anteriores o use «Todos los lotes».";
+        }
+      }
+      toast({ title: "Reporte generado", description: `PDF con ${slice.length} activos (del ${rango.from} al ${realTo}) descargado.${detalleHojas}` });
     } catch (err) {
       console.error("Error generando PDF por rango:", err);
       toast({ title: "Error", description: `No se pudo generar el PDF: ${err.message || ""}`, variant: "destructive" });
     } finally {
       setGeneratingRangePDFIdx(null);
+    }
+  };
+
+  // Genera todos los lotes PDF en secuencia con hojas 100% continuas:
+  // cuenta las hojas de cada lote y luego descarga cada archivo ya numerado.
+  const handleGenerateAllPDF = async () => {
+    if (rangoList.length === 0) {
+      toast({ title: "Sin datos", description: "No hay activos para generar el reporte con los filtros actuales.", variant: "destructive" });
+      return;
+    }
+    const lotes = RANGOS_EXCEL_SIN_FOTOS.map((rango, idx) => ({
+      rango,
+      idx,
+      slice: rangoList.slice(rango.from - 1, rango.to),
+    })).filter((l) => l.slice.length > 0);
+    if (lotes.length === 0) {
+      toast({ title: "Sin datos", description: "No hay activos para generar el reporte con los filtros actuales.", variant: "destructive" });
+      return;
+    }
+    const confirmed = window.confirm(
+      `Se generarán ${lotes.length} PDF (${rangoList.length} activos con fotos) con hojas continuas de un solo proyecto. Esto puede tardar varios minutos. ¿Desea continuar?`
+    );
+    if (!confirmed) return;
+    const sigLotes = `${rangoList.length}|${rangoFiltros}`;
+    const paginasRegistradas = getLotePages(sigLotes);
+    setIsGeneratingAllPDF(true);
+    try {
+      // Fase 1: contar hojas exactas de cada lote (sin descargar).
+      const hojasPorLote = [];
+      for (const { slice, rango } of lotes) {
+        const conteo = await generateRevaluoLotesPDFReport({
+          activos: slice,
+          filtrosResumen: resumenRango(rango, rango.from - 1 + slice.length),
+          worksheet,
+          filePrefix: "tmp",
+          numeroInicial: rango.from,
+          totalProyecto: rangoList.length,
+          paginaInicial: 1,
+          totalPaginasProyecto: null,
+          dryRun: true,
+          onProgress: (current, total) => {
+            if (current % 100 === 0 || current === total) {
+              console.log(`Conteo hojas lote ${rango.from}-${rango.to}: ${current}/${total}`);
+            }
+          },
+        });
+        hojasPorLote.push(conteo && conteo.totalPages ? conteo.totalPages : 0);
+      }
+      const totalPaginasProyecto = hojasPorLote.reduce((s, n) => s + n, 0);
+      // Fase 2: descargar cada lote con su correlativo (499 tras 498).
+      let paginaInicial = 1;
+      for (let k = 0; k < lotes.length; k++) {
+        const { rango, idx, slice } = lotes[k];
+        const realTo = rango.from - 1 + slice.length;
+        const res = await generateRevaluoLotesPDFReport({
+          activos: slice,
+          filtrosResumen: resumenRango(rango, realTo),
+          worksheet,
+          filePrefix: `REPORTE_LOTES_PDF_Lote${idx + 1}_${rango.from}-${realTo}`,
+          numeroInicial: rango.from,
+          totalProyecto: rangoList.length,
+          paginaInicial,
+          totalPaginasProyecto,
+          onProgress: (current, total) => {
+            if (current % 100 === 0 || current === total) {
+              console.log(`PDF todos progreso lote ${k + 1}/${lotes.length}: ${current}/${total}`);
+            }
+          },
+        });
+        const hojas = (res && res.totalPages) || hojasPorLote[k] || 0;
+        paginasRegistradas[idx] = hojas;
+        paginaInicial += hojas;
+      }
+      saveLotePages(sigLotes, paginasRegistradas);
+      toast({ title: "Reportes generados", description: `${lotes.length} PDF con hojas 1–${totalPaginasProyecto} del proyecto descargados.` });
+    } catch (err) {
+      console.error("Error generando todos los PDF:", err);
+      toast({ title: "Error", description: `No se pudieron generar los PDF: ${err.message || ""}`, variant: "destructive" });
+    } finally {
+      setIsGeneratingAllPDF(false);
     }
   };
 
@@ -1206,7 +1361,7 @@ const RevaluoList = () => {
                 <Button
                   key={`excel-${rango.from}-${rango.to}`}
                   onClick={() => handleGenerateRangeReport(idx)}
-                  disabled={count === 0 || isGenerating || generatingRangeIdx !== null || generatingRangePDFIdx !== null}
+                  disabled={count === 0 || isGenerating || generatingRangeIdx !== null || generatingRangePDFIdx !== null || isGeneratingAllPDF}
                   className="bg-amber-600 hover:bg-amber-700 text-white w-full min-h-11 text-xs sm:text-sm justify-between"
                 >
                   <span className="flex items-center gap-2">
@@ -1227,7 +1382,7 @@ const RevaluoList = () => {
                 <Button
                   key={`pdf-${rango.from}-${rango.to}`}
                   onClick={() => handleGenerateRangePDFReport(idx)}
-                  disabled={count === 0 || isGenerating || generatingRangeIdx !== null || generatingRangePDFIdx !== null}
+                  disabled={count === 0 || isGenerating || generatingRangeIdx !== null || generatingRangePDFIdx !== null || isGeneratingAllPDF}
                   className="bg-red-600 hover:bg-red-700 text-white w-full min-h-11 text-xs sm:text-sm justify-between"
                 >
                   <span className="flex items-center gap-2">
@@ -1239,6 +1394,17 @@ const RevaluoList = () => {
               );
             })}
           </div>
+          <Button
+            onClick={handleGenerateAllPDF}
+            disabled={rangoList.length === 0 || isGeneratingAllPDF || generatingRangeIdx !== null || generatingRangePDFIdx !== null}
+            className="bg-red-700 hover:bg-red-800 text-white w-full min-h-11 text-xs sm:text-sm justify-between mt-2"
+          >
+            <span className="flex items-center gap-2">
+              {isGeneratingAllPDF ? <Loader2 className="h-4 w-4 animate-spin shrink-0" /> : <FileText className="h-4 w-4 shrink-0" />}
+              {isGeneratingAllPDF ? "Generando todos..." : "Todos los lotes (hojas continuas)"}
+            </span>
+            <span className="font-mono text-[11px] opacity-90">({rangoList.length})</span>
+          </Button>
         </DialogContent>
       </Dialog>
     </div>

@@ -297,6 +297,10 @@ export const generateRevaluoLotesPDFReport = async ({
   filePrefix = "REPORTE_LOTES_PDF",
   tituloReporte = "ACTIVOS REVALUADOS",
   numeroInicial = 1,
+  totalProyecto = null,
+  paginaInicial = 1,
+  totalPaginasProyecto = null,
+  dryRun = false,
   onProgress,
 } = {}) => {
   if (!activos || activos.length === 0) return;
@@ -306,6 +310,10 @@ export const generateRevaluoLotesPDFReport = async ({
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 10;
   const contentWidth = pageWidth - margin * 2;
+  // Correlativo del lote dentro del proyecto para que varios PDFs parezcan un solo proyecto
+  const totalEnProyecto = totalProyecto ?? activos.length;
+  const loteDesde = numeroInicial;
+  const loteHasta = numeroInicial + activos.length - 1;
 
   addLogo(doc);
   doc.setFont("helvetica", "bold");
@@ -313,7 +321,7 @@ export const generateRevaluoLotesPDFReport = async ({
   doc.text(tituloReporte, pageWidth / 2, 12, { align: "center" });
   doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
-  doc.text(`Total activos: ${activos.length}  |  Fecha: ${new Date().toLocaleString("es-BO")}`, pageWidth / 2, 18, { align: "center" });
+  doc.text(`Total proyecto: ${totalEnProyecto}  |  Lote del ${loteDesde} al ${loteHasta} (${activos.length})  |  Fecha: ${new Date().toLocaleString("es-BO")}`, pageWidth / 2, 18, { align: "center" });
   if (filtrosResumen) {
     const filterLines = doc.splitTextToSize(`Filtros: ${filtrosResumen}`, contentWidth);
     const filterToShow = filterLines.slice(0, 2);
@@ -457,10 +465,15 @@ export const generateRevaluoLotesPDFReport = async ({
     drawTwoCols("Responsable:", a._responsableName || "—", "Carnet:", a._carnet || "—");
     // Dibuja un recuadro con título que agrupa filas de 1-2 campos.
     // Cada fila es [[etiqueta, valor], [etiqueta, valor] | null].
+    // Recuadro que nunca solapa letras: se deja aire antes del borde superior
+    // y el borde inferior se calcula desde la última línea escrita.
+    const BOX_GAP_BEFORE = 2;
+    const BOX_PAD_BOTTOM = 2.5;
     const drawBoxedGroup = (title, rowPairs) => {
-      const rowH = lineH + 1;
-      const titleH = 5;
-      checkPage(titleH + rowPairs.length * rowH + 6);
+      const rowH = lineH + 2;
+      const titleH = 6;
+      checkPage(BOX_GAP_BEFORE + titleH + rowPairs.length * rowH + BOX_PAD_BOTTOM + 6);
+      y += BOX_GAP_BEFORE; // aire entre el contenido previo y el recuadro
       const yStart = y;
       doc.setFont("helvetica", "bold");
       doc.setFontSize(7);
@@ -480,15 +493,17 @@ export const generateRevaluoLotesPDFReport = async ({
         }
         y += rowH;
       });
-      const yEnd = y + 1;
+      const lastBaseline = y - rowH;
+      const top = yStart - 4.2; // ~1.7mm sobre el título
+      const bottom = lastBaseline + 1 + BOX_PAD_BOTTOM; // ~2.5mm bajo la última línea
       doc.setDrawColor(150);
-      doc.rect(margin + 1, yStart - 3.5, contentWidth - 2, yEnd - yStart + 3.5);
-      y = yEnd + 2;
+      doc.rect(margin + 1, top, contentWidth - 2, bottom - top);
+      y = bottom + 2; // aire después del recuadro
     };
 
     drawTwoCols("Ciudad:", ubic.ciudad || "—", "Inmueble:", ubic.inmueble || "—");
     drawTwoCols("Nivel:", ubic.nivel || "—", "Ambiente:", ubic.ambiente || "—");
-    drawTwoCols("Estado:", estadoAltaBaja, "Años Asig.:", fmtNumPdf(calc.anios));
+    drawTwoCols("Estado:", estadoAltaBaja, "Años Asignados:", fmtNumPdf(calc.anios));
     drawBoxedGroup("COTIZACION", [
       [
         ["Cotización 1:", fmtBsPdf(wsRow.c1 ?? "")],
@@ -496,7 +511,11 @@ export const generateRevaluoLotesPDFReport = async ({
       ],
       [["Cotización 3:", fmtBsPdf(wsRow.c3 ?? "")], null],
     ]);
+    // Aire arriba y abajo de Promedio / Precio Revalúo respecto de los recuadros
+    checkPage(lineH + 4 + 4);
+    y += 2;
     drawTwoCols("Promedio:", fmtBsPdf(calc.promedio ?? ""), "Precio Revalúo:", fmtBsPdf(calc.precio ?? ""));
+    y += 2;
     drawBoxedGroup("RESPALDOS", [
       [
         ["Respaldo 1:", String(wsRow.n1 || "—")],
@@ -612,16 +631,20 @@ export const generateRevaluoLotesPDFReport = async ({
   }
 
   const totalPages = doc.getNumberOfPages();
+  const totalPagesShown = totalPaginasProyecto ?? totalPages;
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
     if (i > 1) addLogo(doc);
     doc.setFontSize(7);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(120);
-    doc.text(`Página ${i} de ${totalPages}  |  ACTIVOS REVALUADOS - Órgano Judicial`, pageWidth / 2, pageHeight - 6, { align: "center" });
+    doc.text(`Página ${paginaInicial + i - 1} de ${totalPagesShown}  |  Lote ${loteDesde}-${loteHasta} de ${totalEnProyecto}  |  ACTIVOS REVALUADOS - Órgano Judicial`, pageWidth / 2, pageHeight - 6, { align: "center" });
   }
 
-  doc.save(`${filePrefix}_${new Date().toISOString().slice(0, 10)}.pdf`);
+  if (!dryRun) {
+    doc.save(`${filePrefix}_${new Date().toISOString().slice(0, 10)}.pdf`);
+  }
+  return { totalPages };
 };
 
 export const generateRevaluoFaltantesReport = async ({
@@ -668,7 +691,7 @@ export const generateRevaluoFaltantesReport = async ({
     { header: "F. Años M", key: "faM", width: 11 },
     { header: "F. Años Ba", key: "faBa", width: 11 },
     { header: "Precio Revalúo (Bs)", key: "precio", width: 17 },
-    { header: "Años Asig.", key: "anosAsig", width: 10 },
+    { header: "Años Asignados", key: "anosAsig", width: 14 },
     { header: "Observaciones", key: "observaciones", width: 45 },
   ];
 
@@ -962,7 +985,7 @@ export const generateRevaluoReportSimple = async ({
     { header: "F. Años M", key: "faM", width: 11 },
     { header: "F. Años Ba", key: "faBa", width: 11 },
     { header: "Precio Revalúo (Bs)", key: "precio", width: 17 },
-    { header: "Años Asig.", key: "anosAsig", width: 10 },
+    { header: "Años Asignados", key: "anosAsig", width: 14 },
     { header: "N° Fotos", key: "numFotos", width: 9 },
     { header: "Dirección Foto 1", key: "foto1", width: 50 },
     { header: "Dirección Foto 2", key: "foto2", width: 50 },

@@ -175,6 +175,14 @@ export const useReportePorUbicacionExcel = () => {
         await new Promise((r) => setTimeout(r, 0));
       }
 
+      // Excluir rubros BIBLIOTECAS, EDIFICACIONES y TERRENOS del reporte
+      const normRubroExc = (s) => String(s || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const RUBROS_EXCLUIDOS = ["BIBLIOTEC", "EDIFICAC", "TERRENO"];
+      allActivos = allActivos.filter((a) => {
+        const rubroDesc = rubroFromTipo[a.tipoRubroAct] ?? rubroFromTipo[String(a.tipoRubroAct)] ?? "";
+        return !RUBROS_EXCLUIDOS.some((k) => normRubroExc(rubroDesc).includes(k));
+      });
+
       if (allActivos.length === 0) {
         toast({ title: "Sin datos", description: "No hay activos con ultimoregistro=1.", variant: "destructive" });
         return;

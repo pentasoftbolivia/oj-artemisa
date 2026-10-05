@@ -305,6 +305,24 @@ const InicioList = () => {
     }
   };
 
+  const handleShowEnProceso = async (email) => {
+    const display = getDisplayName(email);
+    setUsuarioModalTitle(`EN PROCESO — ${display}`);
+    setUsuarioModalList([]);
+    setUsuarioModalPage(1);
+    setIsUsuarioModalOpen(true);
+    setIsLoadingUsuarioModal(true);
+    try {
+      const data = await loadActivosPorInventariador({ usuario: email, estado: "enProceso" });
+      setUsuarioModalList(data || []);
+    } catch (e) {
+      console.error("Error loading en proceso por inventariador:", e);
+      setUsuarioModalList([]);
+    } finally {
+      setIsLoadingUsuarioModal(false);
+    }
+  };
+
   const handleCloseUsuarioModal = () => {
     setIsUsuarioModalOpen(false);
     setUsuarioModalList([]);
@@ -317,10 +335,11 @@ const InicioList = () => {
     setIsGeneratingUsuarioExcel(true);
     try {
       const isRevisados = usuarioModalTitle.startsWith("REVISADOS");
+      const isEnProceso = usuarioModalTitle.startsWith("EN PROCESO");
       const headers = ["Código", "Rubro", "Tipo Rubro", "Descripción", "Ambiente", "Responsable", "CI Responsable"];
       const dataRows = usuarioModalList.map(mapActivoRow);
-      const inventariador = usuarioModalTitle.replace("REVISADOS — ", "").replace("NO REVISADOS — ", "").replace("Activos Revisados — ", "").replace("Activos No Revisados — ", "").trim() || "Inventariador";
-      const titulo = isRevisados ? "ACTIVOS REVISADOS" : "ACTIVOS NO REVISADOS";
+      const inventariador = usuarioModalTitle.replace("REVISADOS — ", "").replace("NO REVISADOS — ", "").replace("EN PROCESO — ", "").replace("Activos Revisados — ", "").replace("Activos No Revisados — ", "").replace("Activos En Proceso — ", "").trim() || "Inventariador";
+      const titulo = isRevisados ? "ACTIVOS REVISADOS" : isEnProceso ? "ACTIVOS EN PROCESO" : "ACTIVOS NO REVISADOS";
       const sheetData = [
         ["REPORTES DE ACTIVOS - ÓRGANO JUDICIAL"],
         [titulo],
@@ -333,9 +352,9 @@ const InicioList = () => {
       const ws = XLSX.utils.aoa_to_sheet(sheetData);
       ws["!cols"] = [{ wch: 14 }, { wch: 22 }, { wch: 22 }, { wch: 40 }, { wch: 30 }, { wch: 25 }, { wch: 14 }];
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, isRevisados ? "Revisados" : "NoRevisados");
+      XLSX.utils.book_append_sheet(wb, ws, isRevisados ? "Revisados" : isEnProceso ? "EnProceso" : "NoRevisados");
       const safeName = inventariador.replace(/[^a-zA-Z0-9]+/g, "_").slice(0, 30) || "Inventariador";
-      const prefix = isRevisados ? "Activos_Revisados" : "Activos_NoRevisados";
+      const prefix = isRevisados ? "Activos_Revisados" : isEnProceso ? "Activos_EnProceso" : "Activos_NoRevisados";
       XLSX.writeFile(wb, `${prefix}_${safeName}.xlsx`);
     } catch (e) {
       console.error("Error generando Excel inventariador:", e);
@@ -363,9 +382,9 @@ const InicioList = () => {
         progressTextColors={progressTextColors}
         inventariadorStats={inventariadorStats}
         getDisplayName={getDisplayName}
-        universoTotal={universoTotal}
         onSelectPendientes={handleShowPendientes}
         onSelectRevisados={handleShowRevisados}
+        onSelectEnProceso={handleShowEnProceso}
       />
 
       <InventarioInmuebleModal
@@ -431,10 +450,10 @@ const InicioList = () => {
               </div>
             ) : usuarioModalList.length > 0 ? (
               <SeccionActivos
-                titulo={usuarioModalTitle.startsWith("REVISADOS") ? "ACTIVOS REVISADOS" : "ACTIVOS NO REVISADOS"}
+                titulo={usuarioModalTitle.startsWith("REVISADOS") ? "ACTIVOS REVISADOS" : usuarioModalTitle.startsWith("EN PROCESO") ? "ACTIVOS EN PROCESO" : "ACTIVOS NO REVISADOS"}
                 count={usuarioModalList.length}
-                tituloClass={usuarioModalTitle.startsWith("REVISADOS") ? "text-green-600 dark:text-green-400" : "text-orange-600 dark:text-orange-400"}
-                headerClass={usuarioModalTitle.startsWith("REVISADOS") ? "bg-green-50 dark:bg-green-950/20" : "bg-orange-50 dark:bg-orange-950/20"}
+                tituloClass={usuarioModalTitle.startsWith("REVISADOS") ? "text-green-600 dark:text-green-400" : usuarioModalTitle.startsWith("EN PROCESO") ? "text-sky-600 dark:text-sky-400" : "text-orange-600 dark:text-orange-400"}
+                headerClass={usuarioModalTitle.startsWith("REVISADOS") ? "bg-green-50 dark:bg-green-950/20" : usuarioModalTitle.startsWith("EN PROCESO") ? "bg-sky-50 dark:bg-sky-950/20" : "bg-orange-50 dark:bg-orange-950/20"}
               >
                 <TablaActivos items={usuarioPageData} mapRow={mapActivoRow} />
                 <PaginacionTabla

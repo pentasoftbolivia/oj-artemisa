@@ -123,6 +123,14 @@ export const useReporteInventarioGeneralExcel = () => {
         await new Promise((r) => setTimeout(r, 0));
       }
 
+      // Excluir rubros BIBLIOTECAS, EDIFICACIONES y TERRENOS del Inventario General
+      const normRubroExc = (s) => String(s || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const RUBROS_EXCLUIDOS = ["BIBLIOTEC", "EDIFICAC", "TERRENO"];
+      allActivos = allActivos.filter((a) => {
+        const rubroDesc = rubroFromTipo[a.tipoRubroAct] ?? rubroFromTipo[String(a.tipoRubroAct)] ?? "";
+        return !RUBROS_EXCLUIDOS.some((k) => normRubroExc(rubroDesc).includes(k));
+      });
+
       if (allActivos.length === 0) {
         toast({ title: "Sin datos", description: "No hay activos con ultimoregistro=1.", variant: "destructive" });
         return;
@@ -151,12 +159,10 @@ export const useReporteInventarioGeneralExcel = () => {
 
       toast({ title: "Generando Excel", description: `Construyendo reporte con ${dataRows.length} activos...` });
 
-      const dateStr = new Date().toISOString().slice(0, 10);
       const headers = ["Código Activo", "Rubro", "Tipo Rubro", "Descripción del Activo", "Ubicación", "Responsable", "Carnet"];
       const sheetData = [
         ["INVENTARIO GENERAL - ÓRGANO JUDICIAL"],
         [`Total activos: ${dataRows.length} (ultimoregistro=1, ordenados por código)`],
-        [`Fecha: ${dateStr}`],
         [],
         headers,
         ...dataRows,
@@ -164,12 +170,12 @@ export const useReporteInventarioGeneralExcel = () => {
 
       const ws = XLSX.utils.aoa_to_sheet(sheetData);
       ws["!cols"] = [{ wch: 16 }, { wch: 28 }, { wch: 28 }, { wch: 50 }, { wch: 55 }, { wch: 30 }, { wch: 16 }];
-      // Congelar encabezado (fila 5) para facilitar lectura
-      ws["!freeze"] = "A5";
-      ws["!autofilter"] = { ref: `A5:G${sheetData.length}` };
+      // Congelar encabezado (fila 4) para facilitar lectura
+      ws["!freeze"] = "A4";
+      ws["!autofilter"] = { ref: `A4:G${sheetData.length}` };
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Inventario General");
-      XLSX.writeFile(wb, `Inventario_General_ultimoregistro1_${dateStr}.xlsx`);
+      XLSX.writeFile(wb, `Inventario_General_ultimoregistro1.xlsx`);
 
       toast({ title: "Reporte generado", description: `Se exportaron ${dataRows.length} activos ordenados por código.` });
     } catch (err) {

@@ -67,6 +67,16 @@ const calcRow = (a, ws, factores) => {
 const fmtBs = (v) => (v === null ? "—" : `Bs ${Number(v).toLocaleString("es-BO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
 const fmtNum = (v) => (v === null ? "—" : (Number.isInteger(v) ? String(v) : String(Number(v.toFixed(2)))));
 
+// Etiquetas completas para las columnas de factor (B=Bueno, R=Regular, M=Malo, Ba=Baja)
+const FACTOR_LABELS = [
+  { key: "B", label: "Bueno" },
+  { key: "R", label: "Regular" },
+  { key: "M", label: "Malo" },
+  { key: "Ba", label: "Baja" },
+];
+
+const factorLabelOf = (key) => FACTOR_LABELS.find((f) => f.key === key)?.label ?? key;
+
 const RevaluoTable = memo(({ activos, hasActiveFilters, onEdit, onOpenImages, photoCounts = {}, worksheet = {}, onWorksheetChange, factores = {} }) => {
   if (!activos || activos.length === 0) {
     return (
@@ -168,24 +178,24 @@ const RevaluoTable = memo(({ activos, hasActiveFilters, onEdit, onOpenImages, ph
                     </div>
                   ))}
                 </div>
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold pt-1">Factor Revalúo (B/R/M/Ba)</div>
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold pt-1">Factor Revalúo</div>
                 <div className="grid grid-cols-4 gap-2">
-                  {["B", "R", "M", "Ba"].map((label) => (
-                    <div key={label} className="space-y-1">
-                      <div className="text-[10px] text-muted-foreground text-center">{label}</div>
-                      <div className={`h-9 flex items-center justify-center text-xs font-mono rounded-md border ${calc.fkey === label ? "border-emerald-500 font-bold" : "text-muted-foreground bg-muted/30"}`}>
-                        {calc.fkey === label ? fmtNum(calc.fr) : "—"}
+                  {FACTOR_LABELS.map(({ key, label }) => (
+                    <div key={key} className="space-y-1">
+                      <div className="text-[10px] text-muted-foreground text-center break-words leading-tight">{label}</div>
+                      <div className={`h-9 flex items-center justify-center text-xs font-mono rounded-md border ${calc.fkey === key ? "border-emerald-500 font-bold" : "text-muted-foreground bg-muted/30"}`}>
+                        {calc.fkey === key ? fmtNum(calc.fr) : "—"}
                       </div>
                     </div>
                   ))}
                 </div>
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold pt-1">Factor Años (B/R/M/Ba)</div>
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold pt-1">Factor Años</div>
                 <div className="grid grid-cols-4 gap-2">
-                  {["B", "R", "M", "Ba"].map((label) => (
-                    <div key={label} className="space-y-1">
-                      <div className="text-[10px] text-muted-foreground text-center">{label}</div>
-                      <div className={`h-9 flex items-center justify-center text-xs font-mono rounded-md border ${calc.fkey === label ? "border-emerald-500 font-bold" : "text-muted-foreground bg-muted/30"}`}>
-                        {calc.fkey === label ? fmtNum(calc.anios) : "—"}
+                  {FACTOR_LABELS.map(({ key, label }) => (
+                    <div key={key} className="space-y-1">
+                      <div className="text-[10px] text-muted-foreground text-center break-words leading-tight">{label}</div>
+                      <div className={`h-9 flex items-center justify-center text-xs font-mono rounded-md border ${calc.fkey === key ? "border-emerald-500 font-bold" : "text-muted-foreground bg-muted/30"}`}>
+                        {calc.fkey === key ? fmtNum(calc.anios) : "—"}
                       </div>
                     </div>
                   ))}
@@ -215,7 +225,7 @@ const RevaluoTable = memo(({ activos, hasActiveFilters, onEdit, onOpenImages, ph
 
       {/* Desktop: tabla */}
       <div className="hidden sm:block rounded-md border overflow-x-auto">
-        <Table>
+        <Table className="border-collapse [&_th]:border-r [&_th]:border-slate-300 [&_th:last-child]:border-r-0 [&_td]:border-r [&_td]:border-slate-200 [&_td:last-child]:border-r-0">
           <TableHeader className="[&_th]:bg-blue-100">
             <TableRow>
               <TableHead rowSpan={2} className="min-w-[110px]">Código Activo</TableHead>
@@ -227,14 +237,14 @@ const RevaluoTable = memo(({ activos, hasActiveFilters, onEdit, onOpenImages, ph
               <TableHead rowSpan={2} className="min-w-[160px]">Responsable</TableHead>
               <TableHead rowSpan={2} className="min-w-[100px]">Carnet</TableHead>
               <TableHead rowSpan={2} className="min-w-[280px]">Ubicación</TableHead>
-              <TableHead colSpan={3} className="text-center border-x !bg-yellow-100">Cotización (Bs)</TableHead>
+              <TableHead colSpan={3} className="text-center !bg-yellow-100">Cotización (Bs)</TableHead>
               <TableHead rowSpan={2} className="min-w-[110px] text-right">Promedio</TableHead>
-              <TableHead colSpan={3} className="text-center border-x !bg-orange-100">N° Cotización</TableHead>
-              <TableHead colSpan={4} className="text-center border-x">Factor Revalúo</TableHead>
+              <TableHead colSpan={3} className="text-center !bg-orange-100">N° Cotización</TableHead>
+              <TableHead colSpan={4} className="text-center">Factor Revalúo</TableHead>
               <TableHead rowSpan={2} className="min-w-[70px] text-center">F. Rev</TableHead>
-              <TableHead colSpan={4} className="text-center border-x">Factor Años</TableHead>
-              <TableHead rowSpan={2} className="min-w-[120px] text-right !bg-orange-100">Precio Revalúo</TableHead>
-              <TableHead rowSpan={2} className="min-w-[90px] text-center">Años Asig.</TableHead>
+              <TableHead colSpan={4} className="text-center">Factor Años</TableHead>
+              <TableHead rowSpan={2} className="min-w-[120px] text-center !bg-orange-100"><span className="block leading-tight">Precio</span><span className="block leading-tight">Revalúo</span></TableHead>
+              <TableHead rowSpan={2} className="min-w-[90px] text-center"><span className="block leading-tight">Años</span><span className="block leading-tight">Asignados</span></TableHead>
               <TableHead rowSpan={2} className="text-center min-w-[110px]">Acciones</TableHead>
             </TableRow>
             <TableRow>
@@ -244,14 +254,14 @@ const RevaluoTable = memo(({ activos, hasActiveFilters, onEdit, onOpenImages, ph
               <TableHead className="text-center min-w-[85px] !bg-orange-100">1</TableHead>
               <TableHead className="text-center min-w-[85px] !bg-orange-100">2</TableHead>
               <TableHead className="text-center min-w-[85px] !bg-orange-100">3</TableHead>
-              <TableHead className="text-center min-w-[70px]">B</TableHead>
-              <TableHead className="text-center min-w-[70px]">R</TableHead>
-              <TableHead className="text-center min-w-[70px]">M</TableHead>
-              <TableHead className="text-center min-w-[70px]">Ba</TableHead>
-              <TableHead className="text-center min-w-[70px]">B</TableHead>
-              <TableHead className="text-center min-w-[70px]">R</TableHead>
-              <TableHead className="text-center min-w-[70px]">M</TableHead>
-              <TableHead className="text-center min-w-[70px]">Ba</TableHead>
+              <TableHead className="text-center min-w-[80px]">Bueno</TableHead>
+              <TableHead className="text-center min-w-[80px]">Regular</TableHead>
+              <TableHead className="text-center min-w-[80px]">Malo</TableHead>
+              <TableHead className="text-center min-w-[80px]">Baja</TableHead>
+              <TableHead className="text-center min-w-[80px]">Bueno</TableHead>
+              <TableHead className="text-center min-w-[80px]">Regular</TableHead>
+              <TableHead className="text-center min-w-[80px]">Malo</TableHead>
+              <TableHead className="text-center min-w-[80px]">Baja</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -292,7 +302,7 @@ const RevaluoTable = memo(({ activos, hasActiveFilters, onEdit, onOpenImages, ph
                       {calc.fkey === label ? fmtNum(calc.fr) : "—"}
                     </TableCell>
                   ))}
-                  <TableCell className="font-mono text-xs text-center" title={`Factor ${calc.fkey}`}>{calc.fr !== null ? fmtNum(calc.fr) : "—"}</TableCell>
+                  <TableCell className="font-mono text-xs text-center" title={`Factor ${factorLabelOf(calc.fkey)}`}>{calc.fr !== null ? fmtNum(calc.fr) : "—"}</TableCell>
                   {[["faB", "B"], ["faR", "R"], ["faM", "M"], ["faBa", "Ba"]].map(([f, label]) => (
                     <TableCell key={f} className={`p-1 font-mono text-xs text-center ${calc.fkey === label ? "bg-emerald-50 font-bold" : "text-muted-foreground"}`}>
                       {calc.fkey === label ? fmtNum(calc.anios) : "—"}

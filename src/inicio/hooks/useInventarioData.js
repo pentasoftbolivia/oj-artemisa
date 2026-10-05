@@ -40,12 +40,18 @@ const aggregateActivosPorFecha = (rows) => {
 const aggregatePerUserRows = (userRows) => {
   const acc = {};
   userRows.forEach((r) => {
-    const email = r.usuarioinventario;
+    // trim: variantes del email con espacios se agrupan en el mismo inventariador
+    const email = String(r.usuarioinventario || "").trim();
     if (!email) return;
-    if (!acc[email]) acc[email] = { revisado: 0, pendiente: 0 };
-    if (String(r.estadoinventario || "") === "REVISADO") {
+    if (!acc[email]) acc[email] = { revisado: 0, pendiente: 0, enProceso: 0 };
+    // Mapeo estricto por estadoinventario: INVENTARIADO -> No revisados,
+    // REVISADO -> Revisados, EN PROCESO -> En Proceso. Otros estados no se cuentan.
+    const est = String(r.estadoinventario || "").trim().toUpperCase();
+    if (est === "REVISADO") {
       acc[email].revisado += 1;
-    } else {
+    } else if (est === "EN PROCESO") {
+      acc[email].enProceso += 1;
+    } else if (est === "INVENTARIADO") {
       acc[email].pendiente += 1;
     }
   });
@@ -190,9 +196,16 @@ export const useInventarioData = () => {
         let userRows = [];
         let start = 0;
         for (;;) {
-          const { data, error } = await applyBaseFilters(
-            supabase.from("act_activos").select("usuarioinventario,estadoinventario")
-          ).range(start, start + CHUNK - 1);
+          // Regla única: ultimoregistro=1 (sin corte de código).
+          // Sin excluir EN PROCESO: se cuenta aparte por inventariador.
+          // Con order estable: sin ORDER BY la paginación por rangos puede
+          // saltar/duplicar filas y el conteo sale menor.
+          const { data, error } = await supabase
+            .from("act_activos")
+            .select("usuarioinventario,estadoinventario")
+            .eq("ultimoregistro", 1)
+            .order("codigoactivointerno", { ascending: true })
+            .range(start, start + CHUNK - 1);
           if (error) throw error;
           userRows = userRows.concat(data || []);
           if (!data || data.length < CHUNK) break;
@@ -201,6 +214,42 @@ export const useInventarioData = () => {
         perUser = aggregatePerUserRows(userRows);
       } catch (e) {
         console.error("Error loading per-user stats:", e);
+      }
+
+      // EN PROCESO sin el corte de codigoactivointerno: el cuadrado y el modal
+      // deben mostrar TODOS los activos en proceso del inventariador (ultimoregistro=1).
+      try {
+        const CHUNK_EP = 1000;
+        let epRows = [];
+        let startEp = 0;
+        for (;;) {
+          const { data, error } = await supabase
+            .from("act_activos")
+            .select("usuarioinventario")
+            .eq("ultimoregistro", 1)
+            .eq("estadoinventario", "EN PROCESO")
+            .order("codigoactivointerno", { ascending: true })
+            .range(startEp, startEp + CHUNK_EP - 1);
+          if (error) throw error;
+          epRows = epRows.concat(data || []);
+          if (!data || data.length < CHUNK_EP) break;
+          startEp += CHUNK_EP;
+        }
+        const enProcesoPorUsuario = {};
+        epRows.forEach((r) => {
+          const em = String(r.usuarioinventario || "").trim();
+          if (!em) return;
+          enProcesoPorUsuario[em] = (enProcesoPorUsuario[em] || 0) + 1;
+        });
+        perUser = perUser.map((u) => ({ ...u, enProceso: enProcesoPorUsuario[u.email] || 0 }));
+        Object.entries(enProcesoPorUsuario).forEach(([email, n]) => {
+          if (!perUser.some((u) => u.email === email)) {
+            perUser.push({ email, revisado: 0, pendiente: 0, enProceso: n });
+          }
+        });
+        perUser.sort((a, b) => b.revisado - a.revisado);
+      } catch (e) {
+        console.error("Error loading en proceso stats:", e);
       }
 
       setTotalStats({ total: count || 0, revisados, noRevisados: (count || 0) - revisados });
@@ -662,19 +711,24 @@ export const useInventarioData = () => {
         .from("act_activos")
         .select(ACTIVO_COLUMNS)
         .eq("ultimoregistro", 1)
-        .gte("codigoactivointerno", 335774)
-        .neq("estadoinventario", "EN PROCESO")
         .eq("usuarioinventario", email);
       if (estado === "revisado") {
         q = q.eq("estadoinventario", "REVISADO");
+      } else if (estado === "enProceso") {
+        // Sin filtro de estado en servidor: se filtra en cliente con la misma
+        // normalización del conteo, para que el cuadrado y el listado coincidan.
       } else {
-        q = q.or("estadoinventario.is.null,estadoinventario.neq.REVISADO");
+        // No revisados = solo estado INVENTARIADO
+        q = q.eq("estadoinventario", "INVENTARIADO");
       }
       const { data, error } = await q.range(start, start + CHUNK - 1);
       if (error) throw error;
       rows = rows.concat(data || []);
       if (!data || data.length < CHUNK) break;
       start += CHUNK;
+    }
+    if (estado === "enProceso") {
+      rows = rows.filter((r) => String(r.estadoinventario || "").trim().toUpperCase() === "EN PROCESO");
     }
     return rows;
   }, []);

@@ -128,6 +128,14 @@ export const useReporteInventarioGeneral = () => {
         await new Promise((r) => setTimeout(r, 0));
       }
 
+      // Excluir rubros BIBLIOTECAS, EDIFICACIONES y TERRENOS del Inventario General
+      const normRubroExc = (s) => String(s || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const RUBROS_EXCLUIDOS = ["BIBLIOTEC", "EDIFICAC", "TERRENO"];
+      allActivos = allActivos.filter((a) => {
+        const rubroDesc = rubroFromTipo[a.tipoRubroAct] ?? rubroFromTipo[String(a.tipoRubroAct)] ?? "";
+        return !RUBROS_EXCLUIDOS.some((k) => normRubroExc(rubroDesc).includes(k));
+      });
+
       if (allActivos.length === 0) {
         toast({ title: "Sin datos", description: "No hay activos con ultimoregistro=1.", variant: "destructive" });
         return;
@@ -166,7 +174,7 @@ export const useReporteInventarioGeneral = () => {
       doc.text("INVENTARIO GENERAL - ÓRGANO JUDICIAL", pageWidth / 2, 16, { align: "center" });
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
-      doc.text(`Total activos: ${body.length}  |  Fecha: ${new Date().toLocaleString("es-BO")}`, pageWidth / 2, 21, { align: "center" });
+      doc.text(`Total activos: ${body.length}`, pageWidth / 2, 21, { align: "center" });
 
       autoTable(doc, {
         startY: 26,
@@ -205,8 +213,7 @@ export const useReporteInventarioGeneral = () => {
         doc.text(`Página ${i} de ${totalPages}`, pageWidth / 2, pageHeight - 7, { align: "center" });
       }
 
-      const dateStr = new Date().toISOString().slice(0, 10);
-      doc.save(`Inventario_General_ultimoregistro1_${dateStr}.pdf`);
+      doc.save(`Inventario_General_ultimoregistro1.pdf`);
       toast({ title: "Reporte generado", description: `Se exportaron ${body.length} activos ordenados por código.` });
     } catch (err) {
       console.error("Error generando Inventario General", err);

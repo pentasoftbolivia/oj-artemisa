@@ -5,12 +5,12 @@ import ProgressFace from "./ProgressFace";
 
 const BarraAvance = ({ revisado, total }) => {
   const pct = total > 0 ? (revisado / total) * 100 : 0;
-  const color = pct <= 50 ? "#dc2626" : pct <= 80 ? "#eab308" : "#16a34a";
+  const color = pct <= 5 ? "#dc2626" : pct <= 7.5 ? "#eab308" : "#16a34a";
   return (
     <div className="space-y-1 pt-1">
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
-          Avance del total de activos
+          Participación del total inventariado
         </span>
         <span className="text-xs font-bold" style={{ color }}>
           {pct.toFixed(2)}%
@@ -34,12 +34,18 @@ const InventarioSummary = ({
   inventariadorStats,
   getDisplayName,
   ubicacionLabel = "",
-  universoTotal = 0,
   onSelectPendientes,
   onSelectRevisados,
+  onSelectEnProceso,
 }) => {
   const sortedStats = useMemo(
-    () => [...(inventariadorStats || [])].sort((a, b) => b.revisado - a.revisado),
+    () => [...(inventariadorStats || [])].sort((a, b) => ((b.pendiente || 0) + (b.revisado || 0)) - ((a.pendiente || 0) + (a.revisado || 0))),
+    [inventariadorStats],
+  );
+
+  // Total inventariado = suma de (No revisados + Revisados) de todos los inventariadores
+  const totalInventariado = useMemo(
+    () => (inventariadorStats || []).reduce((s, st) => s + (st.pendiente || 0) + (st.revisado || 0), 0),
     [inventariadorStats],
   );
 
@@ -136,11 +142,19 @@ const InventarioSummary = ({
                   key={stat.email}
                   className="rounded-lg border p-4 bg-muted/20 space-y-2"
                 >
-                  <div
-                    className="text-xs font-semibold truncate text-muted-foreground"
-                    title={stat.email}
-                  >
-                    {getDisplayName(stat.email)}
+                  <div className="flex items-center justify-between gap-2">
+                    <div
+                      className="text-xs font-semibold truncate text-muted-foreground"
+                      title={stat.email}
+                    >
+                      {getDisplayName(stat.email)}
+                    </div>
+                    <div
+                      className="text-xs font-bold text-muted-foreground shrink-0 font-mono"
+                      title="Total: No revisados + Revisados"
+                    >
+                      {(stat.pendiente || 0) + (stat.revisado || 0)}
+                    </div>
                   </div>
                   <div className="flex gap-2">
                     <button
@@ -171,8 +185,28 @@ const InventarioSummary = ({
                         {stat.revisado}
                       </div>
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (onSelectEnProceso) {
+                          onSelectEnProceso(stat.email);
+                        } else {
+                          console.error("En Proceso: onSelectEnProceso no llegó al Resumen por Inventariador (bundle desactualizado: reinicia el dev server y recarga con Ctrl+Shift+R).");
+                        }
+                      }}
+                      disabled={!stat.enProceso}
+                      className={`flex-1 bg-sky-50 dark:bg-sky-950/20 border border-sky-200 dark:border-sky-900 rounded p-2 text-center transition ${stat.enProceso ? "hover:bg-sky-100 dark:hover:bg-sky-900/30 cursor-pointer hover:shadow-sm" : "opacity-60 cursor-not-allowed"}`}
+                      title={stat.enProceso ? "Ver activos en proceso" : "Sin activos en proceso"}
+                    >
+                      <div className="text-xs text-sky-600 dark:text-sky-400 font-medium">
+                        En Proceso
+                      </div>
+                      <div className="text-lg font-bold text-sky-700 dark:text-sky-300">
+                        {stat.enProceso || 0}
+                      </div>
+                    </button>
                   </div>
-                  <BarraAvance revisado={stat.revisado} total={universoTotal} />
+                  <BarraAvance revisado={(stat.pendiente || 0) + (stat.revisado || 0)} total={totalInventariado} />
                 </div>
               ))}
             </div>
