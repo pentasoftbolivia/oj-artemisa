@@ -7,6 +7,10 @@ import { useReporteInventarioGeneral } from "@/inicio/hooks/useReporteInventario
 import { useReporteInventarioGeneralExcel } from "@/inicio/hooks/useReporteInventarioGeneralExcel";
 import { useReportePorUbicacion } from "@/inicio/hooks/useReportePorUbicacion";
 import { useReportePorUbicacionExcel } from "@/inicio/hooks/useReportePorUbicacionExcel";
+import { useReportePorRubro } from "@/inicio/hooks/useReportePorRubro";
+import { useReportePorRubroExcel } from "@/inicio/hooks/useReportePorRubroExcel";
+import { useReporteFaltantes } from "@/inicio/hooks/useReporteFaltantes";
+import { useReporteFaltantesExcel } from "@/inicio/hooks/useReporteFaltantesExcel";
 
 const ALLOWED_RESTRICTED_REPORT_EMAIL = "javiercostasaliaga@gmail.com";
 
@@ -19,8 +23,12 @@ const ReportesList = () => {
   const { generate: generateInventarioGeneralExcel, isGenerating: isGeneratingGeneralExcel } = useReporteInventarioGeneralExcel();
   const { generate: generatePorUbicacion, isGenerating: isGeneratingUbicacion } = useReportePorUbicacion();
   const { generate: generatePorUbicacionExcel, isGenerating: isGeneratingUbicacionExcel } = useReportePorUbicacionExcel();
+  const { generate: generatePorRubro, isGenerating: isGeneratingRubro } = useReportePorRubro();
+  const { generate: generatePorRubroExcel, isGenerating: isGeneratingRubroExcel } = useReportePorRubroExcel();
+  const { generate: generateFaltantes, isGenerating: isGeneratingFaltantes } = useReporteFaltantes();
+  const { generate: generateFaltantesExcel, isGenerating: isGeneratingFaltantesExcel } = useReporteFaltantesExcel();
 
-  const busy = isGeneratingGeneral || isGeneratingGeneralExcel || isGeneratingUbicacion || isGeneratingUbicacionExcel;
+  const busy = isGeneratingGeneral || isGeneratingGeneralExcel || isGeneratingUbicacion || isGeneratingUbicacionExcel || isGeneratingRubro || isGeneratingRubroExcel || isGeneratingFaltantes || isGeneratingFaltantesExcel;
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -40,13 +48,13 @@ const ReportesList = () => {
           {!canSeeReports ? (
             <p className="text-sm text-muted-foreground">No tiene acceso a estos reportes.</p>
           ) : (
-            <div className="grid gap-2 w-full sm:grid-cols-2 sm:max-w-[700px]">
+            <div className="grid gap-2 w-full sm:grid-cols-4 sm:max-w-[1400px]">
               <Button
                 onClick={generateInventarioGeneral}
                 disabled={busy}
                 className="w-full justify-center bg-blue-700 hover:bg-blue-800 text-white min-h-11 text-xs sm:text-sm"
                 aria-label="Generar Inventario General"
-                title="PDF con todos los activos ultimoregistro=1 ordenados por código"
+                title="PDF con todos los activos ultimoregistro=1 y estadoinventario no vacío, ordenados por código"
               >
                 {isGeneratingGeneral ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -60,7 +68,7 @@ const ReportesList = () => {
                 disabled={busy}
                 className="w-full justify-center bg-teal-700 hover:bg-teal-800 text-white min-h-11 text-xs sm:text-sm"
                 aria-label="Generar Reporte por Ubicación"
-                title="PDF con todos los activos ultimoregistro=1 ordenados por ubicación (EL ALTO, LA PAZ, ...)"
+                title="PDF con todos los activos ultimoregistro=1 y estadoinventario no vacío, ordenados por ubicación (EL ALTO, LA PAZ, ...)"
               >
                 {isGeneratingUbicacion ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -70,11 +78,39 @@ const ReportesList = () => {
                 REPORTE POR UBICACION
               </Button>
               <Button
+                onClick={generatePorRubro}
+                disabled={busy}
+                className="w-full justify-center bg-purple-700 hover:bg-purple-800 text-white min-h-11 text-xs sm:text-sm"
+                aria-label="Generar Reporte por Rubro"
+                title="PDF con el total de activos por rubro (misma lógica del Inventario General)"
+              >
+                {isGeneratingRubro ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <FileDown className="h-4 w-4 mr-2" />
+                )}
+                REPORTE POR RUBRO
+              </Button>
+              <Button
+                onClick={generateFaltantes}
+                disabled={busy}
+                className="w-full justify-center bg-red-700 hover:bg-red-800 text-white min-h-11 text-xs sm:text-sm"
+                aria-label="Generar Reporte Faltantes"
+                title="PDF por ubicación con activos ultimoregistro=1 y estadoinventario vacío/nulo, excluyendo ciudades excepción"
+              >
+                {isGeneratingFaltantes ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <FileDown className="h-4 w-4 mr-2" />
+                )}
+                REPORTE FALTANTES
+              </Button>
+              <Button
                 onClick={generateInventarioGeneralExcel}
                 disabled={busy}
                 className="w-full justify-center bg-green-700 hover:bg-green-800 text-white min-h-11 text-xs sm:text-sm"
                 aria-label="Generar Inventario General en Excel"
-                title="Excel con todos los activos ultimoregistro=1 ordenados por código"
+                title="Excel con todos los activos ultimoregistro=1 y estadoinventario no vacío, ordenados por código"
               >
                 {isGeneratingGeneralExcel ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -86,9 +122,9 @@ const ReportesList = () => {
               <Button
                 onClick={generatePorUbicacionExcel}
                 disabled={busy}
-                className="w-full justify-center bg-emerald-700 hover:bg-emerald-800 text-white min-h-11 text-xs sm:text-sm"
+                className="w-full justify-center bg-green-700 hover:bg-green-800 text-white min-h-11 text-xs sm:text-sm"
                 aria-label="Generar Reporte por Ubicación en Excel"
-                title="Excel con todos los activos ultimoregistro=1 ordenados por ubicación (EL ALTO, LA PAZ, ...)"
+                title="Excel con todos los activos ultimoregistro=1 y estadoinventario no vacío, ordenados por ubicación (EL ALTO, LA PAZ, ...)"
               >
                 {isGeneratingUbicacionExcel ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -96,6 +132,34 @@ const ReportesList = () => {
                   <FileSpreadsheet className="h-4 w-4 mr-2" />
                 )}
                 REPORTE POR UBICACION EXCEL
+              </Button>
+              <Button
+                onClick={generatePorRubroExcel}
+                disabled={busy}
+                className="w-full justify-center bg-green-700 hover:bg-green-800 text-white min-h-11 text-xs sm:text-sm"
+                aria-label="Generar Reporte por Rubro en Excel"
+                title="Excel con el total de activos por rubro (misma lógica del Inventario General)"
+              >
+                {isGeneratingRubroExcel ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <FileSpreadsheet className="h-4 w-4 mr-2" />
+                )}
+                REPORTE POR RUBRO EXCEL
+              </Button>
+              <Button
+                onClick={generateFaltantesExcel}
+                disabled={busy}
+                className="w-full justify-center bg-green-700 hover:bg-green-800 text-white min-h-11 text-xs sm:text-sm"
+                aria-label="Generar Reporte Faltantes en Excel"
+                title="Excel por ubicación con activos ultimoregistro=1 y estadoinventario vacío/nulo, excluyendo ciudades excepción"
+              >
+                {isGeneratingFaltantesExcel ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <FileSpreadsheet className="h-4 w-4 mr-2" />
+                )}
+                REPORTE FALTANTES EXCEL
               </Button>
             </div>
           )}

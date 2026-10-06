@@ -5,7 +5,7 @@ import { getCachedCatalog } from "@/lib/catalogCache";
 import { toCamelCaseArray } from "@/lib/mapFields";
 import { useToast } from "@/hooks/use-toast";
 import { ACTIVO_COLUMNS } from "@/lib/activoColumns";
-import { normalizeCi, normalizeCiLoose, getCiPrefix } from "../constants/inventarioConstants";
+import { normalizeCi, normalizeCiLoose, getCiPrefix, CIUDADES_EXCEPCION_SET } from "../constants/inventarioConstants";
 
 const formatError = (err) => {
   if (!err) return "Error desconocido";
@@ -61,7 +61,8 @@ CIUDAD_ORDEN.forEach((name, idx) => { ciudadOrdenMap[name] = idx; });
 
 /**
  * Genera el Reporte por Ubicación en Excel.
- * Mismos datos y orden que el PDF (ultimoregistro=1, por ciudad y código):
+ * Mismos datos y orden que el PDF (ultimoregistro=1 y estadoinventario no vacío,
+ * por ciudad y código):
  * [N°, Ciudad, Código Activo, Rubro, Tipo Rubro, Descripción, Ubicación, Responsable, Carnet]
  * Hojas: "Resumen" (totales por ciudad) y "Activos" (detalle).
  */
@@ -155,7 +156,7 @@ export const useReportePorUbicacionExcel = () => {
         return [resp.nombre1, resp.nombre2, resp.paterno, resp.materno].map((s) => (s || "").trim()).filter(Boolean).join(" ") || resp.cirun;
       };
 
-      toast({ title: "Cargando activos", description: "Obteniendo activos con ultimoregistro=1..." });
+      toast({ title: "Cargando activos", description: "Obteniendo activos con ultimoregistro=1 (con excepción por ciudades)..." });
 
       let allActivos = [];
       let from = 0;
@@ -164,7 +165,8 @@ export const useReportePorUbicacionExcel = () => {
         const { data, error } = await supabase
           .from("act_activos")
           .select(ACTIVO_COLUMNS)
-          .eq("ultimoregistro", 1).order("codigoactivointerno", { ascending: true }).range(from, from + FETCH_CHUNK - 1);
+          .eq("ultimoregistro", 1)
+          .order("codigoactivointerno", { ascending: true }).range(from, from + FETCH_CHUNK - 1);
         if (error) throw error;
         const batch = toCamelCaseArray(data || []);
         if (batch.length === 0) break;
@@ -175,6 +177,15 @@ export const useReportePorUbicacionExcel = () => {
         await new Promise((r) => setTimeout(r, 0));
       }
 
+      // Regla: estadoinventario no vacío, EXCEPTO ciudades excepción que traen todo con ultimoregistro=1
+      allActivos = allActivos.filter((a) => {
+        const ambCode = String(a.codigoAmbiente ?? "").trim();
+        const ciudad = String(ciudadPorAmbiente[ambCode] ?? "").trim().toUpperCase();
+        if (CIUDADES_EXCEPCION_SET.has(ciudad)) return true;
+        const estadoInv = String(a.estadoinventario ?? a.estadoInventario ?? "").trim();
+        return estadoInv !== "";
+      });
+
       // Excluir rubros BIBLIOTECAS, EDIFICACIONES y TERRENOS del reporte
       const normRubroExc = (s) => String(s || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
       const RUBROS_EXCLUIDOS = ["BIBLIOTEC", "EDIFICAC", "TERRENO"];
@@ -184,7 +195,7 @@ export const useReportePorUbicacionExcel = () => {
       });
 
       if (allActivos.length === 0) {
-        toast({ title: "Sin datos", description: "No hay activos con ultimoregistro=1.", variant: "destructive" });
+        toast({ title: "Sin datos", description: "No hay activos con ultimoregistro=1 y estadoinventario no vacío.", variant: "destructive" });
         return;
       }
 
@@ -243,7 +254,7 @@ export const useReportePorUbicacionExcel = () => {
       const resumenRows = ordenCiudades.map((c, idx) => [idx + 1, c, (grupos.get(c) || []).length]);
       const resumenSheet = [
         ["REPORTE POR UBICACIÓN - RESUMEN POR CIUDAD - ÓRGANO JUDICIAL"],
-        [`Total activos: ${allActivos.length} (ultimoregistro=1)`],
+        [`Total activos: ${allActivos.length} (ultimoregistro=1, estadoinventario no vacío)`],
         [`Fecha: ${dateStr}`],
         [],
         ["#", "Ciudad", "Total Activos"],
@@ -262,7 +273,7 @@ export const useReportePorUbicacionExcel = () => {
       });
       const detalleSheet = [
         ["REPORTE POR UBICACIÓN - ÓRGANO JUDICIAL"],
-        [`Total activos: ${allActivos.length} (ultimoregistro=1, ordenados por ciudad y código)`],
+        [`Total activos: ${allActivos.length} (ultimoregistro=1, estadoinventario no vacío, ordenados por ciudad y código)`],
         [`Fecha: ${dateStr}`],
         [],
         ["N°", "Ciudad", "Código Activo", "Rubro", "Tipo Rubro", "Descripción del Activo", "Ubicación", "Responsable", "Carnet"],

@@ -69,14 +69,14 @@ const CIUDAD_ORDEN = [
 const ciudadOrdenMap = {};
 CIUDAD_ORDEN.forEach((name, idx) => { ciudadOrdenMap[name] = idx; });
 
-export const useReportePorUbicacion = () => {
+export const useReporteFaltantes = () => {
   const { toast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
 
   const generate = useCallback(async () => {
     setIsGenerating(true);
     try {
-      toast({ title: "Generando Reporte por Ubicación", description: "Cargando catálogos..." });
+      toast({ title: "Generando Reporte Faltantes", description: "Cargando catálogos..." });
 
       const [rubros, tipoRubros, ambientes, responsables, ciudades, inmuebles, niveles] = await Promise.all([
         getCachedCatalog("act_rubro"),
@@ -163,7 +163,7 @@ export const useReportePorUbicacion = () => {
         return [resp.nombre1, resp.nombre2, resp.paterno, resp.materno].map((s) => (s || "").trim()).filter(Boolean).join(" ") || resp.cirun;
       };
 
-      toast({ title: "Cargando activos", description: "Obteniendo activos con ultimoregistro=1 (con excepción por ciudades)..." });
+      toast({ title: "Cargando activos", description: "Obteniendo activos faltantes (ultimoregistro=1 y estadoinventario vacío/nulo)..." });
 
       let allActivos = [];
       let from = 0;
@@ -184,13 +184,14 @@ export const useReportePorUbicacion = () => {
         await new Promise((r) => setTimeout(r, 0));
       }
 
-      // Regla: estadoinventario no vacío, EXCEPTO ciudades excepción que traen todo con ultimoregistro=1
+      // Lógica FALTANTES: ultimoregistro=1 y estadoinventario vacío/nulo,
+      // excluyendo ciudades excepción
       allActivos = allActivos.filter((a) => {
         const ambCode = String(a.codigoAmbiente ?? "").trim();
         const ciudad = String(ciudadPorAmbiente[ambCode] ?? "").trim().toUpperCase();
-        if (CIUDADES_EXCEPCION_SET.has(ciudad)) return true;
+        if (CIUDADES_EXCEPCION_SET.has(ciudad)) return false;
         const estadoInv = String(a.estadoinventario ?? a.estadoInventario ?? "").trim();
-        return estadoInv !== "";
+        return estadoInv === "";
       });
 
       // Excluir rubros BIBLIOTECAS, EDIFICACIONES y TERRENOS del reporte
@@ -202,7 +203,7 @@ export const useReportePorUbicacion = () => {
       });
 
       if (allActivos.length === 0) {
-        toast({ title: "Sin datos", description: "No hay activos con ultimoregistro=1 y estadoinventario no vacío.", variant: "destructive" });
+        toast({ title: "Sin datos", description: "No hay activos faltantes (ultimoregistro=1 y estadoinventario vacío/nulo).", variant: "destructive" });
         return;
       }
 
@@ -241,7 +242,7 @@ export const useReportePorUbicacion = () => {
         ...[...grupos.keys()].filter((c) => !ciudadOrdenMap.hasOwnProperty(c)).sort((a, b) => a.localeCompare(b, "es")),
       ];
 
-      toast({ title: "Generando PDF", description: `Construyendo reporte por ubicación con ${allActivos.length} activos en ${ordenCiudades.length} ciudades...` });
+      toast({ title: "Generando PDF", description: `Construyendo reporte de faltantes con ${allActivos.length} activos en ${ordenCiudades.length} ciudades...` });
 
       const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "letter" });
       const pageWidth = doc.internal.pageSize.getWidth();
@@ -249,7 +250,7 @@ export const useReportePorUbicacion = () => {
       addLogo(doc);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(13);
-      doc.text("REPORTE POR UBICACIÓN - ÓRGANO JUDICIAL", pageWidth / 2, 16, { align: "center" });
+      doc.text("REPORTE FALTANTES POR UBICACIÓN - ÓRGANO JUDICIAL", pageWidth / 2, 16, { align: "center" });
 
       let currentY = 26;
       // Resumen por ciudad - totales
@@ -357,10 +358,10 @@ export const useReportePorUbicacion = () => {
       }
 
       const dateStr = new Date().toISOString().slice(0, 10);
-      doc.save(`Reporte_Por_Ubicacion_${dateStr}.pdf`);
-      toast({ title: "Reporte generado", description: `Se exportaron ${allActivos.length} activos en ${ordenCiudades.length} ciudades.` });
+      doc.save(`Reporte_Faltantes_Por_Ubicacion_${dateStr}.pdf`);
+      toast({ title: "Reporte generado", description: `Se exportaron ${allActivos.length} activos faltantes en ${ordenCiudades.length} ciudades.` });
     } catch (err) {
-      console.error("Error generando Reporte por Ubicación", err);
+      console.error("Error generando Reporte Faltantes", err);
       toast({ title: "Error", description: `No se pudo generar el reporte: ${formatError(err)}`, variant: "destructive" });
     } finally {
       setIsGenerating(false);

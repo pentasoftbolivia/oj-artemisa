@@ -120,3 +120,29 @@ export const BASE_EDIT_FIELDS = [
 export const normalizeCi = (v) => String(v ?? "").replace(/[^\d]/g, "");
 export const normalizeCiLoose = (v) => normalizeCi(v).replace(/^0+/, "") || "0";
 export const getCiPrefix = (ci) => String(ci ?? "").match(/^\d+/)?.[0] ?? "";
+
+/**
+ * Ciudades excepción: muestran TODOS sus activos con ultimoregistro=1,
+ * sin exigir estadoinventario no vacío.
+ * Comparar siempre en mayúsculas y con trim (ej. ciudadPorAmbiente[amb] ya viene en UPPER).
+ */
+export const CIUDADES_EXCEPCION_SIN_ESTADO = [
+  "COPACABANA",
+  "APOLO",
+  "INQUISIVI",
+  "CHUMA",
+  "SORATA",
+  "CORO CORO",
+  "MOCO MOCO",
+  "IXIAMAS",
+  "GUANAY",
+  "CHARAZANI",
+  "QUIME",
+  "SAPAHAQUI",
+  "COLQUIRI",
+  "LAJA",
+  "LURIBAY",
+  "SAN ANDRES DE MACHACA",
+];
+
+export const CIUDADES_EXCEPCION_SET = new Set(CIUDADES_EXCEPCION_SIN_ESTADO);

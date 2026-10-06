@@ -5,7 +5,7 @@ import { getCachedCatalog } from "@/lib/catalogCache";
 import { toCamelCaseArray } from "@/lib/mapFields";
 import { useToast } from "@/hooks/use-toast";
 import { ACTIVO_COLUMNS } from "@/lib/activoColumns";
-import { normalizeCi, normalizeCiLoose, getCiPrefix, CIUDADES_EXCEPCION_SET } from "../constants/inventarioConstants";
+import { CIUDADES_EXCEPCION_SET } from "../constants/inventarioConstants";
 
 const formatError = (err) => {
   if (!err) return "Error desconocido";
@@ -21,25 +21,25 @@ const formatError = (err) => {
 };
 
 /**
- * Genera el Inventario General en Excel.
- * Mismos datos y orden que el PDF (ultimoregistro=1 y estadoinventario no vacío,
- * ordenados por código):
- * [Código Activo, Rubro, Tipo Rubro, Descripción, Ubicación, Responsable, Carnet]
+ * Reporte por Rubro en Excel: nombre del rubro + total de activos por rubro,
+ * con la misma lógica del Inventario General:
+ * - ultimoregistro=1
+ * - estadoinventario no vacío, excepto ciudades excepción (traen todo con ultimoregistro=1)
+ * - excluye rubros BIBLIOTECAS, EDIFICACIONES y TERRENOS
  */
-export const useReporteInventarioGeneralExcel = () => {
+export const useReportePorRubroExcel = () => {
   const { toast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
 
   const generate = useCallback(async () => {
     setIsGenerating(true);
     try {
-      toast({ title: "Generando Inventario General (Excel)", description: "Cargando catálogos..." });
+      toast({ title: "Generando Reporte por Rubro (Excel)", description: "Cargando catálogos..." });
 
-      const [rubros, tipoRubros, ambientes, responsables, ciudades, inmuebles, niveles] = await Promise.all([
+      const [rubros, tipoRubros, ambientes, ciudades, inmuebles, niveles] = await Promise.all([
         getCachedCatalog("act_rubro"),
         getCachedCatalog("act_tiporubro"),
         getCachedCatalog("act_ambiente"),
-        getCachedCatalog("act_responsable"),
         getCachedCatalog("act_ciudad"),
         getCachedCatalog("act_inmueble"),
         getCachedCatalog("act_nivel"),
@@ -50,11 +50,8 @@ export const useReporteInventarioGeneralExcel = () => {
         rubroDescMap[r.codigorubroact] = r.descripcionrubroact;
         rubroDescMap[String(r.codigorubroact)] = r.descripcionrubroact;
       });
-      const tipoRubroDescMap = {};
       const rubroFromTipo = {};
       (tipoRubros || []).forEach((t) => {
-        tipoRubroDescMap[t.tiporubroact] = t.descripciontiporubroact;
-        tipoRubroDescMap[String(t.tiporubroact)] = t.descripciontiporubroact;
         rubroFromTipo[t.tiporubroact] = rubroDescMap[t.codigorubroact];
         rubroFromTipo[String(t.tiporubroact)] = rubroDescMap[t.codigorubroact];
       });
@@ -66,7 +63,6 @@ export const useReporteInventarioGeneralExcel = () => {
       const ciudadMap = {};
       (ciudades || []).forEach((c) => { ciudadMap[String(c.codigociudad ?? "").trim()] = c; });
 
-      const ubicacionJerarquiaMap = {};
       const ciudadPorAmbiente = {};
       (ambientes || []).forEach((a) => {
         const code = String(a.codigoambiente ?? "").trim();
@@ -75,11 +71,6 @@ export const useReporteInventarioGeneralExcel = () => {
         const inmuebleCode = String(nivel?.codigoinmueble ?? "").trim();
         const inmueble = nivel ? inmuebleMap[inmuebleCode] : null;
         const ciudad = inmueble ? ciudadMap[String(inmueble.codigociudad ?? "").trim()] : null;
-        ubicacionJerarquiaMap[code] =
-          [ciudad?.descripcion, inmueble?.inmueble, nivel?.nivel, a.ambiente]
-            .map((s) => (s || "").trim())
-            .filter(Boolean)
-            .join(" / ") || String(code);
         let ciudadDesc = String(ciudad?.descripcion ?? "").trim().toUpperCase();
         if (inmuebleCode === "2309" && ciudadDesc === "LA PAZ") ciudadDesc = "ACHOCALLA";
         else if (inmuebleCode === "2327" && ciudadDesc === "LA PAZ") ciudadDesc = "LAJA";
@@ -87,28 +78,6 @@ export const useReporteInventarioGeneralExcel = () => {
         else if (inmuebleCode === "2371" && ciudadDesc === "LA PAZ") ciudadDesc = "SAN ANDRES DE MACHACA";
         ciudadPorAmbiente[code] = ciudadDesc || "SIN CIUDAD";
       });
-
-      const responsableMap = {};
-      (responsables || []).forEach((r) => {
-        const raw = String(r.cirun ?? "").trim();
-        responsableMap[raw] = r;
-        const norm = normalizeCi(r.cirun);
-        if (norm !== raw) responsableMap[norm] = r;
-        const loose = normalizeCiLoose(r.cirun);
-        if (loose !== raw && loose !== norm) responsableMap[loose] = r;
-        const prefix = getCiPrefix(raw);
-        if (prefix && prefix !== raw && prefix !== norm && prefix !== loose) responsableMap[prefix] = r;
-      });
-      const resolveResponsableName = (cirun) => {
-        const rawCi = String(cirun ?? "").trim();
-        if (!rawCi) return "—";
-        const normCi = normalizeCi(rawCi);
-        const looseCi = normalizeCiLoose(rawCi);
-        const prefixCi = getCiPrefix(rawCi);
-        const resp = responsableMap[normCi] || responsableMap[looseCi] || responsableMap[prefixCi] || responsableMap[rawCi];
-        if (!resp) return rawCi || "—";
-        return [resp.nombre1, resp.nombre2, resp.paterno, resp.materno].map((s) => (s || "").trim()).filter(Boolean).join(" ") || resp.cirun;
-      };
 
       toast({ title: "Cargando activos", description: "Obteniendo activos con ultimoregistro=1 (con excepción por ciudades)..." });
 
@@ -133,7 +102,6 @@ export const useReporteInventarioGeneralExcel = () => {
         await new Promise((r) => setTimeout(r, 0));
       }
 
-      // Regla: estadoinventario no vacío, EXCEPTO ciudades excepción que traen todo con ultimoregistro=1
       allActivos = allActivos.filter((a) => {
         const ambCode = String(a.codigoAmbiente ?? "").trim();
         const ciudad = String(ciudadPorAmbiente[ambCode] ?? "").trim().toUpperCase();
@@ -142,7 +110,6 @@ export const useReporteInventarioGeneralExcel = () => {
         return estadoInv !== "";
       });
 
-      // Excluir rubros BIBLIOTECAS, EDIFICACIONES y TERRENOS del Inventario General
       const normRubroExc = (s) => String(s || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
       const RUBROS_EXCLUIDOS = ["BIBLIOTEC", "EDIFICAC", "TERRENO"];
       allActivos = allActivos.filter((a) => {
@@ -151,54 +118,39 @@ export const useReporteInventarioGeneralExcel = () => {
       });
 
       if (allActivos.length === 0) {
-        toast({ title: "Sin datos", description: "No hay activos con ultimoregistro=1 y estadoinventario no vacío.", variant: "destructive" });
+        toast({ title: "Sin datos", description: "No hay activos con los filtros del Inventario General.", variant: "destructive" });
         return;
       }
 
-      allActivos.sort((a, b) => {
-        const codA = String(a.codigoActivo ?? "").trim();
-        const codB = String(b.codigoActivo ?? "").trim();
-        const numA = Number(codA.replace(/\D/g, ""));
-        const numB = Number(codB.replace(/\D/g, ""));
-        if (numA && numB && numA !== numB) return numA - numB;
-        return codA.localeCompare(codB, "es", { numeric: true });
+      const conteoPorRubro = new Map();
+      allActivos.forEach((a) => {
+        const rubroDesc = String(rubroFromTipo[a.tipoRubroAct] ?? rubroFromTipo[String(a.tipoRubroAct)] ?? "SIN RUBRO").trim() || "SIN RUBRO";
+        conteoPorRubro.set(rubroDesc, (conteoPorRubro.get(rubroDesc) ?? 0) + 1);
       });
+      const rubrosOrdenados = [...conteoPorRubro.keys()].sort((x, y) => x.localeCompare(y, "es"));
 
-      const dataRows = allActivos.map((a) => {
-        const tipoDesc = tipoRubroDescMap[a.tipoRubroAct] ?? tipoRubroDescMap[String(a.tipoRubroAct)] ?? "—";
-        const rubroDesc = rubroFromTipo[a.tipoRubroAct] ?? rubroFromTipo[String(a.tipoRubroAct)] ?? "—";
-        const ambCode = String(a.codigoAmbiente ?? "").trim();
-        const ubicacion = ubicacionJerarquiaMap[ambCode] || ambCode || "—";
-        const responsableName = resolveResponsableName(a.cirun);
-        const ci = String(a.cirun ?? "").trim() || "—";
-        const codigoFormateado = a.codigoActivo != null ? `OJ-02-${a.codigoActivo}` : "—";
-        const descripcion = String(a.descripcionActivo ?? a.descripcionactivo ?? "—").replace(/\s+/g, " ").trim() || "—";
-        return [codigoFormateado, rubroDesc, tipoDesc, descripcion, ubicacion, responsableName, ci];
-      });
+      toast({ title: "Generando Excel", description: `Construyendo reporte con ${rubrosOrdenados.length} rubros...` });
 
-      toast({ title: "Generando Excel", description: `Construyendo reporte con ${dataRows.length} activos...` });
-
-      const headers = ["Código Activo", "Rubro", "Tipo Rubro", "Descripción del Activo", "Ubicación", "Responsable", "Carnet"];
+      const dateStr = new Date().toISOString().slice(0, 10);
       const sheetData = [
-        ["INVENTARIO GENERAL - ÓRGANO JUDICIAL"],
-        [`Total activos: ${dataRows.length} (ultimoregistro=1, estadoinventario no vacío, ordenados por código)`],
+        ["REPORTE POR RUBRO - ÓRGANO JUDICIAL"],
+        [`Total activos: ${allActivos.length} en ${rubrosOrdenados.length} rubros (misma lógica del Inventario General)`],
+        [`Fecha: ${dateStr}`],
         [],
-        headers,
-        ...dataRows,
+        ["N°", "Rubro", "Total Activos"],
+        ...rubrosOrdenados.map((rubro, idx) => [idx + 1, rubro, conteoPorRubro.get(rubro)]),
+        ["", "TOTAL GENERAL", allActivos.length],
       ];
 
       const ws = XLSX.utils.aoa_to_sheet(sheetData);
-      ws["!cols"] = [{ wch: 16 }, { wch: 28 }, { wch: 28 }, { wch: 50 }, { wch: 55 }, { wch: 30 }, { wch: 16 }];
-      // Congelar encabezado (fila 4) para facilitar lectura
-      ws["!freeze"] = "A4";
-      ws["!autofilter"] = { ref: `A4:G${sheetData.length}` };
+      ws["!cols"] = [{ wch: 6 }, { wch: 55 }, { wch: 16 }];
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Inventario General");
-      XLSX.writeFile(wb, `Inventario_General_ultimoregistro1.xlsx`);
+      XLSX.utils.book_append_sheet(wb, ws, "Por Rubro");
+      XLSX.writeFile(wb, `Reporte_Por_Rubro_${dateStr}.xlsx`);
 
-      toast({ title: "Reporte generado", description: `Se exportaron ${dataRows.length} activos ordenados por código.` });
+      toast({ title: "Reporte generado", description: `Se exportaron ${allActivos.length} activos en ${rubrosOrdenados.length} rubros.` });
     } catch (err) {
-      console.error("Error generando Inventario General (Excel)", err);
+      console.error("Error generando Reporte por Rubro (Excel)", err);
       toast({ title: "Error", description: `No se pudo generar el reporte: ${formatError(err)}`, variant: "destructive" });
     } finally {
       setIsGenerating(false);

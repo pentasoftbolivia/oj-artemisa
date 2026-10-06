@@ -7,7 +7,7 @@ import { toCamelCaseArray } from "@/lib/mapFields";
 import { useToast } from "@/hooks/use-toast";
 import { LOGO_JPG_DATA_URL } from "@/lib/logoJpgBase64";
 import { ACTIVO_COLUMNS } from "@/lib/activoColumns";
-import { normalizeCi, normalizeCiLoose, getCiPrefix, CIUDADES_EXCEPCION_SET } from "../constants/inventarioConstants";
+import { CIUDADES_EXCEPCION_SET } from "../constants/inventarioConstants";
 
 const formatError = (err) => {
   if (!err) return "Error desconocido";
@@ -30,20 +30,26 @@ const addLogo = (doc) => {
   } catch { }
 };
 
-export const useReporteInventarioGeneral = () => {
+/**
+ * Reporte por Rubro (PDF): nombre del rubro + total de activos por rubro,
+ * con la misma lógica del Inventario General:
+ * - ultimoregistro=1
+ * - estadoinventario no vacío, excepto ciudades excepción (traen todo con ultimoregistro=1)
+ * - excluye rubros BIBLIOTECAS, EDIFICACIONES y TERRENOS
+ */
+export const useReportePorRubro = () => {
   const { toast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
 
   const generate = useCallback(async () => {
     setIsGenerating(true);
     try {
-      toast({ title: "Generando Inventario General", description: "Cargando catálogos..." });
+      toast({ title: "Generando Reporte por Rubro", description: "Cargando catálogos..." });
 
-      const [rubros, tipoRubros, ambientes, responsables, ciudades, inmuebles, niveles] = await Promise.all([
+      const [rubros, tipoRubros, ambientes, ciudades, inmuebles, niveles] = await Promise.all([
         getCachedCatalog("act_rubro"),
         getCachedCatalog("act_tiporubro"),
         getCachedCatalog("act_ambiente"),
-        getCachedCatalog("act_responsable"),
         getCachedCatalog("act_ciudad"),
         getCachedCatalog("act_inmueble"),
         getCachedCatalog("act_nivel"),
@@ -54,11 +60,8 @@ export const useReporteInventarioGeneral = () => {
         rubroDescMap[r.codigorubroact] = r.descripcionrubroact;
         rubroDescMap[String(r.codigorubroact)] = r.descripcionrubroact;
       });
-      const tipoRubroDescMap = {};
       const rubroFromTipo = {};
       (tipoRubros || []).forEach((t) => {
-        tipoRubroDescMap[t.tiporubroact] = t.descripciontiporubroact;
-        tipoRubroDescMap[String(t.tiporubroact)] = t.descripciontiporubroact;
         rubroFromTipo[t.tiporubroact] = rubroDescMap[t.codigorubroact];
         rubroFromTipo[String(t.tiporubroact)] = rubroDescMap[t.codigorubroact];
       });
@@ -70,7 +73,6 @@ export const useReporteInventarioGeneral = () => {
       const ciudadMap = {};
       (ciudades || []).forEach((c) => { ciudadMap[String(c.codigociudad ?? "").trim()] = c; });
 
-      const ubicacionJerarquiaMap = {};
       const ciudadPorAmbiente = {};
       (ambientes || []).forEach((a) => {
         const code = String(a.codigoambiente ?? "").trim();
@@ -79,12 +81,6 @@ export const useReporteInventarioGeneral = () => {
         const inmuebleCode = String(nivel?.codigoinmueble ?? "").trim();
         const inmueble = nivel ? inmuebleMap[inmuebleCode] : null;
         const ciudad = inmueble ? ciudadMap[String(inmueble.codigociudad ?? "").trim()] : null;
-        ubicacionJerarquiaMap[code] =
-          [ciudad?.descripcion, inmueble?.inmueble, nivel?.nivel, a.ambiente]
-            .map((s) => (s || "").trim())
-            .filter(Boolean)
-            .join(" / ") || String(code);
-        // Ciudad para regla de excepción (con mismas reglas especiales que Reporte por Ubicación)
         let ciudadDesc = String(ciudad?.descripcion ?? "").trim().toUpperCase();
         if (inmuebleCode === "2309" && ciudadDesc === "LA PAZ") ciudadDesc = "ACHOCALLA";
         else if (inmuebleCode === "2327" && ciudadDesc === "LA PAZ") ciudadDesc = "LAJA";
@@ -92,28 +88,6 @@ export const useReporteInventarioGeneral = () => {
         else if (inmuebleCode === "2371" && ciudadDesc === "LA PAZ") ciudadDesc = "SAN ANDRES DE MACHACA";
         ciudadPorAmbiente[code] = ciudadDesc || "SIN CIUDAD";
       });
-
-      const responsableMap = {};
-      (responsables || []).forEach((r) => {
-        const raw = String(r.cirun ?? "").trim();
-        responsableMap[raw] = r;
-        const norm = normalizeCi(r.cirun);
-        if (norm !== raw) responsableMap[norm] = r;
-        const loose = normalizeCiLoose(r.cirun);
-        if (loose !== raw && loose !== norm) responsableMap[loose] = r;
-        const prefix = getCiPrefix(raw);
-        if (prefix && prefix !== raw && prefix !== norm && prefix !== loose) responsableMap[prefix] = r;
-      });
-      const resolveResponsableName = (cirun) => {
-        const rawCi = String(cirun ?? "").trim();
-        if (!rawCi) return "—";
-        const normCi = normalizeCi(rawCi);
-        const looseCi = normalizeCiLoose(rawCi);
-        const prefixCi = getCiPrefix(rawCi);
-        const resp = responsableMap[normCi] || responsableMap[looseCi] || responsableMap[prefixCi] || responsableMap[rawCi];
-        if (!resp) return rawCi || "—";
-        return [resp.nombre1, resp.nombre2, resp.paterno, resp.materno].map((s) => (s || "").trim()).filter(Boolean).join(" ") || resp.cirun;
-      };
 
       toast({ title: "Cargando activos", description: "Obteniendo activos con ultimoregistro=1 (con excepción por ciudades)..." });
 
@@ -125,9 +99,8 @@ export const useReporteInventarioGeneral = () => {
           .from("act_activos")
           .select(ACTIVO_COLUMNS)
           .eq("ultimoregistro", 1)
-          // Ordenar por PK única para paginación estable (codigoactivo no es único
-          // y podía saltear/duplicar 1 fila entre páginas). El orden por código
-          // se hace en memoria más abajo.
+          // PK única para paginación estable (codigoactivo no es único
+          // y podía saltear/duplicar 1 fila entre páginas)
           .order("codigoactivointerno", { ascending: true })
           .range(from, from + FETCH_CHUNK - 1);
         if (error) throw error;
@@ -140,7 +113,7 @@ export const useReporteInventarioGeneral = () => {
         await new Promise((r) => setTimeout(r, 0));
       }
 
-      // Regla: estadoinventario no vacío, EXCEPTO ciudades excepción que traen todo con ultimoregistro=1
+      // Misma lógica del Inventario General
       allActivos = allActivos.filter((a) => {
         const ambCode = String(a.codigoAmbiente ?? "").trim();
         const ciudad = String(ciudadPorAmbiente[ambCode] ?? "").trim().toUpperCase();
@@ -149,80 +122,60 @@ export const useReporteInventarioGeneral = () => {
         return estadoInv !== "";
       });
 
-      // Excluir rubros BIBLIOTECAS, EDIFICACIONES y TERRENOS del Inventario General
       const normRubroExc = (s) => String(s || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
       const RUBROS_EXCLUIDOS = ["BIBLIOTEC", "EDIFICAC", "TERRENO"];
       allActivos = allActivos.filter((a) => {
         const rubroDesc = rubroFromTipo[a.tipoRubroAct] ?? rubroFromTipo[String(a.tipoRubroAct)] ?? "";
         return !RUBROS_EXCLUIDOS.some((k) => normRubroExc(rubroDesc).includes(k));
       });
-      console.debug("[InventarioGeneral] fetched ultimoregistro=1:", allActivos.length, "tras filtros estado+rubro");
 
       if (allActivos.length === 0) {
-        toast({ title: "Sin datos", description: "No hay activos con ultimoregistro=1 y estadoinventario no vacío.", variant: "destructive" });
+        toast({ title: "Sin datos", description: "No hay activos con los filtros del Inventario General.", variant: "destructive" });
         return;
       }
+      console.debug("[PorRubro] total tras filtros estado+rubro:", allActivos.length);
 
-      // Asegurar orden ascendente numérico por codigoActivo (por si DB devuelve string)
-      allActivos.sort((a, b) => {
-        const codA = String(a.codigoActivo ?? "").trim();
-        const codB = String(b.codigoActivo ?? "").trim();
-        const numA = Number(codA.replace(/\D/g, ""));
-        const numB = Number(codB.replace(/\D/g, ""));
-        if (numA && numB && numA !== numB) return numA - numB;
-        return codA.localeCompare(codB, "es", { numeric: true });
+      // Agrupar por rubro
+      const conteoPorRubro = new Map();
+      allActivos.forEach((a) => {
+        const rubroDesc = String(rubroFromTipo[a.tipoRubroAct] ?? rubroFromTipo[String(a.tipoRubroAct)] ?? "SIN RUBRO").trim() || "SIN RUBRO";
+        conteoPorRubro.set(rubroDesc, (conteoPorRubro.get(rubroDesc) ?? 0) + 1);
       });
+      const rubrosOrdenados = [...conteoPorRubro.keys()].sort((x, y) => x.localeCompare(y, "es"));
+      const body = rubrosOrdenados.map((rubro, idx) => [String(idx + 1), rubro, String(conteoPorRubro.get(rubro))]);
 
-      const body = allActivos.map((a, idx) => {
-        const tipoDesc = tipoRubroDescMap[a.tipoRubroAct] ?? tipoRubroDescMap[String(a.tipoRubroAct)] ?? "—";
-        const rubroDesc = rubroFromTipo[a.tipoRubroAct] ?? rubroFromTipo[String(a.tipoRubroAct)] ?? "—";
-        const ambCode = String(a.codigoAmbiente ?? "").trim();
-        const ubicacion = ubicacionJerarquiaMap[ambCode] || ambCode || "—";
-        const responsableName = resolveResponsableName(a.cirun);
-        const ci = String(a.cirun ?? "").trim() || "—";
-        const codigoFormateado = a.codigoActivo != null ? `OJ-02-${a.codigoActivo}` : "—";
-        const descripcion = String(a.descripcionActivo ?? a.descripcionactivo ?? "—").replace(/\s+/g, " ").trim() || "—";
-        return [String(idx + 1), codigoFormateado, rubroDesc, tipoDesc, descripcion, ubicacion, responsableName, ci];
-      });
+      toast({ title: "Generando PDF", description: `Construyendo reporte con ${rubrosOrdenados.length} rubros...` });
 
-      toast({ title: "Generando PDF", description: `Construyendo reporte con ${body.length} activos...` });
-
-      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "letter" });
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" });
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
       addLogo(doc);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(13);
-      doc.text("INVENTARIO GENERAL - ÓRGANO JUDICIAL", pageWidth / 2, 16, { align: "center" });
+      doc.text("REPORTE POR RUBRO - ÓRGANO JUDICIAL", pageWidth / 2, 16, { align: "center" });
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
-      doc.text(`Total activos: ${body.length}`, pageWidth / 2, 21, { align: "center" });
+      doc.text(`Total activos: ${allActivos.length} en ${rubrosOrdenados.length} rubros`, pageWidth / 2, 21, { align: "center" });
 
+      const tableWidth = 12 + 120 + 30;
+      const marginLeft = (pageWidth - tableWidth) / 2;
       autoTable(doc, {
         startY: 26,
-        head: [["N°", "Código Activo", "Rubro", "Tipo Rubro", "Descripción del Activo", "Ubicación", "Responsable", "Carnet"]],
+        head: [["N°", "Rubro", "Total Activos"]],
         body,
-        foot: [["", "", "", "", "", "", "TOTAL ACTIVOS", String(body.length)]],
+        foot: [["", "TOTAL GENERAL", String(allActivos.length)]],
         showFoot: "lastPage",
         theme: "striped",
-        styles: { font: "helvetica", fontSize: 6.5, cellPadding: 1.2, overflow: "linebreak", valign: "top" },
-        headStyles: { fillColor: [16, 70, 140], textColor: [255, 255, 255], halign: "center", valign: "middle", fontSize: 7, fontStyle: "bold" },
-        footStyles: { fillColor: [230, 240, 255], textColor: [16, 70, 140], halign: "center", fontStyle: "bold", fontSize: 7 },
+        tableWidth,
+        styles: { font: "helvetica", fontSize: 8, cellPadding: 1.8, overflow: "linebreak", valign: "middle" },
+        headStyles: { fillColor: [16, 70, 140], textColor: [255, 255, 255], halign: "center", fontStyle: "bold", fontSize: 8 },
+        footStyles: { fillColor: [230, 240, 255], textColor: [16, 70, 140], halign: "center", fontStyle: "bold", fontSize: 8 },
         columnStyles: {
           0: { cellWidth: 12, halign: "center" },
-          1: { cellWidth: 24, halign: "center", fontStyle: "bold" },
-          2: { cellWidth: 28, halign: "left" },
-          3: { cellWidth: 28, halign: "left" },
-          4: { cellWidth: "auto", halign: "left" },
-          5: { cellWidth: 52, halign: "left" },
-          6: { cellWidth: 36, halign: "left" },
-          7: { cellWidth: 20, halign: "center" },
+          1: { cellWidth: 120, halign: "left" },
+          2: { cellWidth: 30, halign: "center", fontStyle: "bold" },
         },
-        margin: { left: 10, right: 10, top: 26 },
-        didParseCell: (data) => {
-          // Mantener alineación consistente
-          if (data.section === "body" && data.column.index === 4) data.cell.styles.halign = "left";
-        },
+        margin: { left: marginLeft, right: marginLeft, top: 26 },
       });
 
       const totalPages = doc.getNumberOfPages();
@@ -235,10 +188,10 @@ export const useReporteInventarioGeneral = () => {
         doc.text(`Página ${i} de ${totalPages}`, pageWidth / 2, pageHeight - 7, { align: "center" });
       }
 
-      doc.save(`Inventario_General_ultimoregistro1.pdf`);
-      toast({ title: "Reporte generado", description: `Se exportaron ${body.length} activos ordenados por código.` });
+      doc.save(`Reporte_Por_Rubro.pdf`);
+      toast({ title: "Reporte generado", description: `Se exportaron ${allActivos.length} activos en ${rubrosOrdenados.length} rubros.` });
     } catch (err) {
-      console.error("Error generando Inventario General", err);
+      console.error("Error generando Reporte por Rubro", err);
       toast({ title: "Error", description: `No se pudo generar el reporte: ${formatError(err)}`, variant: "destructive" });
     } finally {
       setIsGenerating(false);
