@@ -733,6 +733,27 @@ export const useInventarioData = () => {
     return rows;
   }, []);
 
+  // Todos los activos en estado EN PROCESO (ultimoregistro=1), sin filtro de inventariador.
+  const loadEnProcesoTotal = useCallback(async () => {
+    const CHUNK = 1000;
+    let rows = [];
+    let start = 0;
+    for (;;) {
+      const { data, error } = await supabase
+        .from("act_activos")
+        .select(ACTIVO_COLUMNS)
+        .eq("ultimoregistro", 1)
+        .eq("estadoinventario", "EN PROCESO")
+        .order("codigoactivointerno", { ascending: true })
+        .range(start, start + CHUNK - 1);
+      if (error) throw error;
+      rows = rows.concat(data || []);
+      if (!data || data.length < CHUNK) break;
+      start += CHUNK;
+    }
+    return rows;
+  }, []);
+
   const loadTransferenciasPorCodigos = useCallback(async ({ codigosTransaccion = [] } = {}) => {
     const codes = [...new Set((codigosTransaccion || []).map((c) => String(c).trim()).filter(Boolean))];
     if (codes.length === 0) return [];
@@ -777,6 +798,7 @@ export const useInventarioData = () => {
     loadActivosPorFecha,
     loadEnProcesoAcumulado,
     loadActivosPorInventariador,
+    loadEnProcesoTotal,
     loadTransferenciasPorCodigos,
     loadCatalogos,
     loadActivos,

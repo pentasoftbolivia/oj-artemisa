@@ -37,6 +37,7 @@ const InventarioSummary = ({
   onSelectPendientes,
   onSelectRevisados,
   onSelectEnProceso,
+  onSelectEnProcesoTotal,
 }) => {
   const sortedStats = useMemo(
     () => [...(inventariadorStats || [])].sort((a, b) => ((b.pendiente || 0) + (b.revisado || 0)) - ((a.pendiente || 0) + (a.revisado || 0))),
@@ -46,6 +47,12 @@ const InventarioSummary = ({
   // Total inventariado = suma de (No revisados + Revisados) de todos los inventariadores
   const totalInventariado = useMemo(
     () => (inventariadorStats || []).reduce((s, st) => s + (st.pendiente || 0) + (st.revisado || 0), 0),
+    [inventariadorStats],
+  );
+
+  // Total de activos en estado EN PROCESO (suma por inventariador)
+  const totalEnProceso = useMemo(
+    () => (inventariadorStats || []).reduce((s, st) => s + (st.enProceso || 0), 0),
     [inventariadorStats],
   );
 
@@ -121,10 +128,21 @@ const InventarioSummary = ({
 
       <Card>
         <CardHeader className="pb-2 px-3 sm:px-6">
-          <CardTitle className="text-sm sm:text-base font-semibold flex items-center gap-2">
-            <Users className="h-4 w-4 shrink-0" />
-            Resumen por Inventariador
-          </CardTitle>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-sm sm:text-base font-semibold flex items-center gap-2">
+              <Users className="h-4 w-4 shrink-0" />
+              Resumen por Inventariador
+            </CardTitle>
+            <button
+              type="button"
+              onClick={() => onSelectEnProcesoTotal?.()}
+              disabled={!totalEnProceso}
+              className={`shrink-0 rounded-md border border-sky-200 dark:border-sky-900 bg-sky-50 dark:bg-sky-950/20 px-2.5 py-1 text-xs sm:text-sm font-bold text-sky-700 dark:text-sky-300 transition ${totalEnProceso ? "hover:bg-sky-100 dark:hover:bg-sky-900/30 cursor-pointer hover:shadow-sm" : "opacity-60 cursor-not-allowed"}`}
+              title={totalEnProceso ? "Ver detalle de activos en proceso" : "Sin activos en proceso"}
+            >
+              EN PROCESO: {totalEnProceso}
+            </button>
+          </div>
           {ubicacionLabel && (
             <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
               <span className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">

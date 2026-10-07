@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import LoadingSpinner from "@/components/ui/loading-spinner";
-import { Loader2, Package, X, FileSpreadsheet } from "lucide-react";
+import { Loader2, Package, X, FileDown, FileSpreadsheet } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { TablaActivos, SeccionActivos, PaginacionTabla } from "../components/InmuebleActivosTable";
@@ -12,6 +12,7 @@ import InventarioHeader from "../components/InventarioHeader";
 import InventarioInmuebleModal from "../components/InventarioInmuebleModal";
 import InventarioFechaModal from "../components/InventarioFechaModal";
 import { exportPanelesToExcel } from "../services/inventarioExport";
+import { exportInmueblePdf } from "../services/inmuebleExportUtils";
 
 import { useInventarioData } from "../hooks/useInventarioData";
 import { useUbicacionOptions } from "@/hooks/useUbicacionOptions";
@@ -20,6 +21,7 @@ import {
   normalizeCi,
   normalizeCiLoose,
   getCiPrefix,
+  INMUEBLE_ACTIVO_COLUMNAS_EN_PROCESO,
 } from "../constants/inventarioConstants";
 
 const InicioList = () => {
@@ -49,6 +51,7 @@ const InicioList = () => {
     loadActivosPorFecha,
     loadEnProcesoAcumulado,
     loadActivosPorInventariador,
+    loadEnProcesoTotal,
     loadTransferenciasPorCodigos,
     loadActivos,
     loadInitialData,
@@ -86,6 +89,7 @@ const InicioList = () => {
   const [usuarioModalPage, setUsuarioModalPage] = useState(1);
   const [isLoadingUsuarioModal, setIsLoadingUsuarioModal] = useState(false);
   const [isGeneratingUsuarioExcel, setIsGeneratingUsuarioExcel] = useState(false);
+  const [isGeneratingUsuarioPdf, setIsGeneratingUsuarioPdf] = useState(false);
 
   useEffect(() => {
     loadInitialData();
@@ -235,6 +239,17 @@ const InicioList = () => {
     ];
   };
 
+  // Fila para el modal EN PROCESO: base de 7 + Inventariador a la derecha
+  const mapEnProcesoRow = (a) => {
+    const invRaw = String(a.usuarioinventario ?? a.usuarioInventario ?? "").trim();
+    const invDisplay = invRaw ? getDisplayName(invRaw) || invRaw : "—";
+    return [...mapActivoRow(a), invDisplay];
+  };
+
+  // Solo el reporte total EN PROCESO lleva columna Inventariador (en los
+  // modales por inventariador ya se sabe quién es por el título)
+  const isEnProcesoTotalModal = usuarioModalTitle === "EN PROCESO — TOTAL";
+
   // Mapper exclusivo para Excel No Inventariados: desglosa Ambiente en 4 columnas + Estado/Usuario al final (12 cols) - texto exacto de BD
   const mapNoInventariadosRow = (a) => {
     const trId = a.tiporubroact ?? a.tipoRubroAct ?? "";
@@ -323,6 +338,23 @@ const InicioList = () => {
     }
   };
 
+  const handleShowEnProcesoTotal = async () => {
+    setUsuarioModalTitle("EN PROCESO — TOTAL");
+    setUsuarioModalList([]);
+    setUsuarioModalPage(1);
+    setIsUsuarioModalOpen(true);
+    setIsLoadingUsuarioModal(true);
+    try {
+      const data = await loadEnProcesoTotal();
+      setUsuarioModalList(data || []);
+    } catch (e) {
+      console.error("Error loading total en proceso:", e);
+      setUsuarioModalList([]);
+    } finally {
+      setIsLoadingUsuarioModal(false);
+    }
+  };
+
   const handleCloseUsuarioModal = () => {
     setIsUsuarioModalOpen(false);
     setUsuarioModalList([]);
@@ -336,8 +368,11 @@ const InicioList = () => {
     try {
       const isRevisados = usuarioModalTitle.startsWith("REVISADOS");
       const isEnProceso = usuarioModalTitle.startsWith("EN PROCESO");
-      const headers = ["Código", "Rubro", "Tipo Rubro", "Descripción", "Ambiente", "Responsable", "CI Responsable"];
-      const dataRows = usuarioModalList.map(mapActivoRow);
+      const isTotal = usuarioModalTitle === "EN PROCESO — TOTAL";
+      const headers = isTotal
+        ? ["Código", "Rubro", "Tipo Rubro", "Descripción", "Ambiente", "Responsable", "CI Responsable", "Inventariador"]
+        : ["Código", "Rubro", "Tipo Rubro", "Descripción", "Ambiente", "Responsable", "CI Responsable"];
+      const dataRows = usuarioModalList.map(isTotal ? mapEnProcesoRow : mapActivoRow);
       const inventariador = usuarioModalTitle.replace("REVISADOS — ", "").replace("NO REVISADOS — ", "").replace("EN PROCESO — ", "").replace("Activos Revisados — ", "").replace("Activos No Revisados — ", "").replace("Activos En Proceso — ", "").trim() || "Inventariador";
       const titulo = isRevisados ? "ACTIVOS REVISADOS" : isEnProceso ? "ACTIVOS EN PROCESO" : "ACTIVOS NO REVISADOS";
       const sheetData = [
@@ -350,7 +385,9 @@ const InicioList = () => {
         ...dataRows,
       ];
       const ws = XLSX.utils.aoa_to_sheet(sheetData);
-      ws["!cols"] = [{ wch: 14 }, { wch: 22 }, { wch: 22 }, { wch: 40 }, { wch: 30 }, { wch: 25 }, { wch: 14 }];
+      ws["!cols"] = isTotal
+        ? [{ wch: 14 }, { wch: 22 }, { wch: 22 }, { wch: 40 }, { wch: 30 }, { wch: 25 }, { wch: 14 }, { wch: 25 }]
+        : [{ wch: 14 }, { wch: 22 }, { wch: 22 }, { wch: 40 }, { wch: 30 }, { wch: 25 }, { wch: 14 }];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, isRevisados ? "Revisados" : isEnProceso ? "EnProceso" : "NoRevisados");
       const safeName = inventariador.replace(/[^a-zA-Z0-9]+/g, "_").slice(0, 30) || "Inventariador";
@@ -360,6 +397,35 @@ const InicioList = () => {
       console.error("Error generando Excel inventariador:", e);
     } finally {
       setIsGeneratingUsuarioExcel(false);
+    }
+  };
+
+  const handleExportUsuarioPdf = () => {
+    if (!usuarioModalList.length || isGeneratingUsuarioPdf) return;
+    setIsGeneratingUsuarioPdf(true);
+    try {
+      const isRevisados = usuarioModalTitle.startsWith("REVISADOS");
+      const isEnProceso = usuarioModalTitle.startsWith("EN PROCESO");
+      const isTotal = usuarioModalTitle === "EN PROCESO — TOTAL";
+      const inventariador = usuarioModalTitle.replace("REVISADOS — ", "").replace("NO REVISADOS — ", "").replace("EN PROCESO — ", "").replace("Activos Revisados — ", "").replace("Activos No Revisados — ", "").replace("Activos En Proceso — ", "").trim() || "Inventariador";
+      const titulo = isRevisados ? "ACTIVOS REVISADOS" : isEnProceso ? "ACTIVOS EN PROCESO" : "ACTIVOS NO REVISADOS";
+      const headerColor = isRevisados ? [22, 163, 74] : isEnProceso ? [2, 132, 199] : [234, 88, 12];
+      const prefix = isRevisados ? "Activos_Revisados" : isEnProceso ? "Activos_EnProceso" : "Activos_NoRevisados";
+      exportInmueblePdf({
+        title: titulo,
+        items: usuarioModalList,
+        ciudadName: "Todas",
+        inmuebleName: "Todos",
+        displayName: inventariador,
+        mapActivoRow: isTotal ? mapEnProcesoRow : mapActivoRow,
+        fileNamePrefix: prefix,
+        headerColor,
+        getUbicacionParts,
+      });
+    } catch (e) {
+      console.error("Error generando PDF inventariador:", e);
+    } finally {
+      setIsGeneratingUsuarioPdf(false);
     }
   };
 
@@ -385,6 +451,7 @@ const InicioList = () => {
         onSelectPendientes={handleShowPendientes}
         onSelectRevisados={handleShowRevisados}
         onSelectEnProceso={handleShowEnProceso}
+        onSelectEnProcesoTotal={handleShowEnProcesoTotal}
       />
 
       <InventarioInmuebleModal
@@ -429,7 +496,7 @@ const InicioList = () => {
       />
 
       <Dialog open={isUsuarioModalOpen} onOpenChange={(open) => !open && handleCloseUsuarioModal()}>
-        <DialogContent className="w-full max-w-[96vw] sm:max-w-[1200px] max-h-[92vh] sm:max-h-[85vh] flex flex-col p-3 sm:p-6 gap-3 overflow-hidden">
+        <DialogContent className="w-full max-w-[96vw] sm:max-w-[1200px] max-h-[92vh] supports-[height:100dvh]:max-h-[92dvh] sm:max-h-[85vh] flex flex-col p-3 sm:p-6 gap-3 overflow-hidden">
           <DialogHeader className="shrink-0 pr-6 space-y-1">
             <DialogTitle className="text-base sm:text-lg flex items-center gap-2 leading-tight">
               <Package className="h-5 w-5 text-blue-600 shrink-0" />
@@ -442,7 +509,7 @@ const InicioList = () => {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 min-h-0 flex flex-col overflow-y-auto overscroll-contain">
+          <div className="flex-1 min-h-0 flex flex-col overflow-y-auto overscroll-contain touch-pan-y">
             {isLoadingUsuarioModal ? (
               <div className="flex flex-col justify-center items-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -455,7 +522,11 @@ const InicioList = () => {
                 tituloClass={usuarioModalTitle.startsWith("REVISADOS") ? "text-green-600 dark:text-green-400" : usuarioModalTitle.startsWith("EN PROCESO") ? "text-sky-600 dark:text-sky-400" : "text-orange-600 dark:text-orange-400"}
                 headerClass={usuarioModalTitle.startsWith("REVISADOS") ? "bg-green-50 dark:bg-green-950/20" : usuarioModalTitle.startsWith("EN PROCESO") ? "bg-sky-50 dark:bg-sky-950/20" : "bg-orange-50 dark:bg-orange-950/20"}
               >
-                <TablaActivos items={usuarioPageData} mapRow={mapActivoRow} />
+                <TablaActivos
+                  items={usuarioPageData}
+                  mapRow={isEnProcesoTotalModal ? mapEnProcesoRow : mapActivoRow}
+                  columnas={isEnProcesoTotalModal ? INMUEBLE_ACTIVO_COLUMNAS_EN_PROCESO : undefined}
+                />
                 <PaginacionTabla
                   count={usuarioModalList.length}
                   mostrados={usuarioPageData.length}
@@ -474,14 +545,24 @@ const InicioList = () => {
           </div>
 
           <div className="flex flex-col sm:flex-row sm:justify-between gap-2 pt-3 sm:pt-4 shrink-0">
-            <Button
-              onClick={handleExportUsuarioExcel}
-              disabled={!usuarioModalList.length || isGeneratingUsuarioExcel || isLoadingUsuarioModal}
-              className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white min-h-11 sm:min-h-9 text-xs sm:text-sm order-1"
-            >
-              {isGeneratingUsuarioExcel ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileSpreadsheet className="h-4 w-4 mr-2" />}
-              Reporte en Excel
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto order-1">
+              <Button
+                onClick={handleExportUsuarioExcel}
+                disabled={!usuarioModalList.length || isGeneratingUsuarioExcel || isLoadingUsuarioModal}
+                className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white min-h-11 sm:min-h-9 text-xs sm:text-sm"
+              >
+                {isGeneratingUsuarioExcel ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileSpreadsheet className="h-4 w-4 mr-2" />}
+                Reporte en Excel
+              </Button>
+              <Button
+                onClick={handleExportUsuarioPdf}
+                disabled={!usuarioModalList.length || isGeneratingUsuarioPdf || isLoadingUsuarioModal}
+                className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white min-h-11 sm:min-h-9 text-xs sm:text-sm"
+              >
+                {isGeneratingUsuarioPdf ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileDown className="h-4 w-4 mr-2" />}
+                Reporte en PDF
+              </Button>
+            </div>
             <Button variant="outline" onClick={handleCloseUsuarioModal} className="w-full sm:w-auto min-h-11 sm:min-h-9 order-2">
               <X className="h-4 w-4 mr-2" />
               Cerrar

@@ -48,6 +48,18 @@ export const INMUEBLE_ACTIVO_COLUMNAS_PENDIENTES = [
   { head: "Usuario Inventario", headClass: "w-[160px]", cellClass: "text-xs whitespace-normal break-words max-w-[160px]" },
 ];
 
+// Columnas para el modal de activos EN PROCESO: base de 7 + Inventariador a la derecha
+export const INMUEBLE_ACTIVO_COLUMNAS_EN_PROCESO = [
+  { head: "Código", headClass: "w-[90px]", cellClass: "font-mono text-xs" },
+  { head: "Rubro", headClass: "w-[110px]", cellClass: "text-xs whitespace-normal break-words max-w-[110px]" },
+  { head: "Tipo Rubro", headClass: "w-[110px]", cellClass: "text-xs whitespace-normal break-words max-w-[110px]" },
+  { head: "Descripción", headClass: "w-[200px]", cellClass: "text-xs whitespace-normal break-words max-w-[200px]" },
+  { head: "Ambiente", headClass: "w-[180px]", cellClass: "text-xs whitespace-normal break-words max-w-[180px]" },
+  { head: "Responsable", headClass: "w-[150px]", cellClass: "text-xs whitespace-normal break-words max-w-[150px]" },
+  { head: "CI Responsable", headClass: "w-[90px]", cellClass: "font-mono text-xs" },
+  { head: "Inventariador", headClass: "w-[160px]", cellClass: "text-xs whitespace-normal break-words max-w-[160px]" },
+];
+
 export const RUBRO_FIELDS_RAW = {
   "EQUIPO EDUCACIONAL Y RECREATIVO": [
     { key: "modelo", label: "Modelo" },

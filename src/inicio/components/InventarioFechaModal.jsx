@@ -305,7 +305,7 @@ const InventarioFechaModal = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="w-full max-w-[96vw] sm:max-w-[1080px] max-h-[92vh] sm:max-h-[90vh] flex flex-col p-3 sm:p-6 gap-3 overflow-hidden">
+      <DialogContent className="w-full max-w-[96vw] sm:max-w-[1080px] max-h-[92vh] supports-[height:100dvh]:max-h-[92dvh] sm:max-h-[90vh] flex flex-col p-3 sm:p-6 gap-3 overflow-hidden">
         <DialogHeader className="shrink-0 pr-6 space-y-1">
           <DialogTitle className="text-base sm:text-xl flex items-center gap-2 leading-tight">
             <CalendarDays className="h-5 w-5 shrink-0" />
@@ -397,7 +397,7 @@ const InventarioFechaModal = ({
             </p>
           </div>
         ) : sortedResult ? (
-          <div className="flex-1 min-h-0 overflow-auto overscroll-contain space-y-0">
+          <div className="flex-1 min-h-0 overflow-auto overscroll-contain touch-pan-y space-y-0">
             {sortedResult.length === 0 ? (
               <div className="border rounded-md text-center text-muted-foreground py-8 text-sm">
                 No se encontraron activos en el rango de fechas seleccionado.

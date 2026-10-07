@@ -93,15 +93,18 @@ export const exportInmueblePdf = ({
 
   const body = sortedItems.map(mapActivoRow);
   const isPendientesPdf = body.length > 0 && body[0].length === 9;
+  const isEnProcesoPdf = body.length > 0 && body[0].length === 8;
 
   autoTable(doc, {
     startY,
     head: isPendientesPdf
       ? [["Código", "Rubro", "Tipo Rubro", "Descripción", "Ambiente", "Responsable", "CI Responsable", "Estado Inventario", "Usuario Inventario"]]
-      : [["Código", "Rubro", "Tipo Rubro", "Descripción", "Ambiente", "Responsable", "CI Responsable"]],
+      : isEnProcesoPdf
+        ? [["Código", "Rubro", "Tipo Rubro", "Descripción", "Ambiente", "Responsable", "CI Responsable", "Inventariador"]]
+        : [["Código", "Rubro", "Tipo Rubro", "Descripción", "Ambiente", "Responsable", "CI Responsable"]],
     body,
     theme: "striped",
-    styles: { font: "helvetica", fontSize: isPendientesPdf ? 6 : 7, cellPadding: 1.2, overflow: "linebreak" },
+    styles: { font: "helvetica", fontSize: isPendientesPdf || isEnProcesoPdf ? 6 : 7, cellPadding: 1.2, overflow: "linebreak" },
     headStyles: { fillColor: headerColor, textColor: [255, 255, 255], halign: "center" },
     columnStyles: isPendientesPdf
       ? {
@@ -115,7 +118,18 @@ export const exportInmueblePdf = ({
           7: { cellWidth: 22, halign: "center" },
           8: { cellWidth: 32 },
         }
-      : {
+      : isEnProcesoPdf
+        ? {
+            0: { cellWidth: 24 },
+            1: { cellWidth: 26 },
+            2: { cellWidth: 26 },
+            3: { cellWidth: "auto" },
+            4: { cellWidth: 38 },
+            5: { cellWidth: 32 },
+            6: { cellWidth: 20, halign: "center" },
+            7: { cellWidth: 34 },
+          }
+        : {
           0: { cellWidth: 28 },
           1: { cellWidth: 30 },
           2: { cellWidth: 30 },

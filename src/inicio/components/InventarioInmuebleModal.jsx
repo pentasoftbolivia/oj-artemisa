@@ -786,7 +786,7 @@ const InventarioInmuebleModal = ({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-        <DialogContent className="w-full max-w-[96vw] sm:max-w-[1200px] max-h-[92vh] sm:max-h-[90vh] flex flex-col p-3 sm:p-6 gap-3 sm:gap-4 overflow-hidden">
+        <DialogContent className="w-full max-w-[96vw] sm:max-w-[1200px] max-h-[92vh] supports-[height:100dvh]:max-h-[92dvh] sm:max-h-[90vh] flex flex-col p-3 sm:p-6 gap-3 sm:gap-4 overflow-hidden">
           <DialogHeader className="shrink-0 space-y-1.5 sm:space-y-2 pr-6">
             <DialogTitle className="text-base sm:text-xl flex items-center gap-2 leading-tight">
               <Building2 className="h-5 w-5 shrink-0" />
@@ -797,7 +797,7 @@ const InventarioInmuebleModal = ({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 min-h-0 flex flex-col my-1 sm:my-2 space-y-3 sm:space-y-4 overflow-y-auto overscroll-contain pr-1 -mr-1">
+          <div className="flex-1 min-h-0 flex flex-col my-1 sm:my-2 space-y-3 sm:space-y-4 overflow-y-auto overscroll-contain touch-pan-y pr-1 -mr-1">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <ComboboxField
                 label="Ciudad"
@@ -1285,7 +1285,7 @@ const InventarioInmuebleModal = ({
       </Dialog>
 
       <Dialog open={inventariadosOpen} onOpenChange={(open) => !open && handleCloseInventariados()}>
-        <DialogContent className="w-full max-w-[96vw] sm:max-w-[1200px] max-h-[92vh] sm:max-h-[85vh] flex flex-col p-3 sm:p-6 gap-3 overflow-hidden">
+        <DialogContent className="w-full max-w-[96vw] sm:max-w-[1200px] max-h-[92vh] supports-[height:100dvh]:max-h-[92dvh] sm:max-h-[85vh] flex flex-col p-3 sm:p-6 gap-3 overflow-hidden">
           <DialogHeader className="shrink-0 pr-6 space-y-1">
             <DialogTitle className="text-base sm:text-lg flex items-center gap-2 leading-tight">
               <Package className="h-5 w-5 text-green-600 shrink-0" />
@@ -1298,7 +1298,7 @@ const InventarioInmuebleModal = ({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 min-h-0 flex flex-col overflow-y-auto overscroll-contain">
+          <div className="flex-1 min-h-0 flex flex-col overflow-y-auto overscroll-contain touch-pan-y">
             {isLoadingInventariados ? (
               <div className="flex flex-col justify-center items-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -1339,7 +1339,7 @@ const InventarioInmuebleModal = ({
       </Dialog>
 
       <Dialog open={enProcesoOpen} onOpenChange={(open) => !open && handleCloseEnProceso()}>
-        <DialogContent className="w-full max-w-[96vw] sm:max-w-[1200px] max-h-[92vh] sm:max-h-[85vh] flex flex-col p-3 sm:p-6 gap-3 overflow-hidden">
+        <DialogContent className="w-full max-w-[96vw] sm:max-w-[1200px] max-h-[92vh] supports-[height:100dvh]:max-h-[92dvh] sm:max-h-[85vh] flex flex-col p-3 sm:p-6 gap-3 overflow-hidden">
           <DialogHeader className="shrink-0 pr-6 space-y-1">
             <DialogTitle className="text-base sm:text-lg flex items-center gap-2 leading-tight">
               <Package className="h-5 w-5 text-yellow-600 shrink-0" />
@@ -1352,7 +1352,7 @@ const InventarioInmuebleModal = ({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 min-h-0 flex flex-col overflow-y-auto overscroll-contain">
+          <div className="flex-1 min-h-0 flex flex-col overflow-y-auto overscroll-contain touch-pan-y">
             {isLoadingEnProceso ? (
               <div className="flex flex-col justify-center items-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -1405,7 +1405,7 @@ const InventarioInmuebleModal = ({
       </Dialog>
 
       <Dialog open={detalleInmuebleOpen} onOpenChange={(open) => !open && handleCloseDetalleInmueble()}>
-        <DialogContent className="w-full max-w-[96vw] sm:max-w-[1200px] max-h-[92vh] sm:max-h-[90vh] flex flex-col p-3 sm:p-6 gap-3 overflow-hidden">
+        <DialogContent className="w-full max-w-[96vw] sm:max-w-[1200px] max-h-[92vh] supports-[height:100dvh]:max-h-[92dvh] sm:max-h-[90vh] flex flex-col p-3 sm:p-6 gap-3 overflow-hidden">
           <DialogHeader className="shrink-0 pr-6 space-y-1">
             <DialogTitle className="text-base sm:text-lg flex items-center gap-2 leading-tight">
               <Building2 className="h-5 w-5 text-blue-600 shrink-0" />
@@ -1419,7 +1419,7 @@ const InventarioInmuebleModal = ({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-3 sm:space-y-4 pr-1 -mr-1">
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y space-y-3 sm:space-y-4 pr-1 -mr-1">
             {isLoadingDetalleInmueble ? (
               <div className="flex flex-col justify-center items-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />

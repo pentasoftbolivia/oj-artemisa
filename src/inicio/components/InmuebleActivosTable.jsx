@@ -40,6 +40,7 @@ export const TablaActivos = ({ items, mapRow, columnas }) => {
         {items.map((a, i) => {
           const row = mapRow(a);
           const [codigo, rubro, tipoRubro, descripcion, ambiente, responsable, ci, estadoInv, usuarioInv] = row;
+          const inventariador = !isPendientes && row.length === 8 ? row[7] : null;
           return (
             <div key={i} className="rounded-lg border bg-card p-3 space-y-2 shadow-sm">
               <div className="flex items-start justify-between gap-2">
@@ -79,6 +80,14 @@ export const TablaActivos = ({ items, mapRow, columnas }) => {
                     <div className="break-words truncate" title={usuarioInv || ""}>
                       {usuarioInv || "—"}
                     </div>
+                  </div>
+                </div>
+              )}
+              {inventariador && (
+                <div className="space-y-1 pt-2 border-t text-xs">
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Inventariador</div>
+                  <div className="break-words font-medium" title={inventariador || ""}>
+                    {inventariador || "—"}
                   </div>
                 </div>
               )}
