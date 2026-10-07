@@ -208,7 +208,7 @@ const InicioList = () => {
   );
 
   const progressLevel = useMemo(() => {
-    if (totalStats.progreso >= 80) return "high";
+    if (totalStats.progreso >= 65) return "high";
     if (totalStats.progreso >= 50) return "mid";
     return "low";
   }, [totalStats.progreso]);

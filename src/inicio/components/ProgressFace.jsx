@@ -87,7 +87,7 @@ const MidFace = () => (
 );
 
 const HighFace = () => (
-  <FaceBase title="Has llegado al 80%">
+  <FaceBase title="Has llegado al 65%">
     <path
       d="M 20 34 Q 30 28 40 33"
       stroke="#4a2c14"
