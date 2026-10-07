@@ -62,7 +62,7 @@ CIUDAD_ORDEN.forEach((name, idx) => { ciudadOrdenMap[name] = idx; });
 /**
  * Genera el Reporte Faltantes en Excel (como Por Ubicación pero con faltantes).
  * Lógica: ultimoregistro=1 y estadoinventario vacío/nulo, por ciudad y código:
- * [N°, Ciudad, Código Activo, Rubro, Tipo Rubro, Descripción, Ubicación, Responsable, Carnet]
+ * [N°, Ciudad, Código Activo, Rubro, Tipo Rubro, Descripción, Inmueble, Nivel, Ambiente, Responsable, Carnet]
  * Hojas: "Resumen" (totales por ciudad) y "Activos" (detalle).
  */
 export const useReporteFaltantesExcel = () => {
@@ -106,6 +106,7 @@ export const useReporteFaltantesExcel = () => {
       (ciudades || []).forEach((c) => { ciudadMap[String(c.codigociudad ?? "").trim()] = c; });
 
       const ubicacionJerarquiaMap = {};
+      const ubicacionPartsMap = {};
       const ciudadPorAmbiente = {};
       (ambientes || []).forEach((a) => {
         const code = String(a.codigoambiente ?? "").trim();
@@ -131,6 +132,12 @@ export const useReporteFaltantesExcel = () => {
             .map((s) => (s || "").trim())
             .filter(Boolean)
             .join(" / ") || String(code);
+        ubicacionPartsMap[code] = {
+          ciudad: String(ciudadLabelUbic ?? "").trim() || "—",
+          inmueble: String(inmueble?.inmueble ?? "").trim() || "—",
+          nivel: String(nivel?.nivel ?? "").trim() || "—",
+          ambiente: String(a.ambiente ?? "").trim() || "—",
+        };
       });
 
       const responsableMap = {};
@@ -242,12 +249,15 @@ export const useReporteFaltantesExcel = () => {
         const ambCode = String(a.codigoAmbiente ?? "").trim();
         const ciudad = (ciudadPorAmbiente[ambCode] || "SIN CIUDAD").toUpperCase();
         const label = ciudad === "SIN CIUDAD" ? "SIN CIUDAD" : CIUDAD_ORDEN.find((c) => c === ciudad) || ciudad;
-        const ubicacion = ubicacionJerarquiaMap[ambCode] || ambCode || "—";
+        const parts = ubicacionPartsMap[ambCode];
+        const inmueble = parts?.inmueble || "—";
+        const nivel = parts?.nivel || "—";
+        const ambiente = parts?.ambiente || ambCode || "—";
         const responsableName = resolveResponsableName(a.cirun);
         const ci = String(a.cirun ?? "").trim() || "—";
         const codigoFormateado = a.codigoActivo != null ? `OJ-02-${a.codigoActivo}` : "—";
         const descripcion = String(a.descripcionActivo ?? a.descripcionactivo ?? "—").replace(/\s+/g, " ").trim() || "—";
-        return [n, label, codigoFormateado, rubroDesc, tipoDesc, descripcion, ubicacion, responsableName, ci];
+        return [n, label, codigoFormateado, rubroDesc, tipoDesc, descripcion, inmueble, nivel, ambiente, responsableName, ci];
       };
 
       // Hoja Resumen
@@ -276,7 +286,7 @@ export const useReporteFaltantesExcel = () => {
         [`Total activos faltantes: ${allActivos.length} (ultimoregistro=1, estadoinventario vacío/nulo, ordenados por ciudad y código)`],
         [`Fecha: ${dateStr}`],
         [],
-        ["N°", "Ciudad", "Código Activo", "Rubro", "Tipo Rubro", "Descripción del Activo", "Ubicación", "Responsable", "Carnet"],
+        ["N°", "Ciudad", "Código Activo", "Rubro", "Tipo Rubro", "Descripción del Activo", "Inmueble", "Nivel", "Ambiente", "Responsable", "Carnet"],
         ...detalleRows,
       ];
 
@@ -284,7 +294,7 @@ export const useReporteFaltantesExcel = () => {
       const wsResumen = XLSX.utils.aoa_to_sheet(resumenSheet);
       wsResumen["!cols"] = [{ wch: 6 }, { wch: 30 }, { wch: 16 }];
       const wsDetalle = XLSX.utils.aoa_to_sheet(detalleSheet);
-      wsDetalle["!cols"] = [{ wch: 7 }, { wch: 24 }, { wch: 16 }, { wch: 28 }, { wch: 28 }, { wch: 50 }, { wch: 55 }, { wch: 30 }, { wch: 16 }];
+      wsDetalle["!cols"] = [{ wch: 7 }, { wch: 24 }, { wch: 16 }, { wch: 28 }, { wch: 28 }, { wch: 50 }, { wch: 28 }, { wch: 18 }, { wch: 28 }, { wch: 30 }, { wch: 16 }];
       XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen");
       XLSX.utils.book_append_sheet(wb, wsDetalle, "Activos");
       XLSX.writeFile(wb, `Reporte_Faltantes_Por_Ubicacion_${dateStr}.xlsx`);

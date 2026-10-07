@@ -24,7 +24,7 @@ const formatError = (err) => {
  * Genera el Inventario General en Excel.
  * Mismos datos y orden que el PDF (ultimoregistro=1 y estadoinventario no vacío,
  * ordenados por código):
- * [Código Activo, Rubro, Tipo Rubro, Descripción, Ubicación, Responsable, Carnet]
+ * [Código Activo, Rubro, Tipo Rubro, Descripción, Ciudad, Inmueble, Nivel, Ambiente, Responsable, Carnet]
  */
 export const useReporteInventarioGeneralExcel = () => {
   const { toast } = useToast();
@@ -67,6 +67,7 @@ export const useReporteInventarioGeneralExcel = () => {
       (ciudades || []).forEach((c) => { ciudadMap[String(c.codigociudad ?? "").trim()] = c; });
 
       const ubicacionJerarquiaMap = {};
+      const ubicacionPartsMap = {};
       const ciudadPorAmbiente = {};
       (ambientes || []).forEach((a) => {
         const code = String(a.codigoambiente ?? "").trim();
@@ -80,6 +81,12 @@ export const useReporteInventarioGeneralExcel = () => {
             .map((s) => (s || "").trim())
             .filter(Boolean)
             .join(" / ") || String(code);
+        ubicacionPartsMap[code] = {
+          ciudad: String(ciudad?.descripcion ?? "").trim() || "—",
+          inmueble: String(inmueble?.inmueble ?? "").trim() || "—",
+          nivel: String(nivel?.nivel ?? "").trim() || "—",
+          ambiente: String(a.ambiente ?? "").trim() || "—",
+        };
         let ciudadDesc = String(ciudad?.descripcion ?? "").trim().toUpperCase();
         if (inmuebleCode === "2309" && ciudadDesc === "LA PAZ") ciudadDesc = "ACHOCALLA";
         else if (inmuebleCode === "2327" && ciudadDesc === "LA PAZ") ciudadDesc = "LAJA";
@@ -168,17 +175,21 @@ export const useReporteInventarioGeneralExcel = () => {
         const tipoDesc = tipoRubroDescMap[a.tipoRubroAct] ?? tipoRubroDescMap[String(a.tipoRubroAct)] ?? "—";
         const rubroDesc = rubroFromTipo[a.tipoRubroAct] ?? rubroFromTipo[String(a.tipoRubroAct)] ?? "—";
         const ambCode = String(a.codigoAmbiente ?? "").trim();
-        const ubicacion = ubicacionJerarquiaMap[ambCode] || ambCode || "—";
+        const parts = ubicacionPartsMap[ambCode];
+        const ciudad = parts?.ciudad || "—";
+        const inmueble = parts?.inmueble || "—";
+        const nivel = parts?.nivel || "—";
+        const ambiente = parts?.ambiente || ambCode || "—";
         const responsableName = resolveResponsableName(a.cirun);
         const ci = String(a.cirun ?? "").trim() || "—";
         const codigoFormateado = a.codigoActivo != null ? `OJ-02-${a.codigoActivo}` : "—";
         const descripcion = String(a.descripcionActivo ?? a.descripcionactivo ?? "—").replace(/\s+/g, " ").trim() || "—";
-        return [codigoFormateado, rubroDesc, tipoDesc, descripcion, ubicacion, responsableName, ci];
+        return [codigoFormateado, rubroDesc, tipoDesc, descripcion, ciudad, inmueble, nivel, ambiente, responsableName, ci];
       });
 
       toast({ title: "Generando Excel", description: `Construyendo reporte con ${dataRows.length} activos...` });
 
-      const headers = ["Código Activo", "Rubro", "Tipo Rubro", "Descripción del Activo", "Ubicación", "Responsable", "Carnet"];
+      const headers = ["Código Activo", "Rubro", "Tipo Rubro", "Descripción del Activo", "Ciudad", "Inmueble", "Nivel", "Ambiente", "Responsable", "Carnet"];
       const sheetData = [
         ["INVENTARIO GENERAL - ÓRGANO JUDICIAL"],
         [`Total activos: ${dataRows.length} (ultimoregistro=1, estadoinventario no vacío, ordenados por código)`],
@@ -188,10 +199,10 @@ export const useReporteInventarioGeneralExcel = () => {
       ];
 
       const ws = XLSX.utils.aoa_to_sheet(sheetData);
-      ws["!cols"] = [{ wch: 16 }, { wch: 28 }, { wch: 28 }, { wch: 50 }, { wch: 55 }, { wch: 30 }, { wch: 16 }];
+      ws["!cols"] = [{ wch: 16 }, { wch: 28 }, { wch: 28 }, { wch: 50 }, { wch: 22 }, { wch: 28 }, { wch: 18 }, { wch: 28 }, { wch: 30 }, { wch: 16 }];
       // Congelar encabezado (fila 4) para facilitar lectura
       ws["!freeze"] = "A4";
-      ws["!autofilter"] = { ref: `A4:G${sheetData.length}` };
+      ws["!autofilter"] = { ref: `A4:J${sheetData.length}` };
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Inventario General");
       XLSX.writeFile(wb, `Inventario_General_ultimoregistro1.xlsx`);
