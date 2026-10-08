@@ -20,6 +20,8 @@ export const useRevaluoData = () => {
           .from("act_activos")
           .select(ACTIVO_COLUMNS)
           .eq("pararevaluo", true)
+          .not("estadoinventario", "is", null)
+          .neq("estadoinventario", "")
           .order("codigoactivointerno", { ascending: true })
           .range(start, start + CHUNK_SIZE - 1);
 
@@ -30,6 +32,8 @@ export const useRevaluoData = () => {
         if (list.length < CHUNK_SIZE) break;
         start += CHUNK_SIZE;
       }
+      // Refuerzo en cliente: excluir NULL, vacío o solo espacios
+      rows = rows.filter((r) => String(r.estadoinventario ?? "").trim() !== "");
       setData(rows);
     } catch (err) {
       setError(err.message || "Error al cargar activos para revalúo");

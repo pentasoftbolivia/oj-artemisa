@@ -13,6 +13,10 @@ import { useReporteFaltantes } from "@/inicio/hooks/useReporteFaltantes";
 import { useReporteFaltantesExcel } from "@/inicio/hooks/useReporteFaltantesExcel";
 import { useReporteCostoActualizado } from "@/inicio/hooks/useReporteCostoActualizado";
 import { useReporteCostoActualizadoExcel } from "@/inicio/hooks/useReporteCostoActualizadoExcel";
+import { useReporteParaRevaluo } from "@/inicio/hooks/useReporteParaRevaluo";
+import { useReporteParaRevaluoExcel } from "@/inicio/hooks/useReporteParaRevaluoExcel";
+import { useReporteReclasificarRubro } from "@/inicio/hooks/useReporteReclasificarRubro";
+import { useReporteReclasificarRubroExcel } from "@/inicio/hooks/useReporteReclasificarRubroExcel";
 
 const ALLOWED_RESTRICTED_REPORT_EMAIL = "javiercostasaliaga@gmail.com";
 
@@ -31,8 +35,12 @@ const ReportesList = () => {
   const { generate: generateFaltantesExcel, isGenerating: isGeneratingFaltantesExcel } = useReporteFaltantesExcel();
   const { generate: generateCosto, isGenerating: isGeneratingCosto } = useReporteCostoActualizado();
   const { generate: generateCostoExcel, isGenerating: isGeneratingCostoExcel } = useReporteCostoActualizadoExcel();
+  const { generate: generateParaRevaluo, isGenerating: isGeneratingParaRevaluo } = useReporteParaRevaluo();
+  const { generate: generateParaRevaluoExcel, isGenerating: isGeneratingParaRevaluoExcel } = useReporteParaRevaluoExcel();
+  const { generate: generateReclasificar, isGenerating: isGeneratingReclasificar } = useReporteReclasificarRubro();
+  const { generate: generateReclasificarExcel, isGenerating: isGeneratingReclasificarExcel } = useReporteReclasificarRubroExcel();
 
-  const busy = isGeneratingGeneral || isGeneratingGeneralExcel || isGeneratingUbicacion || isGeneratingUbicacionExcel || isGeneratingRubro || isGeneratingRubroExcel || isGeneratingFaltantes || isGeneratingFaltantesExcel || isGeneratingCosto || isGeneratingCostoExcel;
+  const busy = isGeneratingGeneral || isGeneratingGeneralExcel || isGeneratingUbicacion || isGeneratingUbicacionExcel || isGeneratingRubro || isGeneratingRubroExcel || isGeneratingFaltantes || isGeneratingFaltantesExcel || isGeneratingCosto || isGeneratingCostoExcel || isGeneratingParaRevaluo || isGeneratingParaRevaluoExcel || isGeneratingReclasificar || isGeneratingReclasificarExcel;
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -165,6 +173,66 @@ const ReportesList = () => {
                 )}
                 REPORTE FALTANTES EXCEL
               </Button>
+              <div className="flex flex-col gap-2">
+                <Button
+                  onClick={generateParaRevaluo}
+                  disabled={busy}
+                  className="w-full justify-center bg-amber-700 hover:bg-amber-800 text-white min-h-11 text-xs sm:text-sm"
+                  aria-label="Generar Activos para Revalúo en PDF"
+                  title="PDF con todos los activos pararevaluo=true: totales, con dato en estadoinventario y faltantes sin dato"
+                >
+                  {isGeneratingParaRevaluo ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <FileDown className="h-4 w-4 mr-2" />
+                  )}
+                  ACTIVOS PARA REVALUO
+                </Button>
+                <Button
+                  onClick={generateParaRevaluoExcel}
+                  disabled={busy}
+                  className="w-full justify-center bg-green-700 hover:bg-green-800 text-white min-h-11 text-xs sm:text-sm"
+                  aria-label="Generar Activos para Revalúo en Excel"
+                  title="Excel con todos los activos pararevaluo=true: Resumen, ConEstado y Faltantes"
+                >
+                  {isGeneratingParaRevaluoExcel ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                  )}
+                  ACTIVOS PARA REVALUO EXCEL
+                </Button>
+              </div>
+              <div className="flex flex-col gap-2">
+                <Button
+                  onClick={generateReclasificar}
+                  disabled={busy}
+                  className="w-full justify-center bg-orange-700 hover:bg-orange-800 text-white min-h-11 text-xs sm:text-sm"
+                  aria-label="Generar Reclasificar el Rubro en PDF"
+                  title="PDF con activos vigentes a reclasificar: tipo no canónico -> destino por mayoría"
+                >
+                  {isGeneratingReclasificar ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <FileDown className="h-4 w-4 mr-2" />
+                  )}
+                  RECLASIFICAR EL RUBRO
+                </Button>
+                <Button
+                  onClick={generateReclasificarExcel}
+                  disabled={busy}
+                  className="w-full justify-center bg-green-700 hover:bg-green-800 text-white min-h-11 text-xs sm:text-sm"
+                  aria-label="Generar Reclasificar el Rubro en Excel"
+                  title="Excel con activos vigentes a reclasificar: hojas Resumen y Detalle"
+                >
+                  {isGeneratingReclasificarExcel ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                  )}
+                  RECLASIFICAR EL RUBRO EXCEL
+                </Button>
+              </div>
               <div className="flex flex-col gap-2">
                 <Button
                   onClick={generateCosto}

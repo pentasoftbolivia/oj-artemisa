@@ -48,15 +48,17 @@ export const generateRevaluoReportWithPhotos = async ({ activos = [], onProgress
   // Header
   addLogo(doc);
   doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.text("INFORME TECNICO", pageWidth / 2, 10, { align: "center" });
   doc.setFontSize(13);
-  doc.text("REPORTE DE ACTIVOS PARA REVALÚO", pageWidth / 2, 12, { align: "center" });
+  doc.text("REPORTE DE ACTIVOS PARA REVALÚO", pageWidth / 2, 16, { align: "center" });
   doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
-  doc.text(`Total activos: ${activos.length}  |  Fecha: ${new Date().toLocaleString("es-BO")}`, pageWidth / 2, 18, { align: "center" });
+  doc.text(`Total activos: ${activos.length}`, pageWidth / 2, 21, { align: "center" });
   doc.setDrawColor(200);
-  doc.line(margin, 20, pageWidth - margin, 20);
+  doc.line(margin, 23, pageWidth - margin, 23);
 
-  let y = 24;
+  let y = 27;
 
   const checkPage = (needed = 40) => {
     if (y + needed > pageHeight - 15) {
@@ -317,24 +319,26 @@ export const generateRevaluoLotesPDFReport = async ({
 
   addLogo(doc);
   doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.text("INFORME TECNICO", pageWidth / 2, 10, { align: "center" });
   doc.setFontSize(13);
-  doc.text(tituloReporte, pageWidth / 2, 12, { align: "center" });
+  doc.text(tituloReporte, pageWidth / 2, 16, { align: "center" });
   doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
-  doc.text(`Total proyecto: ${totalEnProyecto}  |  Lote del ${loteDesde} al ${loteHasta} (${activos.length})  |  Fecha: ${new Date().toLocaleString("es-BO")}`, pageWidth / 2, 18, { align: "center" });
+  doc.text(`Total proyecto: ${totalEnProyecto}  |  Lote del ${loteDesde} al ${loteHasta} (${activos.length})`, pageWidth / 2, 21, { align: "center" });
   if (filtrosResumen) {
     const filterLines = doc.splitTextToSize(`Filtros: ${filtrosResumen}`, contentWidth);
     const filterToShow = filterLines.slice(0, 2);
     doc.setFontSize(7);
-    doc.text(filterToShow, pageWidth / 2, 22, { align: "center" });
+    doc.text(filterToShow, pageWidth / 2, 25, { align: "center" });
     doc.setDrawColor(200);
-    doc.line(margin, 22 + filterToShow.length * 3.5, pageWidth - margin, 22 + filterToShow.length * 3.5);
+    doc.line(margin, 25 + filterToShow.length * 3.5, pageWidth - margin, 25 + filterToShow.length * 3.5);
   } else {
     doc.setDrawColor(200);
-    doc.line(margin, 20, pageWidth - margin, 20);
+    doc.line(margin, 23, pageWidth - margin, 23);
   }
 
-  let y = filtrosResumen ? 28 : 24;
+  let y = filtrosResumen ? 31 : 27;
 
   const checkPage = (needed = 40) => {
     if (y + needed > pageHeight - 15) {
@@ -705,27 +709,34 @@ export const generateRevaluoFaltantesReport = async ({
   const wb = new ExcelJS.Workbook();
   wb.creator = "Órgano Judicial";
   const wsExcel = wb.addWorksheet("SinFotos", {
-    views: [{ state: "frozen", ySplit: filtrosResumen ? 4 : 3 }],
+    views: [{ state: "frozen", ySplit: filtrosResumen ? 5 : 4 }],
   });
   wsExcel.columns = columns;
 
   const totalCols = columns.length;
   wsExcel.mergeCells(1, 1, 1, totalCols);
-  const titleCell = wsExcel.getCell(1, 1);
-  titleCell.value = `${tituloReporte} - Total: ${sorted.length} | Fecha: ${new Date().toLocaleString("es-BO")}`;
-  titleCell.font = { bold: true, size: 12 };
-  titleCell.alignment = { horizontal: "center", vertical: "middle" };
+  const informeCell = wsExcel.getCell(1, 1);
+  informeCell.value = "INFORME TECNICO";
+  informeCell.font = { bold: true, size: 12 };
+  informeCell.alignment = { horizontal: "center", vertical: "middle" };
   wsExcel.getRow(1).height = 22;
 
-  let headerRowNumber = 2;
+  wsExcel.mergeCells(2, 1, 2, totalCols);
+  const titleCell = wsExcel.getCell(2, 1);
+  titleCell.value = `${tituloReporte} - Total: ${sorted.length}`;
+  titleCell.font = { bold: true, size: 12 };
+  titleCell.alignment = { horizontal: "center", vertical: "middle" };
+  wsExcel.getRow(2).height = 22;
+
+  let headerRowNumber = 3;
   if (filtrosResumen) {
-    wsExcel.mergeCells(2, 1, 2, totalCols);
-    const filterCell = wsExcel.getCell(2, 1);
+    wsExcel.mergeCells(3, 1, 3, totalCols);
+    const filterCell = wsExcel.getCell(3, 1);
     filterCell.value = `Filtros: ${filtrosResumen}`;
     filterCell.font = { italic: true, size: 10 };
     filterCell.alignment = { horizontal: "center", vertical: "middle" };
-    wsExcel.getRow(2).height = 18;
-    headerRowNumber = 3;
+    wsExcel.getRow(3).height = 18;
+    headerRowNumber = 4;
   }
 
   // Fila de agrupadas; se dibuja tras estilar los encabezados
@@ -996,28 +1007,35 @@ export const generateRevaluoReportSimple = async ({
   const wb = new ExcelJS.Workbook();
   wb.creator = "Órgano Judicial";
   const wsExcel = wb.addWorksheet("Revaluo", {
-    views: [{ state: "frozen", ySplit: filtrosResumen ? 4 : 3 }],
+    views: [{ state: "frozen", ySplit: filtrosResumen ? 5 : 4 }],
   });
   wsExcel.columns = columns;
 
   const totalCols = columns.length;
-  const titleText = `${tituloReporte} - Total: ${sorted.length} | Fecha: ${new Date().toLocaleString("es-BO")}`;
   wsExcel.mergeCells(1, 1, 1, totalCols);
-  const titleCell = wsExcel.getCell(1, 1);
+  const informeCell = wsExcel.getCell(1, 1);
+  informeCell.value = "INFORME TECNICO";
+  informeCell.font = { bold: true, size: 12 };
+  informeCell.alignment = { horizontal: "center", vertical: "middle" };
+  wsExcel.getRow(1).height = 22;
+
+  const titleText = `${tituloReporte} - Total: ${sorted.length}`;
+  wsExcel.mergeCells(2, 1, 2, totalCols);
+  const titleCell = wsExcel.getCell(2, 1);
   titleCell.value = titleText;
   titleCell.font = { bold: true, size: 12 };
   titleCell.alignment = { horizontal: "center", vertical: "middle" };
-  wsExcel.getRow(1).height = 22;
+  wsExcel.getRow(2).height = 22;
 
-  let headerRowNumber = 2;
+  let headerRowNumber = 3;
   if (filtrosResumen) {
-    wsExcel.mergeCells(2, 1, 2, totalCols);
-    const filterCell = wsExcel.getCell(2, 1);
+    wsExcel.mergeCells(3, 1, 3, totalCols);
+    const filterCell = wsExcel.getCell(3, 1);
     filterCell.value = `Filtros: ${filtrosResumen}`;
     filterCell.font = { italic: true, size: 10 };
     filterCell.alignment = { horizontal: "center", vertical: "middle" };
-    wsExcel.getRow(2).height = 18;
-    headerRowNumber = 3;
+    wsExcel.getRow(3).height = 18;
+    headerRowNumber = 4;
   }
 
   // Fila de agrupadas; se dibuja tras estilar los encabezados
