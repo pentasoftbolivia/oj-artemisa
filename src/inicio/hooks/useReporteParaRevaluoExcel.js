@@ -30,9 +30,11 @@ const HEADERS = [
 
 /**
  * Genera el reporte ACTIVOS PARA REVALUO en Excel.
- * Base: act_activos con pararevaluo=true.
- * Hojas: "Resumen" (totales), "ConEstado" (con dato en estadoinventario),
- * "Faltantes" (estadoinventario NULL/vacío).
+ * Base exacta: ultimoregistro=1 AND pararevaluo=true
+ * AND estadoinventario IN ('INVENTARIADO','REVISADO','EN PROCESO')
+ * ORDER BY codigoactivo ASC.
+ * Hojas: "Resumen" (totales), "ConEstado" (detalle),
+ * "Faltantes" (siempre vacía con este filtro; se mantiene la hoja).
  */
 export const useReporteParaRevaluoExcel = () => {
   const { toast } = useToast();
@@ -93,8 +95,9 @@ export const useReporteParaRevaluoExcel = () => {
         };
       });
 
-      toast({ title: "Cargando activos", description: "Obteniendo activos con pararevaluo=true..." });
+      toast({ title: "Cargando activos", description: "Obteniendo activos para revalúo (ultim=1, pararevaluo, 3 estados)..." });
 
+      const ESTADOS_REV = ["INVENTARIADO", "REVISADO", "EN PROCESO"];
       let allActivos = [];
       let from = 0;
       const FETCH_CHUNK = 1000;
@@ -102,8 +105,10 @@ export const useReporteParaRevaluoExcel = () => {
         const { data, error } = await supabase
           .from("act_activos")
           .select(ACTIVO_COLUMNS)
+          .eq("ultimoregistro", 1)
           .eq("pararevaluo", true)
-          .order("codigoactivointerno", { ascending: true })
+          .in("estadoinventario", ESTADOS_REV)
+          .order("codigoactivo", { ascending: true })
           .range(from, from + FETCH_CHUNK - 1);
         if (error) throw error;
         const batch = toCamelCaseArray(data || []);
@@ -114,6 +119,12 @@ export const useReporteParaRevaluoExcel = () => {
         if (allActivos.length > 60000) break;
         await new Promise((r) => setTimeout(r, 0));
       }
+      // Refuerzo en cliente (mayúsculas/espacios)
+      allActivos = allActivos.filter((a) => {
+        const est = String(a.estadoinventario ?? a.estadoInventario ?? "").trim().toUpperCase();
+        return ESTADOS_REV.includes(est);
+      });
+      // Orden script: codigoactivo ASC numérico
 
       const conEstado = [];
       const sinEstado = [];
@@ -123,28 +134,12 @@ export const useReporteParaRevaluoExcel = () => {
         else sinEstado.push(a);
       });
 
-      const ciudadOf = (a) => {
-        const ambCode = String(a.codigoAmbiente ?? "").trim();
-        return String(ubicacionPartsMap[ambCode]?.ciudad ?? "").trim() || "—";
-      };
-
-      const sortByCodigo = (arr) => arr.sort((a, b) => {
-        const ciuA = ciudadOf(a);
-        const ciuB = ciudadOf(b);
-        const cmp = ciuA.localeCompare(ciuB, "es");
-        if (cmp !== 0) return cmp;
-        const codA = String(a.codigoActivo ?? "").trim();
-        const codB = String(b.codigoActivo ?? "").trim();
-        const numA = Number(String(codA).replace(/\D/g, ""));
-        const numB = Number(String(codB).replace(/\D/g, ""));
-        if (numA && numB && numA !== numB) return numA - numB;
-        return codA.localeCompare(codB, "es", { numeric: true });
-      });
+      const sortByCodigo = (arr) => arr.sort((a, b) => Number(a.codigoActivo ?? 0) - Number(b.codigoActivo ?? 0));
       sortByCodigo(conEstado);
       sortByCodigo(sinEstado);
 
       if (allActivos.length === 0) {
-        toast({ title: "Sin datos", description: "No hay activos con pararevaluo=true.", variant: "destructive" });
+        toast({ title: "Sin datos", description: "No hay activos con ese filtro (ultim=1, pararevaluo, 3 estados).", variant: "destructive" });
         return;
       }
 

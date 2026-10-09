@@ -45,7 +45,7 @@ const PROVEEDORES_RESPALDO = [
   "DISTRIBUIDORA ANDINA",
   "IMPORTADORA SUCRE",
   "CENTER OFFICE",
-  "MUEBLERÍA EL ROBLE",
+  "MUEBLERÍA EL TIGRE",
   "COMERCIAL LOS ANDES",
 ];
 
@@ -1268,20 +1268,20 @@ const RevaluoList = () => {
             <>
               <RevaluoTable activos={paginatedData} hasActiveFilters={hasActiveFilters} onEdit={handleEdit} onOpenImages={handleOpenImages} photoCounts={photoCounts} worksheet={worksheet} onWorksheetChange={handleWorksheetChange} factores={factores} />
               {filteredEnriched.length > 0 && (
-            <div className="mt-4">
-              <DataPagination
-                currentPage={safeCurrentPage}
-                totalPages={totalPages}
-                totalCount={filteredEnriched.length}
-                pageSize={pageSize}
-                onPageChange={setCurrentPage}
-                onPageSizeChange={(newSize) => {
-                  setPageSize(newSize);
-                  setCurrentPage(1);
-                }}
-              />
-            </div>
-          )}
+                <div className="mt-4">
+                  <DataPagination
+                    currentPage={safeCurrentPage}
+                    totalPages={totalPages}
+                    totalCount={filteredEnriched.length}
+                    pageSize={pageSize}
+                    onPageChange={setCurrentPage}
+                    onPageSizeChange={(newSize) => {
+                      setPageSize(newSize);
+                      setCurrentPage(1);
+                    }}
+                  />
+                </div>
+              )}
             </>
           )}
         </CardContent>

@@ -17,6 +17,8 @@ import { useReporteParaRevaluo } from "@/inicio/hooks/useReporteParaRevaluo";
 import { useReporteParaRevaluoExcel } from "@/inicio/hooks/useReporteParaRevaluoExcel";
 import { useReporteReclasificarRubro } from "@/inicio/hooks/useReporteReclasificarRubro";
 import { useReporteReclasificarRubroExcel } from "@/inicio/hooks/useReporteReclasificarRubroExcel";
+import { useReporteGrupoContable } from "@/inicio/hooks/useReporteGrupoContable";
+import { useReporteGrupoContableExcel } from "@/inicio/hooks/useReporteGrupoContableExcel";
 
 const ALLOWED_RESTRICTED_REPORT_EMAIL = "javiercostasaliaga@gmail.com";
 
@@ -39,8 +41,10 @@ const ReportesList = () => {
   const { generate: generateParaRevaluoExcel, isGenerating: isGeneratingParaRevaluoExcel } = useReporteParaRevaluoExcel();
   const { generate: generateReclasificar, isGenerating: isGeneratingReclasificar } = useReporteReclasificarRubro();
   const { generate: generateReclasificarExcel, isGenerating: isGeneratingReclasificarExcel } = useReporteReclasificarRubroExcel();
+  const { generate: generateGrupoContable, isGenerating: isGeneratingGrupoContable } = useReporteGrupoContable();
+  const { generate: generateGrupoContableExcel, isGenerating: isGeneratingGrupoContableExcel } = useReporteGrupoContableExcel();
 
-  const busy = isGeneratingGeneral || isGeneratingGeneralExcel || isGeneratingUbicacion || isGeneratingUbicacionExcel || isGeneratingRubro || isGeneratingRubroExcel || isGeneratingFaltantes || isGeneratingFaltantesExcel || isGeneratingCosto || isGeneratingCostoExcel || isGeneratingParaRevaluo || isGeneratingParaRevaluoExcel || isGeneratingReclasificar || isGeneratingReclasificarExcel;
+  const busy = isGeneratingGeneral || isGeneratingGeneralExcel || isGeneratingUbicacion || isGeneratingUbicacionExcel || isGeneratingRubro || isGeneratingRubroExcel || isGeneratingFaltantes || isGeneratingFaltantesExcel || isGeneratingCosto || isGeneratingCostoExcel || isGeneratingParaRevaluo || isGeneratingParaRevaluoExcel || isGeneratingReclasificar || isGeneratingReclasificarExcel || isGeneratingGrupoContable || isGeneratingGrupoContableExcel;
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -261,6 +265,50 @@ const ReportesList = () => {
                     <FileSpreadsheet className="h-4 w-4 mr-2" />
                   )}
                   COSTO ACTUALIZADO Y DEPRECIACION EXCEL
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="overflow-hidden">
+        <CardHeader className="p-3 sm:p-6">
+          <CardTitle className="text-sm sm:text-base leading-tight">REPORTES PRODUCTO 3</CardTitle>
+        </CardHeader>
+        <CardContent className="p-3 sm:p-6 pt-0">
+          {!canSeeReports ? (
+            <p className="text-sm text-muted-foreground">No tiene acceso a estos reportes.</p>
+          ) : (
+            <div className="grid gap-2 w-full sm:grid-cols-4 sm:max-w-[1400px]">
+              <div className="flex flex-col gap-2">
+                <Button
+                  onClick={generateGrupoContable}
+                  disabled={busy}
+                  className="w-full justify-center bg-indigo-700 hover:bg-indigo-800 text-white min-h-11 text-xs sm:text-sm"
+                aria-label="Generar Grupo Contable en PDF"
+                title="PDF agrupado por rubro con cantidad de activos (ultimoregistro=1, REVISADO/INVENTARIADO). Excluye Biblioteca, Terrenos y Edificaciones"
+                >
+                  {isGeneratingGrupoContable ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <FileDown className="h-4 w-4 mr-2" />
+                  )}
+                  GRUPO CONTABLE PDF
+                </Button>
+                <Button
+                  onClick={generateGrupoContableExcel}
+                  disabled={busy}
+                  className="w-full justify-center bg-green-700 hover:bg-green-800 text-white min-h-11 text-xs sm:text-sm"
+                aria-label="Generar Grupo Contable en Excel"
+                title="Excel agrupado por rubro con cantidad de activos (ultimoregistro=1, REVISADO/INVENTARIADO). Excluye Biblioteca, Terrenos y Edificaciones"
+                >
+                  {isGeneratingGrupoContableExcel ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                  )}
+                  GRUPO CONTABLE EXCEL
                 </Button>
               </div>
             </div>

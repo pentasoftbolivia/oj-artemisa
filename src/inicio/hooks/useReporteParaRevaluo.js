@@ -33,10 +33,12 @@ const clean = (v) => String(v ?? "").replace(/\s+/g, " ").trim() || "—";
 
 /**
  * Reporte ACTIVOS PARA REVALUO (PDF).
- * Base: act_activos con pararevaluo=true (sin filtro ultimoregistro).
+ * Base exacta: ultimoregistro=1 AND pararevaluo=true
+ * AND estadoinventario IN ('INVENTARIADO','REVISADO','EN PROCESO')
+ * ORDER BY codigoactivo ASC.
  * - Resumen de totales
  * - Detalle CON dato en estadoinventario
- * - Detalle FALTANTES (estadoinventario NULL/vacío)
+ * - Detalle FALTANTES (siempre 0 con este filtro; se mantiene la sección)
  * Columnas: código, rubro, tipo rubro, descripción, ubicación,
  * observaciones, serie, marcamaterial, estadoconservacion, modelo,
  * numeromotor, numerochasisserial, placa, capacidad, medidas, color,
@@ -100,13 +102,9 @@ export const useReporteParaRevaluo = () => {
           ambiente: String(a.ambiente ?? "").trim() || "—",
         };
       });
-      const ciudadOf = (a) => {
-        const ambCode = String(a.codigoAmbiente ?? "").trim();
-        return String(ubicacionPartsMap[ambCode]?.ciudad ?? "").trim() || "—";
-      };
+      toast({ title: "Cargando activos", description: "Obteniendo activos para revalúo (ultim=1, pararevaluo, 3 estados)..." });
 
-      toast({ title: "Cargando activos", description: "Obteniendo activos con pararevaluo=true..." });
-
+      const ESTADOS_REV = ["INVENTARIADO", "REVISADO", "EN PROCESO"];
       let allActivos = [];
       let from = 0;
       const FETCH_CHUNK = 1000;
@@ -114,8 +112,10 @@ export const useReporteParaRevaluo = () => {
         const { data, error } = await supabase
           .from("act_activos")
           .select(ACTIVO_COLUMNS)
+          .eq("ultimoregistro", 1)
           .eq("pararevaluo", true)
-          .order("codigoactivointerno", { ascending: true })
+          .in("estadoinventario", ESTADOS_REV)
+          .order("codigoactivo", { ascending: true })
           .range(from, from + FETCH_CHUNK - 1);
         if (error) throw error;
         const batch = toCamelCaseArray(data || []);
@@ -126,6 +126,13 @@ export const useReporteParaRevaluo = () => {
         if (allActivos.length > 60000) break;
         await new Promise((r) => setTimeout(r, 0));
       }
+      // Refuerzo en cliente (mayúsculas/espacios)
+      allActivos = allActivos.filter((a) => {
+        const est = String(a.estadoinventario ?? a.estadoInventario ?? "").trim().toUpperCase();
+        return ESTADOS_REV.includes(est);
+      });
+      // Orden script: codigoactivo ASC numérico
+      allActivos.sort((a, b) => Number(a.codigoActivo ?? 0) - Number(b.codigoActivo ?? 0));
 
       const conEstado = [];
       const sinEstado = [];
@@ -135,23 +142,12 @@ export const useReporteParaRevaluo = () => {
         else sinEstado.push(a);
       });
 
-      const sortByCiudad = (arr) => arr.sort((a, b) => {
-        const ciuA = ciudadOf(a);
-        const ciuB = ciudadOf(b);
-        const cmp = ciuA.localeCompare(ciuB, "es");
-        if (cmp !== 0) return cmp;
-        const codA = String(a.codigoActivo ?? "").trim();
-        const codB = String(b.codigoActivo ?? "").trim();
-        const numA = Number(String(codA).replace(/\D/g, ""));
-        const numB = Number(String(codB).replace(/\D/g, ""));
-        if (numA && numB && numA !== numB) return numA - numB;
-        return codA.localeCompare(codB, "es", { numeric: true });
-      });
-      sortByCiudad(conEstado);
-      sortByCiudad(sinEstado);
+      const sortByCodigo = (arr) => arr.sort((a, b) => Number(a.codigoActivo ?? 0) - Number(b.codigoActivo ?? 0));
+      sortByCodigo(conEstado);
+      sortByCodigo(sinEstado);
 
       if (allActivos.length === 0) {
-        toast({ title: "Sin datos", description: "No hay activos con pararevaluo=true.", variant: "destructive" });
+        toast({ title: "Sin datos", description: "No hay activos con ese filtro (ultim=1, pararevaluo, 3 estados).", variant: "destructive" });
         return;
       }
 

@@ -3,6 +3,8 @@ import { normalizeCi } from "../constants/inventarioConstants";
 import { ACTIVO_COLUMNS } from "@/lib/activoColumns";
 
 const BUCKET_NAME = "imagenes";
+// Bucket exclusivo para respaldos de N° Cotización (subcolumnas 1/2/3 de Revalúo)
+export const BUCKET_REVALUO = "revaluo";
 
 /**
  * Actualiza los campos de un activo por su codigoactivointerno.
@@ -106,6 +108,7 @@ export const fetchAllPhotoCounts = async ({ force = false } = {}) => {
     if (error) throw error;
     const list = data || [];
     list.forEach((f) => {
+      if (isCotizacionFile(f?.name)) return;
       const code = String(f?.name || "").split("_")[0];
       if (!code) return;
       counts[code] = (counts[code] || 0) + 1;
@@ -129,19 +132,86 @@ export const fetchActivoImages = async (codigoActivo) => {
   if (error) throw error;
   if (!data) return [];
 
-  // Obtener URLs públicas en lote para reducir llamadas API
-  const filesWithUrls = await Promise.all(
-    data
-      .filter((f) => f.name.startsWith(prefix))
-      .map((f) => supabase.storage.from(BUCKET_NAME).getPublicUrl(f.name))
+  const filtered = (data || []).filter(
+    (f) => f.name.startsWith(prefix) && !isCotizacionFile(f.name)
   );
 
-  return data
-    .filter((f) => f.name.startsWith(prefix))
-    .map((f, i) => ({
-      name: f.name,
-      url: filesWithUrls[i].data.publicUrl,
-    }));
+  // Obtener URLs públicas en lote para reducir llamadas API
+  const filesWithUrls = await Promise.all(
+    filtered.map((f) => supabase.storage.from(BUCKET_NAME).getPublicUrl(f.name))
+  );
+
+  return filtered.map((f, i) => ({
+    name: f.name,
+    url: filesWithUrls[i].data.publicUrl,
+  }));
+};
+
+/**
+ * Obtiene las fotos de respaldo de una subcolumna N° Cotización.
+ * Bucket: `revaluo`. Solo estas columnas usan ese bucket.
+ * Si cotIndex es null trae las 3 subcolumnas del activo.
+ */
+export const fetchCotizacionImages = async (codigoActivo, cotIndex = null) => {
+  const prefix = `${codigoActivo}_`;
+  const { data, error } = await supabase.storage
+    .from(BUCKET_REVALUO)
+    .list("", { search: prefix, sortBy: { column: "name", order: "asc" } });
+  if (error) throw error;
+  if (!data) return [];
+  const marker = cotIndex != null ? `_COT${cotIndex}_` : "_COT";
+  const filtered = (data || []).filter(
+    (f) =>
+      f.name.startsWith(prefix) &&
+      String(f.name).toUpperCase().includes(marker)
+  );
+  const filesWithUrls = await Promise.all(
+    filtered.map((f) => supabase.storage.from(BUCKET_REVALUO).getPublicUrl(f.name))
+  );
+  return filtered.map((f, i) => ({
+    name: f.name,
+    url: filesWithUrls[i].data.publicUrl,
+    cotIndex: cotIndexFromFileName(f.name),
+  }));
+};
+
+let cotizacionCountsCache = { data: null, fetchedAt: 0 };
+
+export const invalidateCotizacionCountsCache = () => {
+  cotizacionCountsCache = { data: null, fetchedAt: 0 };
+};
+
+/**
+ * Conteo de fotos por activo + subcolumna. Clave: `${codigoActivo}_COT{n}`.
+ * Bucket: `revaluo`.
+ */
+export const fetchAllCotizacionCounts = async ({ force = false } = {}) => {
+  const now = Date.now();
+  if (!force && cotizacionCountsCache.data && now - cotizacionCountsCache.fetchedAt < PHOTO_COUNTS_TTL) {
+    return cotizacionCountsCache.data;
+  }
+  const counts = {};
+  const PAGE = 1000;
+  let offset = 0;
+  for (;;) {
+    const { data, error } = await supabase.storage
+      .from(BUCKET_REVALUO)
+      .list("", { limit: PAGE, offset, sortBy: { column: "name", order: "asc" } });
+    if (error) throw error;
+    const list = data || [];
+    list.forEach((f) => {
+      const idx = cotIndexFromFileName(f?.name);
+      if (!idx) return;
+      const code = String(f?.name || "").split("_")[0];
+      if (!code) return;
+      const key = `${code}_COT${idx}`;
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    if (list.length < PAGE) break;
+    offset += PAGE;
+  }
+  cotizacionCountsCache = { data: counts, fetchedAt: Date.now() };
+  return counts;
 };
 
 /**
@@ -172,6 +242,73 @@ export const deleteActivoImage = async (fileName) => {
     .remove([fileName]);
   if (error) throw error;
   invalidatePhotoCountsCache();
+  invalidateCotizacionCountsCache();
+};
+
+/**
+ * Fotos de respaldo por subcolumna N° Cotización (1/2/3).
+ * Formato: `${codigoActivo}_${EMPRESA}_COT{n}_${timestamp}_${i}.${ext}`
+ * donde EMPRESA es el nombre escrito en la columna (sanitizado).
+ * Varias fotos por columna: se diferencian por timestamp + índice.
+ */
+export const sanitizeEmpresaNombre = (raw) => {
+  const base = String(raw || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 30);
+  return base || "SIN_EMPRESA";
+};
+
+export const COT_MARKERS = ["_COT1_", "_COT2_", "_COT3_"];
+
+export const isCotizacionFile = (fileName) =>
+  String(fileName || "").toUpperCase().includes("_COT");
+
+export const cotIndexFromFileName = (fileName) => {
+  const upper = String(fileName || "").toUpperCase();
+  const m = upper.match(/_COT([123])_/);
+  return m ? Number(m[1]) : null;
+};
+
+export const buildCotizacionFileName = (codigoActivo, empresa, cotIndex, i, ext) => {
+  const emp = sanitizeEmpresaNombre(empresa);
+  return `${codigoActivo}_${emp}_COT${cotIndex}_${Date.now()}_${i}.${ext}`;
+};
+
+/**
+ * Sube múltiples fotos de respaldo para una subcolumna N° Cotización.
+ * Bucket: `revaluo` (solo estas columnas).
+ */
+export const uploadCotizacionImages = async (codigoActivo, empresa, cotIndex, files) => {
+  if (!codigoActivo) throw new Error("Falta código de activo");
+  if (![1, 2, 3].includes(Number(cotIndex))) throw new Error("Cotización inválida (1/2/3)");
+  const list = Array.from(files || []);
+  if (list.length === 0) return [];
+  const uploadedNames = [];
+  for (let i = 0; i < list.length; i++) {
+    const file = list[i];
+    const ext = (String(file.name || "").split(".").pop() || "jpg").toLowerCase().slice(0, 5);
+    const fileName = buildCotizacionFileName(codigoActivo, empresa, cotIndex, i, ext);
+    const { error } = await supabase.storage.from(BUCKET_REVALUO).upload(fileName, file);
+    if (error) throw error;
+    uploadedNames.push(fileName);
+  }
+  invalidateCotizacionCountsCache();
+  return uploadedNames;
+};
+
+/**
+ * Elimina una foto de respaldo de cotización (bucket `revaluo`).
+ */
+export const deleteCotizacionImage = async (fileName) => {
+  const { error } = await supabase.storage
+    .from(BUCKET_REVALUO)
+    .remove([fileName]);
+  if (error) throw error;
+  invalidateCotizacionCountsCache();
 };
 
 /**

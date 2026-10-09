@@ -1,9 +1,9 @@
-import { memo } from "react";
+import { memo, useRef } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Edit, Image as ImageIcon, Package } from "lucide-react";
+import { Edit, Image as ImageIcon, Package, Upload, Eye, Loader2 } from "lucide-react";
 
 const ESTADO_MAP = {
   1: "Alta",
@@ -77,7 +77,59 @@ const FACTOR_LABELS = [
 
 const factorLabelOf = (key) => FACTOR_LABELS.find((f) => f.key === key)?.label ?? key;
 
-const RevaluoTable = memo(({ activos, hasActiveFilters, onEdit, onOpenImages, photoCounts = {}, worksheet = {}, onWorksheetChange, factores = {} }) => {
+const COT_FIELDS = [
+  { field: "n1", index: 1 },
+  { field: "n2", index: 2 },
+  { field: "n3", index: 3 },
+];
+
+const cotCountKeyOf = (a, cotIndex) => `${a.codigoActivo}_COT${cotIndex}`;
+
+// Subcolumna N° Cotización: texto empresa + subida múltiple de fotos.
+// Nombre foto: {codigoActivo}_{EMPRESA}_COT{n}_{timestamp}_{i}.{ext}
+const CotizacionCell = memo(({ rowKey, activo, cotField, cotIndex, value, onWorksheetChange, count, isUploading, onUploadFiles, onOpen, compact = false }) => {
+  const fileRef = useRef(null);
+  const empresaOk = String(value || "").trim() !== "";
+
+  const handlePick = (e) => {
+    const list = Array.from(e.target.files || []);
+    if (list.length > 0) onUploadFiles?.(rowKey, activo, cotField, cotIndex, list);
+    e.target.value = "";
+  };
+
+  return (
+    <div className={compact ? "space-y-1" : "space-y-1 min-w-[110px]"}>
+      <Input
+        className="h-8 w-full text-xs bg-orange-50"
+        placeholder={`Empresa ${cotIndex}`}
+        value={value || ""}
+        onChange={(e) => onWorksheetChange?.(rowKey, cotField, e.target.value)}
+        title="Nombre de la empresa (se usa en el nombre de la foto)"
+      />
+      <div className="flex items-center gap-1">
+        <input ref={fileRef} type="file" accept="image/*,.pdf" multiple className="hidden" onChange={handlePick} disabled={isUploading} />
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 px-1.5 text-[10px] flex-1 gap-1"
+          onClick={() => fileRef.current?.click()}
+          disabled={isUploading || !empresaOk}
+          title={empresaOk ? `Subir fotos: ${activo?.codigoActivo}_${String(value).trim().toUpperCase().replace(/\s+/g, "_")}_COT${cotIndex}_...` : "Escriba la empresa antes de subir"}
+        >
+          {isUploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+          {isUploading ? "..." : `(${count ?? 0})`}
+        </Button>
+        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => onOpen?.(activo, cotField, cotIndex)} title={`Ver fotos COT${cotIndex}`}>
+          <Eye className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+    </div>
+  );
+});
+
+CotizacionCell.displayName = "CotizacionCell";
+
+const RevaluoTable = memo(({ activos, hasActiveFilters, onEdit, onOpenImages, photoCounts = {}, worksheet = {}, onWorksheetChange, factores = {}, cotizacionCounts = {}, uploadingCotizacion = {}, onUploadCotizacion, onOpenCotizacion }) => {
   if (!activos || activos.length === 0) {
     return (
       <div className="text-center py-12 border rounded-md">
@@ -171,10 +223,22 @@ const RevaluoTable = memo(({ activos, hasActiveFilters, onEdit, onOpenImages, ph
                 </div>
                 <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold pt-1">N° Cotización</div>
                 <div className="grid grid-cols-3 gap-2">
-                  {[["n1", "1"], ["n2", "2"], ["n3", "3"]].map(([f, label]) => (
-                    <div key={f} className="space-y-1">
-                      <div className="text-[10px] text-muted-foreground text-center">{label}</div>
-                      <Input className="h-9 text-xs bg-orange-50" value={ws[f] || ""} onChange={(e) => onWorksheetChange?.(rk, f, e.target.value)} />
+                  {COT_FIELDS.map(({ field, index }) => (
+                    <div key={field} className="space-y-1">
+                      <div className="text-[10px] text-muted-foreground text-center">{index}</div>
+                      <CotizacionCell
+                        rowKey={rk}
+                        activo={a}
+                        cotField={field}
+                        cotIndex={index}
+                        value={ws[field] || ""}
+                        onWorksheetChange={onWorksheetChange}
+                        count={cotizacionCounts[cotCountKeyOf(a, index)] ?? 0}
+                        isUploading={Boolean(uploadingCotizacion[`${rk}_COT${index}`])}
+                        onUploadFiles={onUploadCotizacion}
+                        onOpen={onOpenCotizacion}
+                        compact
+                      />
                     </div>
                   ))}
                 </div>
@@ -251,9 +315,9 @@ const RevaluoTable = memo(({ activos, hasActiveFilters, onEdit, onOpenImages, ph
               <TableHead className="text-center min-w-[95px] !bg-yellow-100">1</TableHead>
               <TableHead className="text-center min-w-[95px] !bg-yellow-100">2</TableHead>
               <TableHead className="text-center min-w-[95px] !bg-yellow-100">3</TableHead>
-              <TableHead className="text-center min-w-[85px] !bg-orange-100">1</TableHead>
-              <TableHead className="text-center min-w-[85px] !bg-orange-100">2</TableHead>
-              <TableHead className="text-center min-w-[85px] !bg-orange-100">3</TableHead>
+              <TableHead className="text-center min-w-[120px] !bg-orange-100">1</TableHead>
+              <TableHead className="text-center min-w-[120px] !bg-orange-100">2</TableHead>
+              <TableHead className="text-center min-w-[120px] !bg-orange-100">3</TableHead>
               <TableHead className="text-center min-w-[80px]">Bueno</TableHead>
               <TableHead className="text-center min-w-[80px]">Regular</TableHead>
               <TableHead className="text-center min-w-[80px]">Malo</TableHead>
@@ -292,9 +356,20 @@ const RevaluoTable = memo(({ activos, hasActiveFilters, onEdit, onOpenImages, ph
                     </TableCell>
                   ))}
                   <TableCell className="font-mono text-xs text-right whitespace-nowrap">{fmtBs(calc.promedio)}</TableCell>
-                  {[["n1"], ["n2"], ["n3"]].map(([f]) => (
-                    <TableCell key={f} className="p-1 bg-orange-50">
-                      <Input className="h-8 w-[80px] text-xs bg-orange-50" value={ws[f] || ""} onChange={(e) => onWorksheetChange?.(rk, f, e.target.value)} />
+                  {COT_FIELDS.map(({ field, index }) => (
+                    <TableCell key={field} className="p-1 bg-orange-50 align-top">
+                      <CotizacionCell
+                        rowKey={rk}
+                        activo={a}
+                        cotField={field}
+                        cotIndex={index}
+                        value={ws[field] || ""}
+                        onWorksheetChange={onWorksheetChange}
+                        count={cotizacionCounts[cotCountKeyOf(a, index)] ?? 0}
+                        isUploading={Boolean(uploadingCotizacion[`${rk}_COT${index}`])}
+                        onUploadFiles={onUploadCotizacion}
+                        onOpen={onOpenCotizacion}
+                      />
                     </TableCell>
                   ))}
                   {[["frB", "B"], ["frR", "R"], ["frM", "M"], ["frBa", "Ba"]].map(([f, label]) => (

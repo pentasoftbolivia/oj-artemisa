@@ -35,7 +35,7 @@ const ConsultaRevaluoList = () => {
   const [draftFilters, setDraftFilters] = useState(INITIAL_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState(INITIAL_FILTERS);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(7);
 
   const [rubros, setRubros] = useState([]);
   const [tipoRubros, setTipoRubros] = useState([]);
