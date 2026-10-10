@@ -19,6 +19,14 @@ import { useReporteReclasificarRubro } from "@/inicio/hooks/useReporteReclasific
 import { useReporteReclasificarRubroExcel } from "@/inicio/hooks/useReporteReclasificarRubroExcel";
 import { useReporteGrupoContable } from "@/inicio/hooks/useReporteGrupoContable";
 import { useReporteGrupoContableExcel } from "@/inicio/hooks/useReporteGrupoContableExcel";
+import { useReporteActivosBaja } from "@/inicio/hooks/useReporteActivosBaja";
+import { useReporteActivosBajaExcel } from "@/inicio/hooks/useReporteActivosBajaExcel";
+import { useReporteActivosObsoletos } from "@/inicio/hooks/useReporteActivosObsoletos";
+import { useReporteActivosObsoletosExcel } from "@/inicio/hooks/useReporteActivosObsoletosExcel";
+import { useReporteBienesFaltantes } from "@/inicio/hooks/useReporteBienesFaltantes";
+import { useReporteBienesFaltantesExcel } from "@/inicio/hooks/useReporteBienesFaltantesExcel";
+import { useReporteBienesSobrantes } from "@/inicio/hooks/useReporteBienesSobrantes";
+import { useReporteBienesSobrantesExcel } from "@/inicio/hooks/useReporteBienesSobrantesExcel";
 
 const ALLOWED_RESTRICTED_REPORT_EMAIL = "javiercostasaliaga@gmail.com";
 
@@ -43,8 +51,16 @@ const ReportesList = () => {
   const { generate: generateReclasificarExcel, isGenerating: isGeneratingReclasificarExcel } = useReporteReclasificarRubroExcel();
   const { generate: generateGrupoContable, isGenerating: isGeneratingGrupoContable } = useReporteGrupoContable();
   const { generate: generateGrupoContableExcel, isGenerating: isGeneratingGrupoContableExcel } = useReporteGrupoContableExcel();
+  const { generate: generateBaja, isGenerating: isGeneratingBaja } = useReporteActivosBaja();
+  const { generate: generateBajaExcel, isGenerating: isGeneratingBajaExcel } = useReporteActivosBajaExcel();
+  const { generate: generateObsoletos, isGenerating: isGeneratingObsoletos } = useReporteActivosObsoletos();
+  const { generate: generateObsoletosExcel, isGenerating: isGeneratingObsoletosExcel } = useReporteActivosObsoletosExcel();
+  const { generate: generateFaltantesP3, isGenerating: isGeneratingFaltantesP3 } = useReporteBienesFaltantes();
+  const { generate: generateFaltantesP3Excel, isGenerating: isGeneratingFaltantesP3Excel } = useReporteBienesFaltantesExcel();
+  const { generate: generateSobrantes, isGenerating: isGeneratingSobrantes } = useReporteBienesSobrantes();
+  const { generate: generateSobrantesExcel, isGenerating: isGeneratingSobrantesExcel } = useReporteBienesSobrantesExcel();
 
-  const busy = isGeneratingGeneral || isGeneratingGeneralExcel || isGeneratingUbicacion || isGeneratingUbicacionExcel || isGeneratingRubro || isGeneratingRubroExcel || isGeneratingFaltantes || isGeneratingFaltantesExcel || isGeneratingCosto || isGeneratingCostoExcel || isGeneratingParaRevaluo || isGeneratingParaRevaluoExcel || isGeneratingReclasificar || isGeneratingReclasificarExcel || isGeneratingGrupoContable || isGeneratingGrupoContableExcel;
+  const busy = isGeneratingGeneral || isGeneratingGeneralExcel || isGeneratingUbicacion || isGeneratingUbicacionExcel || isGeneratingRubro || isGeneratingRubroExcel || isGeneratingFaltantes || isGeneratingFaltantesExcel || isGeneratingCosto || isGeneratingCostoExcel || isGeneratingParaRevaluo || isGeneratingParaRevaluoExcel || isGeneratingReclasificar || isGeneratingReclasificarExcel || isGeneratingGrupoContable || isGeneratingGrupoContableExcel || isGeneratingBaja || isGeneratingBajaExcel || isGeneratingObsoletos || isGeneratingObsoletosExcel || isGeneratingFaltantesP3 || isGeneratingFaltantesP3Excel || isGeneratingSobrantes || isGeneratingSobrantesExcel;
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -309,6 +325,126 @@ const ReportesList = () => {
                     <FileSpreadsheet className="h-4 w-4 mr-2" />
                   )}
                   GRUPO CONTABLE EXCEL
+                </Button>
+              </div>
+              <div className="flex flex-col gap-2">
+                <Button
+                  onClick={generateBaja}
+                  disabled={busy}
+                  className="w-full justify-center bg-red-800 hover:bg-red-900 text-white min-h-11 text-xs sm:text-sm"
+                  aria-label="Generar Activos de Baja en PDF"
+                  title="PDF con activos estado=0 o esactivo=false: código, rubro, tipo, descripción, ubicación, responsable y carnet"
+                >
+                  {isGeneratingBaja ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <FileDown className="h-4 w-4 mr-2" />
+                  )}
+                  ACTIVOS DE BAJA PDF
+                </Button>
+                <Button
+                  onClick={generateBajaExcel}
+                  disabled={busy}
+                  className="w-full justify-center bg-green-700 hover:bg-green-800 text-white min-h-11 text-xs sm:text-sm"
+                  aria-label="Generar Activos de Baja en Excel"
+                  title="Excel con activos estado=0 o esactivo=false: código, rubro, tipo, descripción, ubicación, responsable y carnet"
+                >
+                  {isGeneratingBajaExcel ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                  )}
+                  ACTIVOS DE BAJA EXCEL
+                </Button>
+              </div>
+              <div className="flex flex-col gap-2">
+                <Button
+                  onClick={generateObsoletos}
+                  disabled={busy}
+                  className="w-full justify-center bg-orange-800 hover:bg-orange-900 text-white min-h-11 text-xs sm:text-sm"
+                  aria-label="Generar Activos Obsoletos en PDF"
+                  title="PDF con activos estadoconservacion=MALO: código, rubro, tipo, descripción, ubicación, responsable y carnet"
+                >
+                  {isGeneratingObsoletos ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <FileDown className="h-4 w-4 mr-2" />
+                  )}
+                  ACTIVOS OBSOLETOS PDF
+                </Button>
+                <Button
+                  onClick={generateObsoletosExcel}
+                  disabled={busy}
+                  className="w-full justify-center bg-green-700 hover:bg-green-800 text-white min-h-11 text-xs sm:text-sm"
+                  aria-label="Generar Activos Obsoletos en Excel"
+                  title="Excel con activos estadoconservacion=MALO: código, rubro, tipo, descripción, ubicación, responsable y carnet"
+                >
+                  {isGeneratingObsoletosExcel ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                  )}
+                  ACTIVOS OBSOLETOS EXCEL
+                </Button>
+              </div>
+              <div className="flex flex-col gap-2">
+                <Button
+                  onClick={generateFaltantesP3}
+                  disabled={busy}
+                  className="w-full justify-center bg-amber-800 hover:bg-amber-900 text-white min-h-11 text-xs sm:text-sm"
+                  aria-label="Generar Bienes Faltantes en PDF"
+                  title="PDF con activos ultimoregistro=1 sin estadoinventario: código, rubro, tipo, descripción, ubicación, responsable y carnet"
+                >
+                  {isGeneratingFaltantesP3 ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <FileDown className="h-4 w-4 mr-2" />
+                  )}
+                  BIENES FALTANTES PDF
+                </Button>
+                <Button
+                  onClick={generateFaltantesP3Excel}
+                  disabled={busy}
+                  className="w-full justify-center bg-green-700 hover:bg-green-800 text-white min-h-11 text-xs sm:text-sm"
+                  aria-label="Generar Bienes Faltantes en Excel"
+                  title="Excel con activos ultimoregistro=1 sin estadoinventario: código, rubro, tipo, descripción, ubicación, responsable y carnet"
+                >
+                  {isGeneratingFaltantesP3Excel ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                  )}
+                  BIENES FALTANTES EXCEL
+                </Button>
+              </div>
+              <div className="flex flex-col gap-2">
+                <Button
+                  onClick={generateSobrantes}
+                  disabled={busy}
+                  className="w-full justify-center bg-teal-800 hover:bg-teal-900 text-white min-h-11 text-xs sm:text-sm"
+                  aria-label="Generar Bienes Sobrantes en PDF"
+                  title="PDF con activos ultimoregistro=1 y activonuevo=TRUE: código, rubro, tipo, descripción, ubicación, responsable y carnet"
+                >
+                  {isGeneratingSobrantes ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <FileDown className="h-4 w-4 mr-2" />
+                  )}
+                  BIENES SOBRANTES PDF
+                </Button>
+                <Button
+                  onClick={generateSobrantesExcel}
+                  disabled={busy}
+                  className="w-full justify-center bg-green-700 hover:bg-green-800 text-white min-h-11 text-xs sm:text-sm"
+                  aria-label="Generar Bienes Sobrantes en Excel"
+                  title="Excel con activos ultimoregistro=1 y activonuevo=TRUE: código, rubro, tipo, descripción, ubicación, responsable y carnet"
+                >
+                  {isGeneratingSobrantesExcel ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                  )}
+                  BIENES SOBRANTES EXCEL
                 </Button>
               </div>
             </div>

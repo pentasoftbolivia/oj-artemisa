@@ -7,7 +7,6 @@ import { toCamelCaseArray } from "@/lib/mapFields";
 import { useToast } from "@/hooks/use-toast";
 import { LOGO_JPG_DATA_URL } from "@/lib/logoJpgBase64";
 import { ACTIVO_COLUMNS } from "@/lib/activoColumns";
-import { CIUDADES_EXCEPCION_SET } from "../constants/inventarioConstants";
 
 const formatError = (err) => {
   if (!err) return "Error desconocido";
@@ -36,8 +35,6 @@ const normTxt = (s) =>
 // Excepción: no tomar en cuenta BIBLIOTECA(S), TERRENOS, EDIFICACIONES
 const RUBROS_EXCLUIDOS = ["BIBLIOTEC", "TERRENO", "EDIFICAC"];
 
-const ESTADOS_VALIDOS = ["REVISADO", "INVENTARIADO"];
-
 const parseNum = (v) => {
   if (v == null || String(v).trim() === "") return 0;
   const n = Number(String(v).replace(",", "."));
@@ -49,9 +46,9 @@ const fmtBs = (n) =>
 
 /**
  * Reporte Grupo Contable (PDF) — PRODUCTO 3.
- * Hoja 1: N°, GRUPO CONTABLE, CANTIDAD ACTIVOS (ultimoregistro=1, REVISADO/INVENTARIADO; excluye 3 rubros)
- * Hoja 2: grupo contable de ciudades excluidas (N°, GRUPO CONTABLE, CANTIDAD ACTIVOS)
- * Hoja 3: ACTIVOS REVALUADOS POR GRUPO CONTABLE (pararevaluo=true + REVISADO/INVENTARIADO/EN PROCESO)
+ * Hoja 1: N°, GRUPO CONTABLE, CANTIDAD ACTIVOS (todos con ultimoregistro=1; excluye 3 rubros)
+ * Hoja 2: GRUPO CONTABLE DE RUBROS EXCLUIDOS — solo BIBLIOTECA, TERRENOS, EDIFICACIONES (ultim=1)
+  * Hoja 3: ACTIVOS REVALUADOS POR GRUPO CONTABLE (todos ultim=1; cantidad y neto de todos, revaluado suma valorrevaluo)
  */
 export const useReporteGrupoContable = () => {
   const { toast } = useToast();
@@ -62,13 +59,9 @@ export const useReporteGrupoContable = () => {
     try {
       toast({ title: "Generando Grupo Contable", description: "Cargando catálogos..." });
 
-      const [rubros, tipoRubros, ambientes, ciudades, inmuebles, niveles] = await Promise.all([
+      const [rubros, tipoRubros] = await Promise.all([
         getCachedCatalog("act_rubro"),
         getCachedCatalog("act_tiporubro"),
-        getCachedCatalog("act_ambiente"),
-        getCachedCatalog("act_ciudad"),
-        getCachedCatalog("act_inmueble"),
-        getCachedCatalog("act_nivel"),
       ]);
 
       const rubroDescMap = {};
@@ -82,30 +75,7 @@ export const useReporteGrupoContable = () => {
         rubroFromTipo[String(t.tiporubroact)] = rubroDescMap[t.codigorubroact];
       });
 
-      // Ciudad por ambiente (misma lógica que Reporte por Rubro / Inventario General)
-      const nivelMap = {};
-      (niveles || []).forEach((n) => { nivelMap[String(n.codigonivel ?? "").trim()] = n; });
-      const inmuebleMap = {};
-      (inmuebles || []).forEach((i) => { inmuebleMap[String(i.codigoinmueble ?? "").trim()] = i; });
-      const ciudadMap = {};
-      (ciudades || []).forEach((c) => { ciudadMap[String(c.codigociudad ?? "").trim()] = c; });
-      const ciudadPorAmbiente = {};
-      (ambientes || []).forEach((a) => {
-        const code = String(a.codigoambiente ?? "").trim();
-        if (!code) return;
-        const nivel = nivelMap[String(a.codigonivel ?? "").trim()];
-        const inmuebleCode = String(nivel?.codigoinmueble ?? "").trim();
-        const inmueble = nivel ? inmuebleMap[inmuebleCode] : null;
-        const ciudad = inmueble ? ciudadMap[String(inmueble.codigociudad ?? "").trim()] : null;
-        let ciudadDesc = String(ciudad?.descripcion ?? "").trim().toUpperCase();
-        if (inmuebleCode === "2309" && ciudadDesc === "LA PAZ") ciudadDesc = "ACHOCALLA";
-        else if (inmuebleCode === "2327" && ciudadDesc === "LA PAZ") ciudadDesc = "LAJA";
-        else if (inmuebleCode === "2341" && ciudadDesc === "LA PAZ") ciudadDesc = "PALOS BLANCOS";
-        else if (inmuebleCode === "2371" && ciudadDesc === "LA PAZ") ciudadDesc = "SAN ANDRES DE MACHACA";
-        ciudadPorAmbiente[code] = ciudadDesc || "SIN CIUDAD";
-      });
-
-      toast({ title: "Cargando activos", description: "Obteniendo activos vigentes REVISADO/INVENTARIADO..." });
+      toast({ title: "Cargando activos", description: "Obteniendo todos los activos vigentes (ultimoregistro=1)..." });
 
       let allActivos = [];
       let from = 0;
@@ -128,23 +98,19 @@ export const useReporteGrupoContable = () => {
         await new Promise((r) => setTimeout(r, 0));
       }
       const totalVigentes = allActivos.length;
-      const vigentes = [...allActivos];
+      // Hoja 2 (rubros excluidos) usa la misma base de vigentes
+      const baseRubrosExcluidos = [...allActivos];
 
-      // Solo REVISADO / INVENTARIADO (insensible a mayúsculas y espacios)
-      allActivos = allActivos.filter((a) => {
-        const est = String(a.estadoinventario ?? a.estadoInventario ?? "").trim().toUpperCase();
-        return ESTADOS_VALIDOS.includes(est);
-      });
-      const totalConEstado = allActivos.length;
+      // Hoja 1: todos los ultimoregistro=1, solo se excluyen los 3 rubros
       allActivos = allActivos.filter((a) => {
         const rubroDesc = rubroFromTipo[a.tipoRubroAct] ?? rubroFromTipo[String(a.tipoRubroAct)] ?? "";
         const n = normTxt(rubroDesc);
         return !RUBROS_EXCLUIDOS.some((k) => n.includes(k));
       });
-      console.debug("[GrupoContable] vigentes:", totalVigentes, "| con REVISADO/INVENTARIADO:", totalConEstado, "| tras excluir 3 rubros:", allActivos.length);
+      console.debug("[GrupoContable] vigentes (ultim=1):", totalVigentes, "| tras excluir 3 rubros:", allActivos.length);
 
       if (allActivos.length === 0) {
-        toast({ title: "Sin datos", description: "No hay activos REVISADO/INVENTARIADO para el reporte.", variant: "destructive" });
+        toast({ title: "Sin datos", description: "No hay activos vigentes para el reporte.", variant: "destructive" });
         return;
       }
 
@@ -199,17 +165,14 @@ export const useReporteGrupoContable = () => {
         margin: { left: marginLeft, right: marginLeft, top: 26 },
       });
 
-      // ---- Hoja 2: grupo contable de ciudades excluidas ----
-      // Base: vigentes (ultimoregistro=1) cuya ciudad está en CIUDADES_EXCEPCION_SET,
-      // sin exigir estadoinventario (misma lógica de excepción del Inventario General).
-      const excActivos = vigentes.filter((a) => {
-        const ambCode = String(a.codigoAmbiente ?? a.codigoambiente ?? "").trim();
-        const ciudad = String(ciudadPorAmbiente[ambCode] ?? "").trim().toUpperCase();
-        if (!CIUDADES_EXCEPCION_SET.has(ciudad)) return false;
+      // ---- Hoja 2: GRUPO CONTABLE DE RUBROS EXCLUIDOS ----
+      // Solo ultimoregistro=1 (sin filtro de estado) y SOLO
+      // BIBLIOTECA, TERRENOS y EDIFICACIONES, agrupado por rubro.
+      const excActivos = baseRubrosExcluidos.filter((a) => {
         const rubroDesc = rubroFromTipo[a.tipoRubroAct] ?? rubroFromTipo[String(a.tipoRubroAct)] ?? "";
-        return !RUBROS_EXCLUIDOS.some((k) => normTxt(rubroDesc).includes(k));
+        return RUBROS_EXCLUIDOS.some((k) => normTxt(rubroDesc).includes(k));
       });
-      console.debug("[GrupoContable] ciudades excluidas:", excActivos.length);
+      console.debug("[GrupoContable] vigentes:", totalVigentes, "| rubros excluidos (solo ultim=1):", excActivos.length);
       const excGrupos = new Map();
       excActivos.forEach((a) => {
         const rubroDesc = String(rubroFromTipo[a.tipoRubroAct] ?? rubroFromTipo[String(a.tipoRubroAct)] ?? "SIN RUBRO").trim() || "SIN RUBRO";
@@ -223,14 +186,14 @@ export const useReporteGrupoContable = () => {
       addLogo(doc);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(13);
-      doc.text("GRUPO CONTABLE CIUDADES EXCLUIDAS", pageWidth / 2, 16, { align: "center" });
+      doc.text("GRUPO CONTABLE DE RUBROS EXCLUIDOS", pageWidth / 2, 16, { align: "center" });
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
       doc.text(`Total activos: ${excTotal} en ${excOrdenados.length} grupos`, pageWidth / 2, 21, { align: "center" });
       autoTable(doc, {
         startY: 26,
         head: [["N°", "GRUPO CONTABLE", "CANTIDAD ACTIVOS"]],
-        body: excBody.length > 0 ? excBody : [["", "Sin activos en ciudades excluidas", ""]],
+        body: excBody.length > 0 ? excBody : [["", "Sin activos en rubros excluidos", ""]],
         foot: [["", "TOTAL GENERAL", String(excTotal)]],
         showFoot: "lastPage",
         theme: "striped",
@@ -247,10 +210,11 @@ export const useReporteGrupoContable = () => {
       });
 
       // ---- Hoja 3: activos revaluados por grupo contable ----
-      // Base exacta: ultimoregistro=1 + pararevaluo=true + estadoinventario en (INVENTARIADO, REVISADO, EN PROCESO).
-      toast({ title: "Cargando revalúo", description: "Obteniendo activos con pararevaluo=true..." });
+      // Base: TODOS los ultimoregistro=1 (sin filtro de estado ni pararevaluo).
+      // CANTIDAD y VALOR NETO de todos; VALOR REVALUADO = suma de valorrevaluo
+      // (los no revaluados aportan 0).
+      toast({ title: "Cargando revalúo", description: "Obteniendo todos los activos vigentes..." });
       const SELECT_REV = `${ACTIVO_COLUMNS},valorneto,valorrevaluo`;
-      const REV_ESTADOS = ["REVISADO", "INVENTARIADO", "EN PROCESO"];
       let revActivos = [];
       {
         let rFrom = 0;
@@ -259,7 +223,6 @@ export const useReporteGrupoContable = () => {
             .from("act_activos")
             .select(SELECT_REV)
             .eq("ultimoregistro", 1)
-            .eq("pararevaluo", true)
             .order("codigoactivointerno", { ascending: true })
             .range(rFrom, rFrom + FETCH_CHUNK - 1);
           if (error) throw error;
@@ -273,12 +236,7 @@ export const useReporteGrupoContable = () => {
         }
       }
       const totalRevBase = revActivos.length;
-      // INVENTARIADO / REVISADO / EN PROCESO (insensible a mayúsculas y espacios), sin excluir rubros
-      revActivos = revActivos.filter((a) => {
-        const est = String(a.estadoinventario ?? a.estadoInventario ?? "").trim().toUpperCase();
-        return REV_ESTADOS.includes(est);
-      });
-      console.debug("[GrupoContable] revaluados base (ultim=1, pararevaluo=true):", totalRevBase, "| con INVENTARIADO/REVISADO/EN PROCESO:", revActivos.length);
+      console.debug("[GrupoContable] hoja3 base todos ultim=1:", totalRevBase);
 
       const revGrupos = new Map();
       revActivos.forEach((a) => {
@@ -305,7 +263,7 @@ export const useReporteGrupoContable = () => {
       doc.text("ACTIVOS REVALUADOS POR GRUPO CONTABLE", pageWidth / 2, 16, { align: "center" });
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
-      doc.text(`Total activos revaluados: ${revTotalCant} en ${revOrdenados.length} grupos`, pageWidth / 2, 21, { align: "center" });
+      doc.text(`Total activos: ${revTotalCant} en ${revOrdenados.length} grupos`, pageWidth / 2, 21, { align: "center" });
       autoTable(doc, {
         startY: 26,
         head: [["N°", "GRUPO CONTABLE", "CANTIDAD DE ACTIVOS", "VALOR NETO REGISTRADO (Bs.)", "VALOR REVALUADO (Bs.)"]],
