@@ -165,17 +165,6 @@ const drawActaHeader = async (doc, { numeroActa, responsable }) => {
   doc.setFontSize(9);
   doc.text(`ACTA No. ${numeroActa}`, pageWidth / 2, 23.5, { align: "center" });
 
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "normal");
-
-  const printDateStr = new Date().toLocaleDateString("es-ES", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric"
-  }).toUpperCase();
-
-  doc.text(`FECHA DE IMPRESIÓN: ${printDateStr}`, pageWidth / 2, 27, { align: "center" });
-
   const startYInfo = 40;
   const col1 = 14;
   const col2 = 45;
