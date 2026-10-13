@@ -42,8 +42,7 @@ export const loadActaData = async (responsable, locationFilters = {}) => {
     .from("act_activos")
     .select(ASSET_SELECT)
     .eq("cirun", responsable.cirun)
-    .eq("ultimoregistro", 1)
-    .eq("estadoinventario", "REVISADO");
+    .eq("ultimoregistro", 1);
 
   if (hasLocation) {
     const codes = await resolveAmbienteCodes({ ciudad, inmueble, nivel, ambiente });
@@ -350,7 +349,7 @@ export const useActaAsignacion = () => {
         return;
       }
 
-      // Calcular activos que se imprimirán: act_activos por par (cirun, codigoambiente) con ultimoregistro=1 y REVISADO
+      // Calcular activos que se imprimirán: act_activos por par (cirun, codigoambiente) con ultimoregistro=1
       const uniqueCiruns = [...new Set(filteredActas.map((a) => String(a.cirun).trim()))];
       const actaPairSet = new Set(filteredActas.map((a) => `${String(a.cirun).trim()}|${String(a.codigoambiente || "").trim()}`));
 
@@ -367,7 +366,6 @@ export const useActaAsignacion = () => {
             .select("cirun, codigoambiente")
             .in("cirun", cirunChunk)
             .eq("ultimoregistro", 1)
-            .eq("estadoinventario", "REVISADO")
             .range(from, from + CHUNK_FETCH - 1);
           if (error) throw error;
           if (!data || data.length === 0) break;
@@ -420,7 +418,6 @@ export const useActaAsignacion = () => {
             .select("cirun, codigoambiente")
             .in("cirun", cirunChunk)
             .eq("ultimoregistro", 1)
-            .eq("estadoinventario", "REVISADO")
             .range(from, from + CHUNK_FETCH - 1);
           if (error) throw error;
           if (!data || data.length === 0) break;
@@ -810,7 +807,6 @@ export const useActaAsignacion = () => {
           .eq("cirun", cirun)
           .eq("codigoambiente", codigoAmbiente)
           .eq("ultimoregistro", 1)
-          .eq("estadoinventario", "REVISADO")
           .order("codigoactivo", { ascending: true });
 
         if (assetsError) {
@@ -913,7 +909,7 @@ export const useActaAsignacion = () => {
       if (generatedCount === 0) {
         toast({
           title: "Sin actas para imprimir",
-          description: "Ninguna acta con número asignado tiene activos vigentes (REVISADO).",
+          description: "Ninguna acta con número asignado tiene activos vigentes.",
           variant: "destructive",
         });
         return;
@@ -1286,7 +1282,6 @@ export const useActaAsignacion = () => {
             .select(`${ASSET_SELECT}, cirun`)
             .in("cirun", cirunChunk)
             .eq("ultimoregistro", 1)
-            .eq("estadoinventario", "REVISADO")
             .range(innerFrom, innerFrom + CHUNK_FETCH - 1);
           if (error) throw error;
           if (!data || data.length === 0) break;
@@ -1344,7 +1339,7 @@ export const useActaAsignacion = () => {
       doc.setFontSize(8);
       doc.setFont("helvetica", "normal");
       const fechaStr = new Date().toLocaleDateString("es-BO", { day: "2-digit", month: "long", year: "numeric" }).toUpperCase();
-      doc.text(`FECHA: ${fechaStr}  |  ACTAS: ${enriched.length}  |  ACTIVOS: ${totalActivos} (ultimoregistro=1, REVISADO)`, pageWidth / 2, 26, { align: "center" });
+      doc.text(`FECHA: ${fechaStr}  |  ACTAS: ${enriched.length}  |  ACTIVOS: ${totalActivos} (ultimoregistro=1)`, pageWidth / 2, 26, { align: "center" });
       doc.setFontSize(7);
       doc.text("Ordenado por Número de Acta ascendente - Cada acta agrupa activos por (cirun + codigoambiente)", pageWidth / 2, 31, { align: "center" });
 
@@ -1457,7 +1452,7 @@ export const useActaAsignacion = () => {
       doc.setFontSize(6);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(100);
-      const disclaimer = `Reporte generado automáticamente. Incluye ${enriched.length} actas con ${totalActivos} activos (ultimoregistro=1, REVISADO). Detalle por acta limitado a ${MAX_DETALLE_POR_ACTA} activos por acta para legibilidad. Cantidad por acta visible en columna CANT. ACTIVOS.`;
+      const disclaimer = `Reporte generado automáticamente. Incluye ${enriched.length} actas con ${totalActivos} activos (ultimoregistro=1). Detalle por acta limitado a ${MAX_DETALLE_POR_ACTA} activos por acta para legibilidad. Cantidad por acta visible en columna CANT. ACTIVOS.`;
       const discLines = doc.splitTextToSize(disclaimer, pageWidth - 28);
       doc.text(discLines, 14, finalY);
 
