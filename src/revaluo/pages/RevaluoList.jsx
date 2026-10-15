@@ -3,10 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import DataPagination from "@/components/ui/data-pagination";
 import LoadingSpinner from "@/components/ui/loading-spinner";
-import { RefreshCw, Scale, FileDown, Loader2, Image as ImageIcon, Dices, FileText } from "lucide-react";
+import { RefreshCw, Scale, FileDown, Loader2, Image as ImageIcon, Dices, FileText, Upload } from "lucide-react";
 import { useRevaluoData } from "../hooks/useRevaluoData";
 import RevaluoFilters from "../components/RevaluoFilters";
 import RevaluoTable from "../components/RevaluoTable";
+import { calcRow as calcPrecioRevaluo } from "../services/revaluoCalc";
 import RevaluoEditModal from "../components/RevaluoEditModal";
 import { getCachedCatalog } from "@/lib/catalogCache";
 import { useUserDisplayNames } from "@/hooks/useUserDisplayNames";
@@ -15,7 +16,8 @@ import { normalizeCi, normalizeCiLoose, getCiPrefix } from "@/inventario/constan
 import { InventarioImagesModal } from "@/inventario/components/InventarioModals";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { fetchActivoImages, fetchAllPhotoCounts, updateActivoFields } from "@/inventario/services/inventarioService";
-import { generateRevaluoReportSimple, generateRevaluoFaltantesReport, generateRevaluoLotesPDFReport } from "../services/revaluoReport";
+import { generateRevaluoReportSimple, generateRevaluoFaltantesReport, generateRevaluoLotesPDFReport, generateRevaluoConservacionPDFReport } from "../services/revaluoReport";
+import { parseCotizacionesExcel, normCodigoActivo } from "../services/subirDatosExcel";
 
 const RANGOS_EXCEL_SIN_FOTOS = [
   { from: 1, to: 650 },
@@ -846,6 +848,12 @@ const RevaluoList = () => {
   const rowKeyOfList = (a) =>
     String(a.codigoActivoInterno ?? a.codigoactivointerno ?? a.codigoActivo ?? a._codigoActivo ?? "");
 
+  // Filas con Precio Revalúo calculado (cotizaciones + años válidos en la interfaz).
+  const conPrecioRevaluo = useCallback((a) => {
+    const ws = worksheet[rowKeyOfList(a)] || {};
+    return calcPrecioRevaluo(a, ws, factores).precio !== null;
+  }, [worksheet, factores]);
+
   const resolveRangoPrecio = (a) => {
     const txt = normRubroTxt(`${a._rubro || ""} ${a._tipoRubro || ""}`);
     const match = RANGO_PRECIO_POR_RUBRO.find(([re]) => re.test(txt));
@@ -887,17 +895,139 @@ const RevaluoList = () => {
   };
 
   const [isGeneratingDatosReport, setIsGeneratingDatosReport] = useState(false);
+  const [isSavingRevaluo, setIsSavingRevaluo] = useState(false);
+  const [isGeneratingSubirPDF, setIsGeneratingSubirPDF] = useState(false);
 
-  // Reporte en Excel de TODOS los activos de la lista que tienen dato en Conservación.
-  const handleGenerateConservacionReport = async () => {
-    const rows = filteredEnriched.filter(tieneConservacion);
-    if (rows.length === 0) {
+  // Graba el Precio Revalúo calculado en la interfaz (Promedio × Años / Años x tipo)
+  // en act_activos.valorrevaluo, solo filas con dato en Conservación y precio válido.
+  const handleGrabarPrecioRevaluo = async () => {
+    const filas = filteredEnriched.filter(tieneConservacion);
+    if (filas.length === 0) {
       toast({ title: "Sin datos", description: "No hay filas con dato en Conservación en la lista actual.", variant: "destructive" });
+      return;
+    }
+    const pendientes = [];
+    filas.forEach((a) => {
+      const ws = worksheet[rowKeyOfList(a)] || {};
+      const calc = calcPrecioRevaluo(a, ws, factores);
+      if (calc.precio === null) return;
+      const interno = a.codigoActivoInterno ?? a.codigoactivointerno;
+      if (interno == null || String(interno).trim() === "") return;
+      pendientes.push({ interno, precio: Number(Number(calc.precio).toFixed(2)), codigo: a._codigoActivo });
+    });
+    if (pendientes.length === 0) {
+      toast({ title: "Sin precios", description: "Ninguna fila con Conservación tiene Precio Revalúo calculado (faltan cotizaciones).", variant: "destructive" });
+      return;
+    }
+    const confirmed = window.confirm(
+      `Se grabará el Precio Revalúo en valorrevaluo de ${pendientes.length} activos. ¿Desea continuar?`
+    );
+    if (!confirmed) return;
+    setIsSavingRevaluo(true);
+    try {
+      let grabados = 0;
+      const errores = [];
+      for (let i = 0; i < pendientes.length; i++) {
+        const p = pendientes[i];
+        try {
+          await updateActivoFields(p.interno, { valorrevaluo: p.precio });
+          grabados += 1;
+        } catch {
+          errores.push(p.codigo);
+        }
+        if (i % 50 === 0) await new Promise((r) => setTimeout(r, 0));
+      }
+      await fetchRevaluo();
+      toast({
+        title: grabados > 0 ? "Precios grabados" : "Error",
+        description: grabados > 0
+          ? `Se grabó valorrevaluo en ${grabados} activos.${errores.length > 0 ? ` (${errores.length} con error)` : ""}`
+          : "No se pudo grabar ningún precio.",
+        variant: grabados > 0 ? "default" : "destructive",
+      });
+    } catch (err) {
+      console.error("Error grabando precios de revalúo:", err);
+      toast({ title: "Error", description: `No se pudieron grabar los precios: ${err.message || ""}`, variant: "destructive" });
+    } finally {
+      setIsSavingRevaluo(false);
+    }
+  };
+  // SUBIR DATOS: misma lógica que Datos Aleatorios pero con valores del Excel
+  // prueba1.xlsx (MERCADO 1-3 -> c1/c2/c3, NOMBRE 1-3 -> n1/n2/n3),
+  // solo en las filas con dato en Conservación. El Promedio lo calcula la interfaz.
+  const [isSubirModalOpen, setIsSubirModalOpen] = useState(false);
+  const [isUploadingExcel, setIsUploadingExcel] = useState(false);
+
+  // Tipo de cambio para convertir MERCADO 1-3 del Excel antes de llevarlos a la interfaz.
+  const TIPO_CAMBIO_MERCADO = 11.7;
+
+  const handleCargarPrueba1 = async () => {
+    const filas = filteredEnriched.filter(tieneConservacion);
+    if (filas.length === 0) {
+      toast({ title: "Sin datos", description: "No hay filas con dato en Conservación en la lista actual.", variant: "destructive" });
+      return;
+    }
+    setIsUploadingExcel(true);
+    try {
+      const res = await fetch(`${import.meta.env.BASE_URL}prueba1.xlsx`);
+      if (!res.ok) throw new Error("No se encontró el archivo prueba1.xlsx.");
+      const buf = await res.arrayBuffer();
+      const { items, sinCodigo } = parseCotizacionesExcel(buf);
+      if (items.length === 0) {
+        toast({ title: "Sin datos", description: "El Excel no tiene filas con Codigo Activo.", variant: "destructive" });
+        return;
+      }
+      const byCodigo = {};
+      filas.forEach((a) => {
+        byCodigo[normCodigoActivo(a.codigoActivo)] = a;
+      });
+      const patch = {};
+      const noEncontrados = [];
+      items.forEach((it) => {
+        const a = byCodigo[it.codigo];
+        if (!a) { noEncontrados.push(it.codigo); return; }
+        const cell = {};
+        it.c.forEach((v, k) => { if (v !== null) cell[`c${k + 1}`] = (v * TIPO_CAMBIO_MERCADO).toFixed(2); });
+        it.n.forEach((v, k) => { if (v) cell[`n${k + 1}`] = v; });
+        if (Object.keys(cell).length === 0) return;
+        patch[rowKeyOfList(a)] = cell;
+      });
+      const actualizados = Object.keys(patch).length;
+      if (actualizados === 0) {
+        toast({ title: "Sin coincidencias", description: "Ningún Codigo Activo del Excel está en las filas con Conservación.", variant: "destructive" });
+        return;
+      }
+      setWorksheet((prev) => {
+        const next = { ...prev };
+        Object.entries(patch).forEach(([k, v]) => {
+          next[k] = { ...(next[k] || {}), ...v };
+        });
+        return next;
+      });
+      const extras = [
+        noEncontrados.length > 0 ? `${noEncontrados.length} códigos no están en la lista` : null,
+        sinCodigo > 0 ? `${sinCodigo} filas sin código` : null,
+      ].filter(Boolean).join(" · ");
+      toast({ title: "Datos cargados", description: `Cotizaciones y respaldos del Excel para ${actualizados} filas con Conservación.${extras ? ` (${extras})` : ""}` });
+    } catch (err) {
+      console.error("Error cargando prueba1.xlsx:", err);
+      toast({ title: "Error", description: err.message || "No se pudo leer el Excel.", variant: "destructive" });
+    } finally {
+      setIsUploadingExcel(false);
+    }
+  };
+
+  // Reporte en Excel de los activos con Precio Revalúo calculado en la interfaz.
+  // Reporte en Excel con TODOS los activos de la lista actual.
+  const handleGenerateConservacionReport = async () => {
+    const rows = filteredEnriched;
+    if (rows.length === 0) {
+      toast({ title: "Sin datos", description: "No hay activos en la lista actual.", variant: "destructive" });
       return;
     }
     setIsGeneratingDatosReport(true);
     try {
-      const parts = ["Con dato en Conservación"];
+      const parts = ["B = Bueno | R = Regular | M = Malo | Ba = Baja"];
       if (appliedFilters.codigoActivo) parts.push(`Código: ${appliedFilters.codigoActivo}`);
       if (appliedFilters.estadoConservacion && appliedFilters.estadoConservacion !== "TODOS") parts.push(`Est. Cons.: ${appliedFilters.estadoConservacion}`);
       if (appliedFilters.estado && appliedFilters.estado !== "TODOS") parts.push(`Estado: ${appliedFilters.estado}`);
@@ -913,12 +1043,47 @@ const RevaluoList = () => {
         filePrefix: "REVALUO_ReporteConservacion",
         tituloReporte: "ACTIVOS REVALUADOS",
       });
-      toast({ title: "Reporte generado", description: `Excel con ${rows.length} activos con Conservación descargado.` });
+      toast({ title: "Reporte generado", description: `Excel con ${rows.length} activos descargado.` });
     } catch (err) {
       console.error("Error generando reporte de conservación:", err);
       toast({ title: "Error", description: `No se pudo generar el reporte: ${err.message || ""}`, variant: "destructive" });
     } finally {
       setIsGeneratingDatosReport(false);
+    }
+  };
+
+  // Reporte en PDF con el MISMO contenido que el Excel "ACTIVOS REVALUADOS"
+  // (solo botón "Generar PDF" del modal SUBIR DATOS).
+  const handleGenerateSubirPDF = async () => {
+    const rows = filteredEnriched.filter(tieneConservacion).filter(conPrecioRevaluo);
+    if (rows.length === 0) {
+      toast({ title: "Sin datos", description: "No hay activos con Precio Revalúo en la lista actual (faltan cotizaciones).", variant: "destructive" });
+      return;
+    }
+    setIsGeneratingSubirPDF(true);
+    try {
+      const parts = [];
+      if (appliedFilters.codigoActivo) parts.push(`Código: ${appliedFilters.codigoActivo}`);
+      if (appliedFilters.estadoConservacion && appliedFilters.estadoConservacion !== "TODOS") parts.push(`Est. Cons.: ${appliedFilters.estadoConservacion}`);
+      if (appliedFilters.estado && appliedFilters.estado !== "TODOS") parts.push(`Estado: ${appliedFilters.estado}`);
+      if (appliedFilters.ubicacion) parts.push(`Ubicación: ${appliedFilters.ubicacion}`);
+      if (appliedFilters.carnet) parts.push(`Carnet: ${appliedFilters.carnet}`);
+      if (appliedFilters.rubro && appliedFilters.rubro !== "TODOS") parts.push(`Rubro: ${appliedFilters.rubro}`);
+      if (appliedFilters.tipoRubro && appliedFilters.tipoRubro !== "TODOS") parts.push(`Tipo Rubro: ${appliedFilters.tipoRubro}`);
+      if (appliedFilters.fotos && appliedFilters.fotos !== "TODOS") parts.push(`Fotos: ${FOTOS_LABELS[appliedFilters.fotos] || appliedFilters.fotos}`);
+      await generateRevaluoConservacionPDFReport({
+        activos: rows,
+        filtrosResumen: parts.join(" | "),
+        worksheet,
+        filePrefix: "REVALUO_ReporteConservacion",
+        tituloReporte: "ACTIVOS REVALUADOS",
+      });
+      toast({ title: "Reporte generado", description: `PDF con ${rows.length} activos con Precio Revalúo descargado.` });
+    } catch (err) {
+      console.error("Error generando PDF de subir datos:", err);
+      toast({ title: "Error", description: `No se pudo generar el PDF: ${err.message || ""}`, variant: "destructive" });
+    } finally {
+      setIsGeneratingSubirPDF(false);
     }
   };
 
@@ -1137,6 +1302,10 @@ const RevaluoList = () => {
             <Dices className="mr-2 h-4 w-4 shrink-0" />
             <span className="truncate">Datos Aleatorios</span>
           </Button>
+          <Button onClick={() => setIsSubirModalOpen(true)} disabled={filteredEnriched.length === 0} className="bg-emerald-600 hover:bg-emerald-700 text-white w-full sm:w-auto min-h-11 sm:min-h-9 text-xs sm:text-sm" title="Cargar cotizaciones (MERCADO 1-3) y respaldos (NOMBRE 1-3) del Excel prueba1.xlsx por Codigo Activo">
+            <Upload className="mr-2 h-4 w-4 shrink-0" />
+            <span className="truncate">SUBIR DATOS</span>
+          </Button>
           <Button onClick={handleGenerateSimpleReport} disabled={isGeneratingSimpleReport || filteredEnriched.length === 0} className="bg-sky-600 hover:bg-sky-700 text-white w-full sm:w-auto min-h-11 sm:min-h-9 text-xs sm:text-sm">
             {isGeneratingSimpleReport ? <Loader2 className="mr-2 h-4 w-4 animate-spin shrink-0" /> : <FileDown className="mr-2 h-4 w-4 shrink-0" />}
             <span className="truncate">{isGeneratingSimpleReport ? "Generando..." : `Excel (${filteredEnriched.length})`}</span>
@@ -1317,7 +1486,7 @@ const RevaluoList = () => {
             <DialogTitle className="text-base sm:text-lg leading-tight">Datos Aleatorios</DialogTitle>
             <DialogDescription className="text-xs sm:text-sm leading-tight">
               {filteredEnriched.length > 0
-                ? "Genera cotizaciones (según tipo rubro) y su respaldo en N° Cotización solo en las filas con dato en Conservación. El reporte en Excel incluye todos los activos con Conservación."
+                ? "Genera cotizaciones (según tipo rubro) y su respaldo en N° Cotización solo en las filas con dato en Conservación. El reporte en Excel incluye todos los activos de la lista actual."
                 : "No hay activos en la lista con los filtros actuales."}
             </DialogDescription>
           </DialogHeader>
@@ -1329,6 +1498,54 @@ const RevaluoList = () => {
             >
               <Dices className="mr-2 h-4 w-4 shrink-0" />
               Generar Datos
+            </Button>
+            <Button
+              onClick={handleGenerateConservacionReport}
+              disabled={filteredEnriched.length === 0 || isGeneratingDatosReport}
+              className="bg-amber-600 hover:bg-amber-700 text-white w-full min-h-11 text-xs sm:text-sm"
+            >
+              {isGeneratingDatosReport ? <Loader2 className="mr-2 h-4 w-4 animate-spin shrink-0" /> : <FileDown className="mr-2 h-4 w-4 shrink-0" />}
+              {isGeneratingDatosReport ? "Generando..." : "Generar reporte"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isSubirModalOpen} onOpenChange={setIsSubirModalOpen}>
+        <DialogContent className="w-[94vw] sm:max-w-[440px] p-4 sm:p-6">
+          <DialogHeader className="space-y-1">
+            <DialogTitle className="text-base sm:text-lg leading-tight">Subir Datos</DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm leading-tight">
+              {filteredEnriched.length > 0
+                ? "Carga cotizaciones (MERCADO 1-3 × 11,70) y su respaldo en N° Cotización (NOMBRE 1-3) desde el Excel prueba1.xlsx, solo en las filas con dato en Conservación. El reporte en Excel incluye todos los activos de la lista; el PDF incluye los activos con Precio Revalúo."
+                : "No hay activos en la lista con los filtros actuales."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2 py-2">
+            <Button
+              onClick={handleCargarPrueba1}
+              disabled={filteredEnriched.length === 0 || isUploadingExcel}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white w-full min-h-11 text-xs sm:text-sm"
+            >
+              {isUploadingExcel ? <Loader2 className="mr-2 h-4 w-4 animate-spin shrink-0" /> : <Upload className="mr-2 h-4 w-4 shrink-0" />}
+              {isUploadingExcel ? "Cargando..." : "Cargar Excel"}
+            </Button>
+            <Button
+              onClick={handleGrabarPrecioRevaluo}
+              disabled={filteredEnriched.length === 0 || isSavingRevaluo}
+              className="bg-teal-700 hover:bg-teal-800 text-white w-full min-h-11 text-xs sm:text-sm"
+              title="Graba el Precio Revalúo calculado en la columna valorrevaluo de act_activos"
+            >
+              {isSavingRevaluo ? <Loader2 className="mr-2 h-4 w-4 animate-spin shrink-0" /> : <Upload className="mr-2 h-4 w-4 shrink-0" />}
+              {isSavingRevaluo ? "Grabando..." : "Grabar Precio Revalúo"}
+            </Button>
+            <Button
+              onClick={handleGenerateSubirPDF}
+              disabled={filteredEnriched.length === 0 || isGeneratingSubirPDF}
+              className="bg-red-600 hover:bg-red-700 text-white w-full min-h-11 text-xs sm:text-sm"
+            >
+              {isGeneratingSubirPDF ? <Loader2 className="mr-2 h-4 w-4 animate-spin shrink-0" /> : <FileText className="mr-2 h-4 w-4 shrink-0" />}
+              {isGeneratingSubirPDF ? "Generando..." : "Generar PDF"}
             </Button>
             <Button
               onClick={handleGenerateConservacionReport}

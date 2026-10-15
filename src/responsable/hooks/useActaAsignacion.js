@@ -27,6 +27,60 @@ const formatError = (err) => {
 const ASSET_SELECT =
   "codigoactivo, codigoambiente, tiporubroact, descripcionactivo, observaciones, marcamaterial, modelo, serie, ram, procesador, discoduro, numeromotor, numerochasisserial, placamatricula, capacidadcargatraccion, capacidaddimension, fuentealimentacion, accesorios, alcancecobertura, medidas, color, divisionescajonesbandejas, chapa, abatible, deslizable, potencia, horometro, combustibleenergia, funcion, categoria, caracteristicas, estadoconservacion";
 
+// Limpia caracteres de control y colapsa espacios (igual que antes).
+const sanitizeActaText = (s) =>
+  String(s ?? "").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "").replace(/\s+/g, " ").trim();
+
+// NO pre-corta por cantidad de caracteres: eso dejaba huecos vacíos.
+// Se conserva el texto natural y solo se parte el token que realmente
+// excede el ancho útil de la celda, medido con doc.getTextWidth().
+// Así la palabra que está por chocar con OBSERVACIONES baja a la
+// siguiente línea DENTRO de DESCRIPCIÓN y nunca invade la otra columna.
+const splitLongTokenToFit = (doc, token, maxWidth) => {
+  const parts = [];
+  let cur = "";
+  for (const ch of String(token)) {
+    const test = cur + ch;
+    let w = 0;
+    try { w = doc.getTextWidth(test); } catch { w = test.length * 1.4; }
+    if (w <= maxWidth || cur === "") { cur = test; }
+    else { parts.push(cur); cur = ch; }
+  }
+  if (cur) parts.push(cur);
+  return parts.length ? parts : [token];
+};
+
+// Atajo: solo sanitiza (se mantiene firma con limit para no tocar llamadas).
+const cellText = (s) => sanitizeActaText(s);
+
+// Red de seguridad en didParseCell: NO reescribe el texto si todo cabe.
+// Solo trocea el token largo exacto al borde de la celda usando el ancho
+// DECLARADO (cellWidth fijo), no hookData.column.width que en didParseCell
+// aún no es final y provocaba cortes de más y filas con huecos vacíos.
+const forceWrapCell = (doc, hookData, declaredWidth = 0) => {
+  const raw = String(hookData.cell.raw ?? hookData.cell.text.join(" ") ?? "");
+  if (!raw) return;
+  // Ancho útil real: declarado menos padding (1.2 izq + 1.2 der + margen).
+  const base = declaredWidth > 0 ? declaredWidth : (hookData.column.width || hookData.cell.width || 0);
+  const maxWidth = base > 5 ? base - 2.4 - 0.5 : 0;
+  if (maxWidth <= 5) return;
+  let needsFix = false;
+  const fixed = raw
+    .split(" ")
+    .map((word) => {
+      if (!word) return word;
+      let w = 0;
+      try { w = doc.getTextWidth(word); } catch { w = 0; }
+      if (w <= maxWidth) return word;
+      needsFix = true;
+      return splitLongTokenToFit(doc, word, maxWidth).join(" ");
+    })
+    .join(" ");
+  // Si ninguna palabra excede, dejar el wrap nativo intacto (evita huecos).
+  if (!needsFix) return;
+  hookData.cell.text = doc.splitTextToSize(fixed, maxWidth);
+};
+
 const loadImage = (src) => new Promise((resolve) => {
   const img = new Image();
   img.onload = () => resolve(img);
@@ -466,17 +520,17 @@ export const useActaAsignacion = () => {
 
       const { tableStartY } = await drawActaHeader(doc, { numeroActa, responsable });
 
-      const sanitize = (s) => String(s ?? "").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "").replace(/\s+/g, " ").trim();
+      const sanitize = (s) => cellText(s, 25);
       const tableData = assets.map(a => {
         const trId = a.tipoRubroAct || a.tiporubroact;
-        const rn = sanitize(tipoRubroMap[trId] || "");
-        const tn = sanitize(descTipoRubroMap[trId] || "");
-        const desc = sanitize(a.descripcionActivo ?? a.descripcionactivo ?? "");
-        const rawObs = sanitize(a.observaciones || "");
-        const rawDescActivo = sanitize(a.descripcionActivo || a.descripcionactivo || "");
+        const rn = cellText(tipoRubroMap[trId] || "", 15);
+        const tn = cellText(descTipoRubroMap[trId] || "", 12);
+        const desc = cellText(a.descripcionActivo ?? a.descripcionactivo ?? "", 22);
+        const rawObs = cellText(a.observaciones || "", 18);
+        const rawDescActivo = cellText(a.descripcionActivo || a.descripcionactivo || "", 22);
         const obs = rawObs && (rawObs === "0" || rawObs === rawDescActivo || rawObs === desc) ? "" : rawObs;
-        const codigoFormateado = `OJ-02-${sanitize(a.codigoActivo || a.codigoactivo || "")}`;
-        const ubicacion = sanitize(resolveUbicacion(a.codigoAmbiente || a.codigoambiente) || "");
+        const codigoFormateado = `OJ-02-${cellText(a.codigoActivo || a.codigoactivo || "", 15)}`;
+        const ubicacion = cellText(resolveUbicacion(a.codigoAmbiente || a.codigoambiente) || "", 18);
 
         return [
           codigoFormateado,
@@ -485,7 +539,7 @@ export const useActaAsignacion = () => {
           desc,
           obs,
           ubicacion,
-          sanitize(a.estadoConservacion || a.estadoconservacion || "REGULAR").toUpperCase() || "REGULAR"
+          cellText(a.estadoConservacion || a.estadoconservacion || "REGULAR", 12).toUpperCase() || "REGULAR"
         ];
       });
 
@@ -532,14 +586,10 @@ export const useActaAsignacion = () => {
         margin: { top: 20, left: 14, right: 14 },
         horizontalPageBreak: false,
         didParseCell: (hookData) => {
-          // Fuerza wrap mid-word para columnas que pueden desbordar (RUBRO,TIPO,DESCRIPCIÓN,OBSERVACIONES,UBICACIÓN)
-          if ([1, 2, 3, 4, 5].includes(hookData.column.index)) {
-            const colWidth = (hookData.column.width || hookData.cell.width || 0);
-            const maxWidth = colWidth > 5 ? colWidth - 2.4 - 0.5 : 0;
-            const raw = hookData.cell.text.join(' ');
-            if (raw && maxWidth > 5) {
-              hookData.cell.text = doc.splitTextToSize(raw, maxWidth);
-            }
+          // Fuerza wrap incluso con palabras largas sin espacios (RUBRO,TIPO,DESCRIPCIÓN,OBSERVACIONES,UBICACIÓN).
+          // Límites proporcionales al cellWidth: TIPO(20mm)=12, RUBRO(26mm)=15, DESC(78mm)=22, OBS(38mm)=18, UBIC(42mm)=18.
+          if ([1,2,3,4,5].includes(hookData.column.index)) {
+            forceWrapCell(doc, hookData, ({1:26,2:20,3:78,4:38,5:42})[hookData.column.index]||0);
           }
         },
       });
@@ -775,7 +825,7 @@ export const useActaAsignacion = () => {
       let skippedCount = 0;
       let firstActa = true;
 
-      const sanitize = (s) => String(s ?? "").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "").replace(/\s+/g, " ").trim();
+      const sanitize = (s) => cellText(s, 25);
 
       for (const acta of filteredActas) {
         const cirun = String(acta.cirun).trim();
@@ -823,14 +873,14 @@ export const useActaAsignacion = () => {
 
         const tableData = assets.map((a) => {
           const trId = a.tipoRubroAct || a.tiporubroact;
-          const rn = sanitize(tipoRubroMap[trId] || "");
-          const tn = sanitize(descTipoRubroMap[trId] || "");
-          const desc = sanitize(a.descripcionActivo ?? a.descripcionactivo ?? "");
-          const rawObs = sanitize(a.observaciones || "");
-          const rawDescActivo = sanitize(a.descripcionActivo || a.descripcionactivo || "");
+          const rn = cellText(tipoRubroMap[trId] || "", 15);
+          const tn = cellText(descTipoRubroMap[trId] || "", 12);
+          const desc = cellText(a.descripcionActivo ?? a.descripcionactivo ?? "", 22);
+          const rawObs = cellText(a.observaciones || "", 18);
+          const rawDescActivo = cellText(a.descripcionActivo || a.descripcionactivo || "", 22);
           const obs = rawObs && (rawObs === "0" || rawObs === rawDescActivo || rawObs === desc) ? "" : rawObs;
-          const codigoFormateado = `OJ-02-${sanitize(a.codigoActivo || a.codigoactivo || "")}`;
-          const ubicacion = sanitize(resolveUbicacion(a.codigoAmbiente || a.codigoambiente) || "");
+          const codigoFormateado = `OJ-02-${cellText(a.codigoActivo || a.codigoactivo || "", 15)}`;
+          const ubicacion = cellText(resolveUbicacion(a.codigoAmbiente || a.codigoambiente) || "", 18);
           return [
             codigoFormateado,
             rn,
@@ -882,13 +932,8 @@ export const useActaAsignacion = () => {
           margin: { top: 20, left: 14, right: 14 },
           horizontalPageBreak: false,
           didParseCell: (hookData) => {
-            if ([1, 2, 3, 4, 5].includes(hookData.column.index)) {
-              const colWidth = (hookData.column.width || hookData.cell.width || 0);
-              const maxWidth = colWidth > 5 ? colWidth - 2.4 - 0.5 : 0;
-              const raw = hookData.cell.text.join(' ');
-              if (raw && maxWidth > 5) {
-                hookData.cell.text = doc.splitTextToSize(raw, maxWidth);
-              }
+            if ([1,2,3,4,5].includes(hookData.column.index)) {
+              forceWrapCell(doc, hookData, ({1:26,2:20,3:78,4:38,5:42})[hookData.column.index]||0);
             }
           },
         });
@@ -1083,15 +1128,15 @@ export const useActaAsignacion = () => {
       doc.setFontSize(7);
       doc.text("Ordenado por Carnet (CI) y Ubicación (Ciudad / Inmueble / Nivel / Ambiente) - Sin registro en act_responsable_acta", pageWidth / 2, 30, { align: "center" });
 
-      const sanitize = (s) => String(s ?? "").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "").replace(/\s+/g, " ").trim();
+      const sanitize = (s) => cellText(s, 25);
       const tableData = enriched.map((e) => [
-        sanitize(e.codigoFormateado),
-        sanitize(e.rn),
-        sanitize(e.tn),
-        sanitize(e.descripcion),
-        sanitize(e.ubicacion),
-        sanitize(e.ci),
-        sanitize(e.estado),
+        cellText(e.codigoFormateado, 15),
+        cellText(e.rn, 15),
+        cellText(e.tn, 12),
+        cellText(e.descripcion, 22),
+        cellText(e.ubicacion, 20),
+        cellText(e.ci, 15),
+        cellText(e.estado, 12),
       ]);
 
       autoTable(doc, {
@@ -1112,11 +1157,8 @@ export const useActaAsignacion = () => {
         },
         margin: { top: 36, left: 14, right: 14 },
         didParseCell: (hookData) => {
-          if ([1, 2, 3, 4].includes(hookData.column.index)) {
-            const colWidth = hookData.column.width || hookData.cell.width || 0;
-            const maxWidth = colWidth > 6 ? colWidth - 3 : 0;
-            const raw = hookData.cell.text.join(" ");
-            if (raw && maxWidth > 6) hookData.cell.text = doc.splitTextToSize(raw, maxWidth);
+          if ([1,2,3,4,5].includes(hookData.column.index)) {
+            forceWrapCell(doc, hookData, ({1:26,2:22,3:68,4:60})[hookData.column.index]||0);
           }
         },
       });
@@ -1295,7 +1337,7 @@ export const useActaAsignacion = () => {
       }
 
       // Construir filas enriquecidas ordenadas por numeroActa asc
-      const sanitize = (s) => String(s ?? "").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "").replace(/\s+/g, " ").trim();
+      const sanitize = (s) => cellText(s, 25);
       const enriched = filteredActas
         .map((acta) => {
           const key = `${String(acta.cirun).trim()}|${normCode(acta.codigoambiente)}`;
@@ -1340,11 +1382,11 @@ export const useActaAsignacion = () => {
       // Tabla resumen por acta
       const resumenData = enriched.map((r, idx) => [
         String(idx + 1),
-        sanitize(String(r.numeroActa)),
-        sanitize(r.cirun),
-        sanitize(r.responsable),
-        sanitize(r.cargo),
-        sanitize(r.ubicacion),
+        cellText(String(r.numeroActa), 12),
+        cellText(r.cirun, 12),
+        cellText(r.responsable, 25),
+        cellText(r.cargo, 20),
+        cellText(r.ubicacion, 25),
         String(r.cantidad),
       ]);
 
@@ -1369,6 +1411,9 @@ export const useActaAsignacion = () => {
           if (data.column.index === 6 && data.cell.raw) {
             data.cell.styles.fontStyle = "bold";
             data.cell.styles.halign = "center";
+          }
+          if ([3,4,5].includes(data.column.index)) {
+            forceWrapCell(doc, data, ({3:62,4:46,5:72})[data.column.index]||0);
           }
         },
       });
@@ -1401,10 +1446,10 @@ export const useActaAsignacion = () => {
         const activos = r.activos;
         const detalleData = activos.map((a) => {
           const trId = a.tipoRubroAct || a.tiporubroact;
-          const codigo = `OJ-02-${sanitize(a.codigoActivo || a.codigoactivo || "")}`;
-          const desc = sanitize(a.descripcionActivo ?? a.descripcionactivo ?? "");
-          const rn = sanitize(tipoRubroMap[trId] || "");
-          const estado = sanitize(a.estadoConservacion || a.estadoconservacion || "REGULAR").toUpperCase();
+          const codigo = `OJ-02-${cellText(a.codigoActivo || a.codigoactivo || "", 15)}`;
+          const desc = cellText(a.descripcionActivo ?? a.descripcionactivo ?? "", 30);
+          const rn = cellText(tipoRubroMap[trId] || "", 18);
+          const estado = cellText(a.estadoConservacion || a.estadoconservacion || "REGULAR", 12).toUpperCase();
           return [codigo, rn, desc, estado];
         });
 
@@ -1422,6 +1467,11 @@ export const useActaAsignacion = () => {
             3: { cellWidth: 22, halign: "center" },
           },
           margin: { left: 14, right: 14 },
+          didParseCell: (hookData) => {
+            if ([1,2,3,4,5].includes(hookData.column.index)) {
+              forceWrapCell(doc, hookData, ({1:40,2:150})[hookData.column.index]||0);
+            }
+          },
         });
         finalY = doc.lastAutoTable.finalY + 6;
         if (idx < enriched.length - 1) {

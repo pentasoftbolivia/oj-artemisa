@@ -61,7 +61,7 @@ export const generateConsultaRevaluoReportWithPhotos = async ({ activos = [], on
   const checkPage = (needed = 40) => {
     if (y + needed > pageHeight - 15) {
       doc.addPage();
-      y = 12;
+      y = 20;
       addLogo(doc);
     }
   };
@@ -191,7 +191,7 @@ export const generateConsultaRevaluoReportWithPhotos = async ({ activos = [], on
           // antes de cada fila, verificar que quepa la fila completa
           if (y + imgH + 8 > pageHeight - 10) {
             doc.addPage();
-            y = 14;
+            y = 20;
             addLogo(doc);
           }
         }
@@ -221,7 +221,7 @@ export const generateConsultaRevaluoReportWithPhotos = async ({ activos = [], on
       // contador debajo de la última fila de fotos, sin salto extra
       if (y + 6 > pageHeight - 10) {
         doc.addPage();
-        y = 14;
+        y = 20;
         addLogo(doc);
       }
       doc.setFont("helvetica", "normal");
@@ -243,7 +243,7 @@ export const generateConsultaRevaluoReportWithPhotos = async ({ activos = [], on
     // paginación footer will be added at end
     if (y > pageHeight - 20 && idx < activos.length - 1) {
       doc.addPage();
-      y = 12;
+      y = 20;
       addLogo(doc);
     }
   }

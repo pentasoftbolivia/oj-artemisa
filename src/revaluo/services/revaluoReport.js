@@ -2,7 +2,7 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { LOGO_JPG_DATA_URL } from "@/lib/logoJpgBase64";
-import { fetchActivoImages } from "@/inventario/services/inventarioService";
+import { fetchActivoImages, fetchCotizacionImages } from "@/inventario/services/inventarioService";
 
 const LOGO_W = 32;
 const LOGO_H = LOGO_W * (57 / 256);
@@ -63,7 +63,7 @@ export const generateRevaluoReportWithPhotos = async ({ activos = [], onProgress
   const checkPage = (needed = 40) => {
     if (y + needed > pageHeight - 15) {
       doc.addPage();
-      y = 12;
+      y = 20;
       addLogo(doc);
     }
   };
@@ -221,7 +221,7 @@ export const generateRevaluoReportWithPhotos = async ({ activos = [], onProgress
           // antes de cada fila, verificar que quepa la fila completa
           if (y + imgH + 8 > pageHeight - 10) {
             doc.addPage();
-            y = 14;
+            y = 20;
             addLogo(doc);
           }
         }
@@ -251,7 +251,7 @@ export const generateRevaluoReportWithPhotos = async ({ activos = [], onProgress
       // contador debajo de la última fila de fotos, sin salto extra
       if (y + 6 > pageHeight - 10) {
         doc.addPage();
-        y = 14;
+        y = 20;
         addLogo(doc);
       }
       doc.setFont("helvetica", "normal");
@@ -273,7 +273,7 @@ export const generateRevaluoReportWithPhotos = async ({ activos = [], onProgress
     // paginación footer will be added at end
     if (y > pageHeight - 20 && idx < activos.length - 1) {
       doc.addPage();
-      y = 12;
+      y = 20;
       addLogo(doc);
     }
   }
@@ -343,7 +343,7 @@ export const generateRevaluoLotesPDFReport = async ({
   const checkPage = (needed = 40) => {
     if (y + needed > pageHeight - 15) {
       doc.addPage();
-      y = 12;
+      y = 20;
       addLogo(doc);
     }
   };
@@ -374,6 +374,15 @@ export const generateRevaluoLotesPDFReport = async ({
       return fotos || [];
     } catch {
       if (onProgress) onProgress(idx + 1, activos.length);
+      return [];
+    }
+  });
+
+  // Fotos de respaldo de cotización (URL 1/2/3 del cuadro RESPALDOS)
+  const allCotizaciones = await mapWithConcurrency(activos, 8, async (a) => {
+    try {
+      return await fetchCotizacionImages(a.codigoActivo);
+    } catch {
       return [];
     }
   });
@@ -520,12 +529,40 @@ export const generateRevaluoLotesPDFReport = async ({
     y += 2;
     drawTwoCols("Promedio:", fmtBsPdf(calc.promedio ?? ""), "Precio Revalúo:", fmtBsPdf(calc.precio ?? ""));
     y += 2;
+    // URLs de las fotos de respaldo de cada cotización (bucket `revaluo`)
+    const cotFotos = allCotizaciones[idx] || [];
+    const cotUrls = (n) => {
+      const list = cotFotos.filter((f) => f.cotIndex === n).map((f) => f.url);
+      return list.length > 0 ? list.join(" ") : "—";
+    };
+    const chunkStr = (s, n) => {
+      const t = String(s || "—");
+      if (t === "—") return ["—"];
+      const out = [];
+      for (let i = 0; i < t.length; i += n) out.push(t.slice(i, i + n));
+      return out;
+    };
+    const pairUrlRows = (labelL, chunksL, labelR, chunksR) => {
+      const rows = [];
+      const max = Math.max(chunksL.length, chunksR.length);
+      for (let k = 0; k < max; k++) {
+        const l = chunksL[k] || "";
+        const r = chunksR[k] || "";
+        if (k > 0 && !l && !r) continue;
+        rows.push([[k === 0 ? labelL : "", l], [k === 0 ? labelR : "", r]]);
+      }
+      return rows;
+    };
+    const singleUrlRows = (label, chunks) =>
+      chunks.map((c, k) => [[k === 0 ? label : "", c], null]);
     drawBoxedGroup("RESPALDOS", [
       [
         ["Respaldo 1:", String(wsRow.n1 || "—")],
         ["Respaldo 2:", String(wsRow.n2 || "—")],
       ],
+      ...pairUrlRows("URL 1:", chunkStr(cotUrls(1), 38), "URL 2:", chunkStr(cotUrls(2), 30)),
       [["Respaldo 3:", String(wsRow.n3 || "—")], null],
+      ...singleUrlRows("URL 3:", chunkStr(cotUrls(3), 38)),
     ]);
     drawBoxedGroup("FACTOR DE REVALUO DE ACUERDO A ESTADO", [
       [
@@ -581,7 +618,7 @@ export const generateRevaluoLotesPDFReport = async ({
       for (let fIdx = 0; fIdx < fotos.length; fIdx++) {
         if (col === 0 && y + imgH + 8 > pageHeight - 10) {
           doc.addPage();
-          y = 14;
+          y = 20;
           addLogo(doc);
         }
         const base64 = base64List[fIdx];
@@ -609,7 +646,7 @@ export const generateRevaluoLotesPDFReport = async ({
       if (col !== 0) y += imgH + 2;
       if (y + 6 > pageHeight - 10) {
         doc.addPage();
-        y = 14;
+        y = 20;
         addLogo(doc);
       }
       doc.setFont("helvetica", "normal");
@@ -620,6 +657,17 @@ export const generateRevaluoLotesPDFReport = async ({
       y += 5;
     }
 
+    // Espacio prudente para firmar + título FIRMA DEL PERITO
+    checkPage(34);
+    y += 14;
+    doc.setDrawColor(100);
+    doc.line(pageWidth / 2 - 30, y, pageWidth / 2 + 30, y);
+    y += 5;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.text("FIRMA DEL PERITO", pageWidth / 2, y, { align: "center" });
+    y += 4;
+
     y += 1;
     if (idx < activos.length - 1) {
       doc.setDrawColor(230);
@@ -629,7 +677,7 @@ export const generateRevaluoLotesPDFReport = async ({
 
     if (y > pageHeight - 20 && idx < activos.length - 1) {
       doc.addPage();
-      y = 12;
+      y = 20;
       addLogo(doc);
     }
   }
@@ -748,7 +796,7 @@ export const generateRevaluoFaltantesReport = async ({
     const cell = headerRow.getCell(i + 1);
     cell.value = c.header;
     cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
-    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFB45309" } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F4E79" } };
     cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
     cell.border = {
       top: { style: "thin" }, bottom: { style: "thin" },
@@ -762,7 +810,7 @@ export const generateRevaluoFaltantesReport = async ({
   };
 
   // Dibuja la fila de cabeceras agrupadas (va encima de los encabezados)
-  addGroupHeadersRow(wsExcel, columns, groupRowNumber, headerRowNumber, "FFB45309");
+  addGroupHeadersRow(wsExcel, columns, groupRowNumber, headerRowNumber, "FF1F4E79");
 
   const moneyFmt = "#,##0.00";
   const moneyKeys = new Set(["cot1", "cot2", "cot3", "promedio", "precio"]);
@@ -868,12 +916,12 @@ const resolveUbicacionParts = (a) => {
   };
 };
 
-// Filas de cabecera agrupada sobre grupos de columnas del Excel.
+// Filas de cabecera agrupada sobre grupos de columnas del Excel (azul estándar).
 const GROUP_HEADERS = [
-  { title: "COTIZACION", from: "cot1", to: "cot3", fill: "FFFFC000" },
-  { title: "RESPALDOS DE COTIZACION", from: "ncot1", to: "ncot3", fill: "FFF79646" },
-  { title: "FACTOR DE REVALUO DE ACUERDO A ESTADO", from: "frB", to: "frBa", fill: "FFA9D18E" },
-  { title: "FACTOR AÑOS ASIGNADOS DE ACUERDO A ESTADO", from: "faB", to: "faBa", fill: "FF8EAADB" },
+  { title: "COTIZACION", from: "cot1", to: "cot3", fill: "FF1F4E79" },
+  { title: "RESPALDOS DE COTIZACION", from: "ncot1", to: "ncot3", fill: "FF1F4E79" },
+  { title: "FACTOR DE REVALUO DE ACUERDO A ESTADO", from: "frB", to: "frBa", fill: "FF1F4E79" },
+  { title: "FACTOR AÑOS ASIGNADOS DE ACUERDO A ESTADO", from: "faB", to: "faBa", fill: "FF1F4E79" },
 ];
 
 const addGroupHeadersRow = (wsExcel, columns, groupRowNumber, headerRowNumber, headerFill) => {
@@ -886,7 +934,7 @@ const addGroupHeadersRow = (wsExcel, columns, groupRowNumber, headerRowNumber, h
     if (c2 > c1) wsExcel.mergeCells(groupRowNumber, c1, groupRowNumber, c2);
     const cell = wsExcel.getCell(groupRowNumber, c1);
     cell.value = title;
-    cell.font = { bold: true, size: 10 };
+    cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: fill } };
     cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
     cell.border = {
@@ -941,6 +989,158 @@ const calcRowReport = (a, ws) => {
   const fr = promedio !== null && anios !== null ? promedio * anios : null;
   const precio = fr !== null && vidaTipo !== null && vidaTipo !== 0 ? fr / vidaTipo : null;
   return { promedio, precio, anios, fkey, fr, vida, vidaTipo };
+};
+
+// Mismo contenido que generateRevaluoFaltantesReport (Excel "ACTIVOS REVALUADOS")
+// pero en PDF tabular (sin fotos). Lo usa solo el botón "Generar PDF" del modal SUBIR DATOS.
+export const generateRevaluoConservacionPDFReport = async ({
+  activos = [],
+  filtrosResumen = "",
+  worksheet = {},
+  filePrefix = "REVALUO_ReporteConservacion",
+  tituloReporte = "ACTIVOS REVALUADOS",
+  numeroInicial = 1,
+} = {}) => {
+  if (!activos || activos.length === 0) return;
+
+  const sorted = [...activos].sort((a, b) => {
+    const numA = Number(a.codigoActivo);
+    const numB = Number(b.codigoActivo);
+    if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+    return String(a.codigoActivo ?? "").localeCompare(String(b.codigoActivo ?? ""), "es", { numeric: true });
+  });
+
+  const fmtMoney = (v) =>
+    v === null || v === undefined || v === "" ? "" : Number(v).toFixed(2);
+  const fmtInt = (v) => (v === null || v === undefined || v === "" ? "" : String(v));
+
+  // Azul estándar de todos los reportes (FF1F4E79).
+  const blue = { fillColor: [31, 78, 121], textColor: [255, 255, 255] };
+  const span2 = (content) => ({ content, rowSpan: 2, styles: blue });
+  // Fila superior agrupada igual que el Excel (mismos títulos), toda en azul estándar.
+  const head = [
+    [
+      span2("N°"), span2("Código Activo"), span2("Rubro"), span2("Tipo Rubro"),
+      span2("Descripción"), span2("Conservación"), span2("Años x tipo"),
+      span2("Responsable"), span2("Carnet"), span2("Estado"), span2("Ciudad"),
+      span2("Inmueble"), span2("Nivel"), span2("Ambiente"),
+      { content: "COTIZACION", colSpan: 3, styles: blue },
+      span2("Promedio (Bs)"),
+      { content: "RESPALDOS DE COTIZACION", colSpan: 3, styles: blue },
+      { content: "FACTOR DE REVALUO DE ACUERDO A ESTADO", colSpan: 4, styles: blue },
+      { content: "FACTOR AÑOS ASIGNADOS DE ACUERDO A ESTADO", colSpan: 4, styles: blue },
+      span2("Precio Revalúo (Bs)"), span2("Años Asig."), span2("Observaciones"),
+    ],
+    [
+      "Cot 1 (Bs)", "Cot 2 (Bs)", "Cot 3 (Bs)",
+      "N° Cot 1", "N° Cot 2", "N° Cot 3",
+      "F. Rev B", "F. Rev R", "F. Rev M", "F. Rev Ba",
+      "F. Años B", "F. Años R", "F. Años M", "F. Años Ba",
+    ],
+  ];
+
+  const body = sorted.map((a, idx) => {
+    const rk = rowKeyOfReport(a);
+    const wsRow = worksheet[rk] || {};
+    const calc = calcRowReport(a, wsRow);
+    const ubic = resolveUbicacionParts(a);
+    return [
+      String(numeroInicial + idx),
+      a._codigoActivo || (a.codigoActivo ? `OJ-02-${a.codigoActivo}` : ""),
+      String(a._rubro || ""),
+      String(a._tipoRubro || ""),
+      String(a.descripcionActivo ?? a.descripcionactivo ?? ""),
+      String(a._estadoConservacion || ""),
+      fmtInt(calc.vidaTipo),
+      String(a._responsableName || ""),
+      String(a._carnet || ""),
+      getEstadoAltaBajaLabel(a.estado ?? a.estadoActivo),
+      ubic.ciudad, ubic.inmueble, ubic.nivel, ubic.ambiente,
+      fmtMoney(parseNumReport(wsRow.c1)),
+      fmtMoney(parseNumReport(wsRow.c2)),
+      fmtMoney(parseNumReport(wsRow.c3)),
+      fmtMoney(calc.promedio),
+      String(wsRow.n1 || ""), String(wsRow.n2 || ""), String(wsRow.n3 || ""),
+      calc.fkey === "B" ? fmtInt(calc.fr ?? "") : "",
+      calc.fkey === "R" ? fmtInt(calc.fr ?? "") : "",
+      calc.fkey === "M" ? fmtInt(calc.fr ?? "") : "",
+      calc.fkey === "Ba" ? fmtInt(calc.fr ?? "") : "",
+      calc.fkey === "B" ? fmtInt(calc.anios ?? "") : "",
+      calc.fkey === "R" ? fmtInt(calc.anios ?? "") : "",
+      calc.fkey === "M" ? fmtInt(calc.anios ?? "") : "",
+      calc.fkey === "Ba" ? fmtInt(calc.anios ?? "") : "",
+      fmtMoney(calc.precio),
+      fmtInt(calc.anios),
+      String(a.observaciones ?? ""),
+    ];
+  });
+
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "legal" });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  addLogo(doc);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.text("INFORME TECNICO", pageWidth / 2, 10, { align: "center" });
+  doc.setFontSize(12);
+  doc.text(`${tituloReporte} - Total: ${sorted.length}`, pageWidth / 2, 16, { align: "center" });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7);
+  let startY = 21;
+  // Leyenda de factores en lugar de "Filtros: Con Precio Revalúo"
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.text("B = Bueno  |  R = Regular  |  M = Malo  |  Ba = Baja", pageWidth / 2, startY, { align: "center" });
+  startY += 5;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7);
+  if (filtrosResumen) {
+    const filterLines = doc.splitTextToSize(`Filtros: ${filtrosResumen}`, pageWidth - 20);
+    doc.text(filterLines.slice(0, 2), pageWidth / 2, startY, { align: "center" });
+    startY += filterLines.slice(0, 2).length * 3.5 + 2;
+  } else {
+    startY += 2;
+  }
+
+  autoTable(doc, {
+    startY,
+    head,
+    body,
+    theme: "striped",
+    styles: { font: "helvetica", fontSize: 4.5, cellPadding: 1, overflow: "linebreak", valign: "middle" },
+    headStyles: { fillColor: [31, 78, 121], textColor: [255, 255, 255], halign: "center", valign: "middle", fontSize: 4.5, fontStyle: "bold" },
+    columnStyles: {
+      0: { cellWidth: 6, halign: "center" },
+      1: { cellWidth: 13, halign: "center" },
+      2: { cellWidth: 13 }, 3: { cellWidth: 13 }, 4: { cellWidth: 16 },
+      5: { cellWidth: 10, halign: "center" }, 6: { cellWidth: 7, halign: "center" },
+      7: { cellWidth: 13 }, 8: { cellWidth: 9, halign: "center" }, 9: { cellWidth: 8, halign: "center" },
+      10: { cellWidth: 11 }, 11: { cellWidth: 11 }, 12: { cellWidth: 10 }, 13: { cellWidth: 11 },
+      14: { cellWidth: 9, halign: "right" }, 15: { cellWidth: 9, halign: "right" },
+      16: { cellWidth: 9, halign: "right" }, 17: { cellWidth: 10, halign: "right" },
+      18: { cellWidth: 10 }, 19: { cellWidth: 10 }, 20: { cellWidth: 10 },
+      21: { cellWidth: 6, halign: "center" }, 22: { cellWidth: 6, halign: "center" },
+      23: { cellWidth: 6, halign: "center" }, 24: { cellWidth: 6, halign: "center" },
+      25: { cellWidth: 6, halign: "center" }, 26: { cellWidth: 6, halign: "center" },
+      27: { cellWidth: 6, halign: "center" }, 28: { cellWidth: 6, halign: "center" },
+      29: { cellWidth: 10, halign: "right" }, 30: { cellWidth: 7, halign: "center" },
+      31: { cellWidth: 14 },
+    },
+    margin: { left: 6, right: 6, top: 22 },
+  });
+
+  const totalPages = doc.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    if (i > 1) addLogo(doc);
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(120);
+    doc.text(`Página ${i} de ${totalPages}  |  ${tituloReporte} - Órgano Judicial`, pageWidth / 2, pageHeight - 6, { align: "center" });
+  }
+
+  doc.save(`${filePrefix}_${new Date().toISOString().slice(0, 10)}.pdf`);
 };
 
 export const generateRevaluoReportSimple = async ({

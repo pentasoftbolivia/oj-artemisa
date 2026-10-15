@@ -20,6 +20,8 @@ export const useRevaluoData = () => {
           .from("act_activos")
           .select(ACTIVO_COLUMNS)
           .eq("pararevaluo", true)
+          .eq("estado", 1)
+          .eq("ultimoregistro", 1)
           .not("estadoinventario", "is", null)
           .neq("estadoinventario", "")
           .order("codigoactivointerno", { ascending: true })
@@ -32,8 +34,25 @@ export const useRevaluoData = () => {
         if (list.length < CHUNK_SIZE) break;
         start += CHUNK_SIZE;
       }
-      // Refuerzo en cliente: excluir NULL, vacío o solo espacios
-      rows = rows.filter((r) => String(r.estadoinventario ?? "").trim() !== "");
+      // Refuerzo en cliente: pararevaluo=true, estado=1, ultimoregistro=1
+      // y estadoinventario con dato (incluye estadoconservacion=MALO)
+      rows = rows.filter((r) => {
+        const v = r.pararevaluo ?? r.paraRevaluo;
+        const esParaRevaluo =
+          v === true || v === 1
+            ? true
+            : ["TRUE", "1", "T"].includes(String(v ?? "").trim().toUpperCase());
+        if (!esParaRevaluo) return false;
+        const estadoRaw = r.estado;
+        const esAlta =
+          estadoRaw === 1 || estadoRaw === true
+            ? true
+            : ["1", "TRUE", "T", "ALTA"].includes(String(estadoRaw ?? "").trim().toUpperCase());
+        if (!esAlta) return false;
+        const ultimoVal = String(r.ultimoregistro ?? "").trim();
+        if (ultimoVal !== "1") return false;
+        return String(r.estadoinventario ?? "").trim() !== "";
+      });
       setData(rows);
     } catch (err) {
       setError(err.message || "Error al cargar activos para revalúo");

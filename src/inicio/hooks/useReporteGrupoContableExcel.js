@@ -35,9 +35,10 @@ const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
 /**
  * Reporte Grupo Contable en Excel — PRODUCTO 3.
- * Hoja 1: N°, GRUPO CONTABLE, CANTIDAD ACTIVOS (todos con ultim=1; excluye 3 rubros)
+ * Criterio: ultimoregistro=1 AND estado=1 (solo activos en alta).
+ * Hoja 1: N°, GRUPO CONTABLE, CANTIDAD ACTIVOS (excluye 3 rubros)
  * Hoja 2: GRUPO CONTABLE DE RUBROS EXCLUIDOS — solo BIBLIOTECA, TERRENOS, EDIFICACIONES
- * Hoja 3: revaluados (todos ultim=1; cantidad y neto de todos, revaluado suma valorrevaluo)
+ * Hoja 3: revaluados (cantidad y neto de todos, revaluado suma valorrevaluo)
  */
 export const useReporteGrupoContableExcel = () => {
   const { toast } = useToast();
@@ -64,17 +65,17 @@ export const useReporteGrupoContableExcel = () => {
         rubroFromTipo[String(t.tiporubroact)] = rubroDescMap[t.codigorubroact];
       });
 
-      toast({ title: "Cargando activos", description: "Obteniendo todos los activos vigentes (ultimoregistro=1)..." });
+      toast({ title: "Cargando activos", description: "Obteniendo activos en alta (ultimoregistro=1 y estado=1)..." });
 
       let allActivos = [];
       let from = 0;
       const FETCH_CHUNK = 1000;
       while (true) {
-        // Sin filtro estadoinventario en servidor (case/espacios los maneja el cliente)
         const { data, error } = await supabase
           .from("act_activos")
           .select(ACTIVO_COLUMNS)
           .eq("ultimoregistro", 1)
+          .eq("estado", 1)
           .order("codigoactivointerno", { ascending: true })
           .range(from, from + FETCH_CHUNK - 1);
         if (error) throw error;
@@ -86,11 +87,16 @@ export const useReporteGrupoContableExcel = () => {
         if (allActivos.length > 100000) break;
         await new Promise((r) => setTimeout(r, 0));
       }
+      // Refuerzo en cliente: estado 1/true/ALTA
+      allActivos = allActivos.filter((a) => {
+        const est = String(a.estado ?? a.estadoActivo ?? "").trim().toUpperCase();
+        return est === "1" || est === "TRUE" || est === "ALTA";
+      });
       const totalVigentes = allActivos.length;
       // Hoja 2 (rubros excluidos) usa la misma base de vigentes
       const baseRubrosExcluidos = [...allActivos];
 
-      // Hoja 1: todos los ultimoregistro=1, solo se excluyen los 3 rubros
+      // Hoja 1: ultimoregistro=1 y estado=1, solo se excluyen los 3 rubros
       allActivos = allActivos.filter((a) => {
         const rubroDesc = rubroFromTipo[a.tipoRubroAct] ?? rubroFromTipo[String(a.tipoRubroAct)] ?? "";
         const n = normTxt(rubroDesc);
@@ -131,7 +137,7 @@ export const useReporteGrupoContableExcel = () => {
       XLSX.utils.book_append_sheet(wb, ws, "Grupo Contable");
 
       // ---- Hoja 2: GRUPO CONTABLE DE RUBROS EXCLUIDOS ----
-      // Solo ultimoregistro=1 (sin filtro de estado) y SOLO
+      // ultimoregistro=1 y estado=1, SOLO
       // BIBLIOTECA, TERRENOS y EDIFICACIONES, agrupado por rubro.
       const excActivos = baseRubrosExcluidos.filter((a) => {
         const rubroDesc = rubroFromTipo[a.tipoRubroAct] ?? rubroFromTipo[String(a.tipoRubroAct)] ?? "";
@@ -158,7 +164,7 @@ export const useReporteGrupoContableExcel = () => {
       XLSX.utils.book_append_sheet(wb, wsExc, "Rubros Excluidos");
 
       // ---- Hoja 3: activos revaluados por grupo contable ----
-      // Base: TODOS los ultimoregistro=1 (sin filtro de estado ni pararevaluo).
+      // Base: ultimoregistro=1 y estado=1.
       // CANTIDAD y VALOR NETO de todos; VALOR REVALUADO = suma de valorrevaluo.
       toast({ title: "Cargando revalúo", description: "Obteniendo todos los activos vigentes..." });
       const SELECT_REV = `${ACTIVO_COLUMNS},valorneto,valorrevaluo`;
@@ -170,6 +176,7 @@ export const useReporteGrupoContableExcel = () => {
             .from("act_activos")
             .select(SELECT_REV)
             .eq("ultimoregistro", 1)
+            .eq("estado", 1)
             .order("codigoactivointerno", { ascending: true })
             .range(rFrom, rFrom + FETCH_CHUNK - 1);
           if (error) throw error;
@@ -182,6 +189,11 @@ export const useReporteGrupoContableExcel = () => {
           await new Promise((r) => setTimeout(r, 0));
         }
       }
+      // Refuerzo en cliente: estado 1/true/ALTA
+      revActivos = revActivos.filter((a) => {
+        const est = String(a.estado ?? a.estadoActivo ?? "").trim().toUpperCase();
+        return est === "1" || est === "TRUE" || est === "ALTA";
+      });
       const totalRevBase = revActivos.length;
       console.debug("[GrupoContableExcel] hoja3 base todos ultim=1:", totalRevBase);
       const revGrupos = new Map();

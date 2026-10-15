@@ -46,9 +46,10 @@ const fmtBs = (n) =>
 
 /**
  * Reporte Grupo Contable (PDF) — PRODUCTO 3.
- * Hoja 1: N°, GRUPO CONTABLE, CANTIDAD ACTIVOS (todos con ultimoregistro=1; excluye 3 rubros)
- * Hoja 2: GRUPO CONTABLE DE RUBROS EXCLUIDOS — solo BIBLIOTECA, TERRENOS, EDIFICACIONES (ultim=1)
-  * Hoja 3: ACTIVOS REVALUADOS POR GRUPO CONTABLE (todos ultim=1; cantidad y neto de todos, revaluado suma valorrevaluo)
+ * Criterio: ultimoregistro=1 AND estado=1 (solo activos en alta).
+ * Hoja 1: N°, GRUPO CONTABLE, CANTIDAD ACTIVOS (excluye 3 rubros)
+ * Hoja 2: GRUPO CONTABLE DE RUBROS EXCLUIDOS — solo BIBLIOTECA, TERRENOS, EDIFICACIONES
+ * Hoja 3: ACTIVOS REVALUADOS POR GRUPO CONTABLE (cantidad y neto de todos, revaluado suma valorrevaluo)
  */
 export const useReporteGrupoContable = () => {
   const { toast } = useToast();
@@ -75,17 +76,17 @@ export const useReporteGrupoContable = () => {
         rubroFromTipo[String(t.tiporubroact)] = rubroDescMap[t.codigorubroact];
       });
 
-      toast({ title: "Cargando activos", description: "Obteniendo todos los activos vigentes (ultimoregistro=1)..." });
+      toast({ title: "Cargando activos", description: "Obteniendo activos en alta (ultimoregistro=1 y estado=1)..." });
 
       let allActivos = [];
       let from = 0;
       const FETCH_CHUNK = 1000;
       while (true) {
-        // Sin filtro estadoinventario en servidor (case/espacios los maneja el cliente)
         const { data, error } = await supabase
           .from("act_activos")
           .select(ACTIVO_COLUMNS)
           .eq("ultimoregistro", 1)
+          .eq("estado", 1)
           .order("codigoactivointerno", { ascending: true })
           .range(from, from + FETCH_CHUNK - 1);
         if (error) throw error;
@@ -97,11 +98,16 @@ export const useReporteGrupoContable = () => {
         if (allActivos.length > 100000) break;
         await new Promise((r) => setTimeout(r, 0));
       }
+      // Refuerzo en cliente: estado 1/true/ALTA
+      allActivos = allActivos.filter((a) => {
+        const est = String(a.estado ?? a.estadoActivo ?? "").trim().toUpperCase();
+        return est === "1" || est === "TRUE" || est === "ALTA";
+      });
       const totalVigentes = allActivos.length;
       // Hoja 2 (rubros excluidos) usa la misma base de vigentes
       const baseRubrosExcluidos = [...allActivos];
 
-      // Hoja 1: todos los ultimoregistro=1, solo se excluyen los 3 rubros
+      // Hoja 1: ultimoregistro=1 y estado=1, solo se excluyen los 3 rubros
       allActivos = allActivos.filter((a) => {
         const rubroDesc = rubroFromTipo[a.tipoRubroAct] ?? rubroFromTipo[String(a.tipoRubroAct)] ?? "";
         const n = normTxt(rubroDesc);
@@ -166,13 +172,13 @@ export const useReporteGrupoContable = () => {
       });
 
       // ---- Hoja 2: GRUPO CONTABLE DE RUBROS EXCLUIDOS ----
-      // Solo ultimoregistro=1 (sin filtro de estado) y SOLO
+      // ultimoregistro=1 y estado=1, SOLO
       // BIBLIOTECA, TERRENOS y EDIFICACIONES, agrupado por rubro.
       const excActivos = baseRubrosExcluidos.filter((a) => {
         const rubroDesc = rubroFromTipo[a.tipoRubroAct] ?? rubroFromTipo[String(a.tipoRubroAct)] ?? "";
         return RUBROS_EXCLUIDOS.some((k) => normTxt(rubroDesc).includes(k));
       });
-      console.debug("[GrupoContable] vigentes:", totalVigentes, "| rubros excluidos (solo ultim=1):", excActivos.length);
+      console.debug("[GrupoContable] vigentes:", totalVigentes, "| rubros excluidos (ultim=1, estado=1):", excActivos.length);
       const excGrupos = new Map();
       excActivos.forEach((a) => {
         const rubroDesc = String(rubroFromTipo[a.tipoRubroAct] ?? rubroFromTipo[String(a.tipoRubroAct)] ?? "SIN RUBRO").trim() || "SIN RUBRO";
@@ -210,7 +216,7 @@ export const useReporteGrupoContable = () => {
       });
 
       // ---- Hoja 3: activos revaluados por grupo contable ----
-      // Base: TODOS los ultimoregistro=1 (sin filtro de estado ni pararevaluo).
+      // Base: ultimoregistro=1 y estado=1.
       // CANTIDAD y VALOR NETO de todos; VALOR REVALUADO = suma de valorrevaluo
       // (los no revaluados aportan 0).
       toast({ title: "Cargando revalúo", description: "Obteniendo todos los activos vigentes..." });
@@ -223,6 +229,7 @@ export const useReporteGrupoContable = () => {
             .from("act_activos")
             .select(SELECT_REV)
             .eq("ultimoregistro", 1)
+            .eq("estado", 1)
             .order("codigoactivointerno", { ascending: true })
             .range(rFrom, rFrom + FETCH_CHUNK - 1);
           if (error) throw error;
@@ -235,6 +242,11 @@ export const useReporteGrupoContable = () => {
           await new Promise((r) => setTimeout(r, 0));
         }
       }
+      // Refuerzo en cliente: estado 1/true/ALTA
+      revActivos = revActivos.filter((a) => {
+        const est = String(a.estado ?? a.estadoActivo ?? "").trim().toUpperCase();
+        return est === "1" || est === "TRUE" || est === "ALTA";
+      });
       const totalRevBase = revActivos.length;
       console.debug("[GrupoContable] hoja3 base todos ultim=1:", totalRevBase);
 
