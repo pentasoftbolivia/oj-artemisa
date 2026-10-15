@@ -352,14 +352,14 @@ const drawSignatureFooter = (doc, { finalY, cantidad, pageWidth, responsable }) 
   }
 };
 
-const drawPageNumbers = (doc, logo = null) => {
+const drawPageNumbers = (doc, logo = null, repeatLogo = true) => {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const totalPages = doc.getNumberOfPages();
 
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
-    if (i > 1) {
+    if (i > 1 && repeatLogo) {
       try {
         if (logo?.dataUrl) {
           const s = headerLogoSize(logo.ratio);
@@ -654,7 +654,7 @@ export const useActaAsignacion = () => {
 
       const pageWidth = doc.internal.pageSize.getWidth();
       drawSignatureFooter(doc, { finalY, cantidad: assets.length, pageWidth, responsable });
-      drawPageNumbers(doc, ojLogo);
+      drawPageNumbers(doc, ojLogo, false);
 
       doc.save(`Acta_Asignacion_${responsable.cirun}.pdf`);
 
