@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import LoadingSpinner from "@/components/ui/loading-spinner";
 import DataPagination from "@/components/ui/data-pagination";
-import { Users, Printer, Loader2 } from "lucide-react";
+import { Users, Printer, Loader2, ListOrdered } from "lucide-react";
 
 import ResponsableFilters from "../components/ResponsableFilters";
 import ResponsableTable from "../components/ResponsableTable";
@@ -37,6 +37,7 @@ import ResponsableForm from "./ResponsableForm";
 import { useCrudModal } from "@/hooks/useCrudModal";
 import { useResponsableState } from "../hooks/useResponsableState";
 import { useActaAsignacion } from "../hooks/useActaAsignacion";
+import ListaActasModal from "../components/ListaActasModal";
 
 const MESSAGES = {
   success: {
@@ -110,6 +111,7 @@ const ResponsableList = () => {
 
   const { printActasMasivas, isPrinting: isPrintingMasivo, printingId, masivasStats } = useActaAsignacion();
   const isPrintingMasivas = isPrintingMasivo && printingId === "masivo";
+  const [isListaActasOpen, setIsListaActasOpen] = useState(false);
 
   const confirmDelete = useCallback(async () => {
     if (!responsableToDelete) return;
@@ -198,6 +200,15 @@ const ResponsableList = () => {
               <Printer className="mr-2 h-4 w-4" />
             )}
             {masivasStats.isLoading ? "Generar Actas Masivas..." : "Generar Actas Masivas"}
+          </Button>
+
+          <Button
+            onClick={() => setIsListaActasOpen(true)}
+            className="bg-blue-700 hover:bg-blue-800 text-white"
+            title="Ver el listado de actas generadas por ciudad o inmueble y descargarlo en Excel o PDF"
+          >
+            <ListOrdered className="mr-2 h-4 w-4" />
+            Lista Actas
           </Button>
 
           <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
@@ -310,6 +321,8 @@ const ResponsableList = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ListaActasModal open={isListaActasOpen} onOpenChange={setIsListaActasOpen} />
     </div>
   );
 };

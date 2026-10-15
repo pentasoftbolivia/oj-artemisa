@@ -600,6 +600,7 @@ export const generateRevaluoLotesPDFReport = async ({
     const fotos = allFotos[idx] || [];
 
     if (!fotos || fotos.length === 0) {
+      checkPage(5 + 34); // "Sin fotos" + firma en la misma página
       doc.setFont("helvetica", "normal");
       doc.setFontSize(6);
       doc.setTextColor(120);
@@ -615,8 +616,13 @@ export const generateRevaluoLotesPDFReport = async ({
 
       const base64List = await mapWithConcurrency(fotos, 6, (f) => urlToBase64(f.url));
 
+      // Reserva para que la última fila de fotos + conteo + FIRMA DEL PERITO
+      // queden siempre en la misma página (la firma nunca queda sola abajo).
+      const FIRMA_RESERVA = 36;
       for (let fIdx = 0; fIdx < fotos.length; fIdx++) {
-        if (col === 0 && y + imgH + 8 > pageHeight - 10) {
+        const esUltimaFila = fIdx + perRow >= fotos.length;
+        const need = imgH + 8 + (esUltimaFila ? FIRMA_RESERVA : 0);
+        if (col === 0 && y + need > pageHeight - 10) {
           doc.addPage();
           y = 20;
           addLogo(doc);
@@ -658,7 +664,7 @@ export const generateRevaluoLotesPDFReport = async ({
     }
 
     // Espacio prudente para firmar + título FIRMA DEL PERITO
-    checkPage(34);
+    // (el espacio ya viene reservado: siempre cae junto a las fotos)
     y += 14;
     doc.setDrawColor(100);
     doc.line(pageWidth / 2 - 30, y, pageWidth / 2 + 30, y);
