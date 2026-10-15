@@ -308,16 +308,28 @@ const drawActaHeader = async (doc, { numeroActa, responsable, logo = null }) => 
 };
 
 const drawSignatureFooter = (doc, { finalY, cantidad, pageWidth, responsable }) => {
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "bold");
-  doc.text(`Cantidad: ${cantidad}`, 14, finalY + 8);
-
+  const pageHeight = doc.internal.pageSize.getHeight();
   doc.setFontSize(7);
   doc.setFont("helvetica", "normal");
   const splitDisclaimer = doc.splitTextToSize(DISCLAIMER, pageWidth - 28);
-  doc.text(splitDisclaimer, 14, finalY + 15);
+  // Bloque completo (Cantidad + descargo + firmas) con aire sobre el pie de página:
+  // si no cabe, todo el bloque va a una hoja nueva, nunca pegado al "Página X de Y".
+  const bloqueBottom = finalY + 15 + (splitDisclaimer.length * 3) + 25 + 22;
+  let y0 = finalY;
+  if (bloqueBottom > pageHeight - 14) {
+    doc.addPage();
+    y0 = 30;
+  }
 
-  const sigY = finalY + 15 + (splitDisclaimer.length * 3) + 25;
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "bold");
+  doc.text(`Cantidad: ${cantidad}`, 14, y0 + 8);
+
+  doc.setFontSize(7);
+  doc.setFont("helvetica", "normal");
+  doc.text(splitDisclaimer, 14, y0 + 15);
+
+  const sigY = y0 + 15 + (splitDisclaimer.length * 3) + 25;
 
   const sigLeft = (pageWidth - 170) / 2;
   const sigLabels = [
@@ -344,7 +356,9 @@ const drawSignatureFooter = (doc, { finalY, cantidad, pageWidth, responsable }) 
     });
   };
 
-  if (sigY > doc.internal.pageSize.getHeight() - 20) {
+  // Si las firmas + textos no caben con holgura antes del pie de página
+  // (número de página), van a una hoja nueva: nunca pegadas al pie.
+  if (sigY > doc.internal.pageSize.getHeight() - 42) {
     doc.addPage();
     drawSignatures(40);
   } else {
