@@ -303,11 +303,17 @@ export const useListaActas = () => {
         margin: { top: 26, left: 8, right: 8 },
       });
       // Bloques de firma al final: ENTREGUE CONFORME (izq.) y RECIBI CONFORME (der.)
+      // Siempre junto a la última fila: si no entra el espacio amplio, se sube
+      // (se reduce el hueco) en vez de dejar las firmas solas en otra hoja.
       let sigY = doc.lastAutoTable.finalY + 24;
-      if (sigY + 12 > pageHeight - 10) {
-        doc.addPage();
-        addLogo(doc);
-        sigY = 32;
+      const limite = pageHeight - 10 - 8; // línea + etiquetas + margen pie
+      if (sigY > limite) {
+        sigY = limite;
+        if (sigY < doc.lastAutoTable.finalY + 6) {
+          doc.addPage();
+          addLogo(doc);
+          sigY = 32;
+        }
       }
       doc.setDrawColor(100);
       doc.line(45, sigY, 125, sigY);
