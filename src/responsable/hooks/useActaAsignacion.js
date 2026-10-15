@@ -88,6 +88,50 @@ const loadImage = (src) => new Promise((resolve) => {
   img.src = src;
 });
 
+// Logo exclusivo del acta ASIGNACIÓN INDIVIDUAL DE BIENES (public/logo-oj.png).
+// Se carga en tiempo de ejecución para no engordar el bundle; con caché.
+// Si falla, devuelve null y se usa el logo habitual.
+let ojLogoCache = null;
+let ojLogoTried = false;
+const getOjLogo = async () => {
+  if (ojLogoCache || ojLogoTried) return ojLogoCache;
+  ojLogoTried = true;
+  try {
+    const res = await fetch(`${import.meta.env.BASE_URL}logo-oj.png`);
+    if (!res.ok) throw new Error("logo fetch failed");
+    const blob = await res.blob();
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+    const img = await loadImage(dataUrl);
+    ojLogoCache = {
+      dataUrl,
+      ratio: img && img.naturalWidth ? img.naturalHeight / img.naturalWidth : 57 / 256,
+    };
+  } catch {
+    ojLogoCache = null;
+  }
+  return ojLogoCache;
+};
+
+// Tamaño del logo de cabecera con alto máximo 20mm para que no tape
+// el título ni el bloque de datos (el logo-oj.png es casi cuadrado).
+const headerLogoSize = (ratio) => {
+  const r = ratio || 57 / 256;
+  const maxW = 40;
+  const maxH = 20;
+  let w = maxW;
+  let h = w * r;
+  if (h > maxH) {
+    h = maxH;
+    w = h / r;
+  }
+  return { w, h };
+};
+
 export const loadActaData = async (responsable, locationFilters = {}) => {
   const { ciudad, inmueble, nivel, ambiente } = locationFilters || {};
   const hasLocation = Boolean(ciudad || inmueble || nivel || ambiente);
@@ -187,16 +231,20 @@ export const loadActaData = async (responsable, locationFilters = {}) => {
 const DISCLAIMER =
   "En señal de conformidad y aceptación se firma el presente acta. El servidor público queda prohibido de usar o permitir el uso de los bienes para beneficio particular o privado, prestar o transferir el bien a otro empleado público, enajenar el bien por cuenta propia, dañar o alterar sus características físicas o técnicas, poner en riesgo el bien, ingresar o sacar bienes particulares sin autorización de la Unidad o Responsable de Activos Fijos. La no observancia a estas prohibiciones generará responsabilidades establecidas en la Ley N° 1178 y sus reglamentos.";
 
-const drawActaHeader = async (doc, { numeroActa, responsable }) => {
+const drawActaHeader = async (doc, { numeroActa, responsable, logo = null }) => {
   const pageWidth = doc.internal.pageSize.getWidth();
 
   const fullName = `${responsable.nombre1 || ""} ${responsable.nombre2 || ""} ${responsable.paterno || ""} ${responsable.materno || ""}`.replace(/\s+/g, ' ').trim();
 
-  // Logo principal Órgano Judicial (public/logo.jpg) superior izquierda
+  // Logo superior izquierda: logo-oj.png solo en individual (param logo),
+  // resto de reportes usa el logo habitual (public/logo.jpg).
+  const { w: logoWidth, h: logoHeight } = headerLogoSize(logo?.ratio);
   try {
-    const logoWidth = 48;
-    const logoHeight = logoWidth * (57 / 256);
-    doc.addImage(LOGO_JPG_DATA_URL, "JPEG", 14, 8, logoWidth, logoHeight);
+    if (logo?.dataUrl) {
+      doc.addImage(logo.dataUrl, "PNG", 14, 8, logoWidth, logoHeight);
+    } else {
+      doc.addImage(LOGO_JPG_DATA_URL, "JPEG", 14, 8, logoWidth, logoHeight);
+    }
   } catch (_) {
     // fallback: intentar logo-oj.png si falla jpg
     const logoUrl = `${window.location.origin}/logo-oj.png`;
@@ -304,7 +352,7 @@ const drawSignatureFooter = (doc, { finalY, cantidad, pageWidth, responsable }) 
   }
 };
 
-const drawPageNumbers = (doc) => {
+const drawPageNumbers = (doc, logo = null) => {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const totalPages = doc.getNumberOfPages();
@@ -312,7 +360,14 @@ const drawPageNumbers = (doc) => {
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
     if (i > 1) {
-      try { doc.addImage(LOGO_JPG_DATA_URL, "JPEG", 14, 8, 48, 48 * (57/256)); } catch(_){}
+      try {
+        if (logo?.dataUrl) {
+          const s = headerLogoSize(logo.ratio);
+          doc.addImage(logo.dataUrl, "PNG", 14, 8, s.w, s.h);
+        } else {
+          doc.addImage(LOGO_JPG_DATA_URL, "JPEG", 14, 8, 48, 48 * (57/256));
+        }
+      } catch (_){}
     }
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
@@ -518,7 +573,8 @@ export const useActaAsignacion = () => {
 
       doc.setFont("helvetica");
 
-      const { tableStartY } = await drawActaHeader(doc, { numeroActa, responsable });
+      const ojLogo = await getOjLogo();
+      const { tableStartY } = await drawActaHeader(doc, { numeroActa, responsable, logo: ojLogo });
 
       const sanitize = (s) => cellText(s, 25);
       const tableData = assets.map(a => {
@@ -598,7 +654,7 @@ export const useActaAsignacion = () => {
 
       const pageWidth = doc.internal.pageSize.getWidth();
       drawSignatureFooter(doc, { finalY, cantidad: assets.length, pageWidth, responsable });
-      drawPageNumbers(doc);
+      drawPageNumbers(doc, ojLogo);
 
       doc.save(`Acta_Asignacion_${responsable.cirun}.pdf`);
 
