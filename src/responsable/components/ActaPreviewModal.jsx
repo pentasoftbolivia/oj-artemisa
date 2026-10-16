@@ -16,7 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import LoadingSpinner from "@/components/ui/loading-spinner";
-import { loadActaData } from "../hooks/useActaAsignacion";
+import { loadActaData, sanitizeActaText } from "../hooks/useActaAsignacion";
 
 const ActaPreviewModal = ({ isOpen, onClose, onAccept, responsable, type, locationFilters }) => {
   const [loading, setLoading] = useState(false);
@@ -124,7 +124,7 @@ const ActaPreviewModal = ({ isOpen, onClose, onAccept, responsable, type, locati
                       </TableHeader>
                       <TableBody>
                         {data.assets.map((a, i) => {
-                          const sanitize = (s) => String(s ?? "").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "").replace(/\s+/g, " ").trim();
+                          const sanitize = (s) => sanitizeActaText(s);
                           const trId = a.tipoRubroAct || a.tiporubroact;
                           const rn = sanitize(data.tipoRubroMap[trId] || "");
                           const tn = sanitize(data.descTipoRubroMap[trId] || "");

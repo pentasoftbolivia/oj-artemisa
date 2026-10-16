@@ -27,9 +27,45 @@ const formatError = (err) => {
 const ASSET_SELECT =
   "codigoactivo, codigoambiente, tiporubroact, descripcionactivo, observaciones, marcamaterial, modelo, serie, ram, procesador, discoduro, numeromotor, numerochasisserial, placamatricula, capacidadcargatraccion, capacidaddimension, fuentealimentacion, accesorios, alcancecobertura, medidas, color, divisionescajonesbandejas, chapa, abatible, deslizable, potencia, horometro, combustibleenergia, funcion, categoria, caracteristicas, estadoconservacion";
 
-// Limpia caracteres de control y colapsa espacios (igual que antes).
-const sanitizeActaText = (s) =>
-  String(s ?? "").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "").replace(/\s+/g, " ").trim();
+// Limpia controles + marcas unicode invisibles (cero-ancho, direccionales,
+// separadores de línea/parrafo unicode) y normaliza espacios unicode a
+// espacio regular antes de colapsar. Caso real: "MEDIDAS: <U+200E>1,90..."
+// en descripcionactivo sumaba ~1.4mm fantasma por línea y podía impedir el
+// quiebre en DESCRIPCIÓN. El U+200B (cero-ancho) se convierte a espacio para
+// no soldar palabras; el resto de marcas se elimina.
+// Códigos de marcas invisibles a eliminar (cero-ancho, direccionales,
+// separadores unicode). Se listan como números para no usar literales
+// invisibles en el fuente.
+const INVISIBLE_ACTA_CODES = [
+  0x200c, 0x200d, 0x200e, 0x200f,
+  0xfeff,
+  0x00ad,
+  0x061c,
+  0x2060, 0x2061, 0x2062, 0x2063, 0x2064,
+  0x202a, 0x202b, 0x202c, 0x202d, 0x202e,
+  0x2028, 0x2029,
+];
+const INVISIBLE_ACTA_RE = new RegExp(
+  "[" + INVISIBLE_ACTA_CODES.map((c) => String.fromCodePoint(c)).join("") + "]",
+  "g"
+);
+// Espacios unicode que se normalizan a espacio regular. Incluye el cero-ancho
+// (0x200b): se vuelve un corte válido en vez de soldar palabras.
+const UNICODE_SPACE_ACTA_CODES = [
+  0x200b, 0x00a0, 0x1680, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005,
+  0x2006, 0x2007, 0x2008, 0x2009, 0x200a, 0x202f, 0x205f, 0x3000,
+];
+const UNICODE_SPACE_ACTA_RE = new RegExp(
+  "[" + UNICODE_SPACE_ACTA_CODES.map((c) => String.fromCodePoint(c)).join("") + "]",
+  "g"
+);
+export const sanitizeActaText = (s) =>
+  String(s ?? "")
+    .replace(INVISIBLE_ACTA_RE, "")
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
+    .replace(UNICODE_SPACE_ACTA_RE, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
 // NO pre-corta por cantidad de caracteres: eso dejaba huecos vacíos.
 // Se conserva el texto natural y solo se parte el token que realmente
@@ -95,6 +131,8 @@ const buildObs = (desc, rawObs) => {
 // DECLARADO (cellWidth fijo), no hookData.column.width que en didParseCell
 // aún no es final y provocaba cortes de más y filas con huecos vacíos.
 const forceWrapCell = (doc, hookData, declaredWidth = 0) => {
+  // Solo filas de datos: no medir ni reescribir el encabezado.
+  if (hookData.section && hookData.section !== "body") return;
   const raw = String(hookData.cell.raw ?? hookData.cell.text.join(" ") ?? "");
   if (!raw) return;
   // Ancho útil real: declarado menos padding (1.2 izq + 1.2 der + margen).
@@ -107,7 +145,10 @@ const forceWrapCell = (doc, hookData, declaredWidth = 0) => {
     .map((word) => {
       if (!word) return word;
       let w = 0;
-      try { w = doc.getTextWidth(word); } catch { w = 0; }
+      // Si no se puede medir (glifo fuera de helvetica/WinAnsi), asumir el
+      // peor caso con la misma heurística de splitLongTokenToFit en vez de
+      // w=0, que silenciaba el corte y dejaba el desbordamiento.
+      try { w = doc.getTextWidth(word); } catch { w = word.length * 1.4; }
       if (w <= maxWidth) return word;
       needsFix = true;
       return splitLongTokenToFit(doc, word, maxWidth).join(" ");
@@ -760,7 +801,7 @@ export const useActaAsignacion = () => {
 
       const { tableStartY, pageWidth } = await drawActaHeader(doc, { numeroActa, responsable });
 
-      const sanitize2 = (s) => String(s ?? "").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "").replace(/\s+/g, " ").trim().replace(/;/g, ",");
+      const sanitize2 = (s) => sanitizeActaText(s).replace(/;/g, ",");
       const lineas = assets.map(a => {
         const trId = a.tipoRubroAct || a.tiporubroact;
         const rn = sanitize2(tipoRubroMap[trId] || "—");
