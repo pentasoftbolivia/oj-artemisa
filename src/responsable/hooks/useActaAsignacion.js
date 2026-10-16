@@ -53,6 +53,43 @@ const splitLongTokenToFit = (doc, token, maxWidth) => {
 // Atajo: solo sanitiza (se mantiene firma con limit para no tocar llamadas).
 const cellText = (s) => sanitizeActaText(s);
 
+// Validaciones de datos enviados a impresión (sin afectar layout).
+// Normaliza códigos de ambiente para comparar pares (cirun, ambiente)
+// aunque vengan con ceros a la izquierda ("00123" === "123").
+const normCode = (v) => {
+  const s = String(v ?? "").trim();
+  if (!s) return "";
+  const n = Number(s);
+  return Number.isNaN(n) ? s : String(n);
+};
+
+// Normaliza estado de conservación a valores permitidos.
+const normEstado = (v) => {
+  const s = sanitizeActaText(v).toUpperCase();
+  return ["BUENO", "REGULAR", "MALO"].includes(s) ? s : "REGULAR";
+};
+
+// Detecta observaciones sin contenido real ("0", "-", "N/A", etc.).
+const isEmptyObs = (o) =>
+  ["", "0", "00", "-", "—", "–", ".", "N/A", "NA", "S/O", "SO", "NINGUNA", "NINGUNO", "SIN OBSERVACIONES", "SIN OBSERVACION"]
+    .includes(String(o ?? "").trim().toUpperCase());
+
+// Código formateado con fallback si viene vacío (evita imprimir "OJ-02-").
+const formatCodigoActivo = (a) => {
+  const c = sanitizeActaText(a?.codigoActivo ?? a?.codigoactivo ?? "");
+  return c ? `OJ-02-${c}` : "—";
+};
+
+// Observación final: vacía si es marcador vacío o duplicado de la descripción
+// (comparación insensible a mayúsculas/espacios).
+const buildObs = (desc, rawObs) => {
+  const d = sanitizeActaText(desc);
+  const o = sanitizeActaText(rawObs);
+  if (!o || isEmptyObs(o)) return "";
+  if (o.toUpperCase() === d.toUpperCase()) return "";
+  return o;
+};
+
 // Red de seguridad en didParseCell: NO reescribe el texto si todo cabe.
 // Solo trocea el token largo exacto al borde de la celda usando el ancho
 // DECLARADO (cellWidth fijo), no hookData.column.width que en didParseCell
@@ -158,7 +195,7 @@ export const loadActaData = async (responsable, locationFilters = {}) => {
   const assets = toCamelCaseArray(rawAssets || []);
 
   if (assets.length === 0) {
-    return { assets, tipoRubroMap: {}, descTipoRubroMap: {}, resolveUbicacion: () => "" };
+    return { assets, numeroActa: null, tipoRubroMap: {}, descTipoRubroMap: {}, resolveUbicacion: () => "" };
   }
 
   const [tipoRubros, rubros, ambData, nData, iData, cData] = await Promise.all([
@@ -234,7 +271,7 @@ const DISCLAIMER =
 const drawActaHeader = async (doc, { numeroActa, responsable, logo = null }) => {
   const pageWidth = doc.internal.pageSize.getWidth();
 
-  const fullName = `${responsable.nombre1 || ""} ${responsable.nombre2 || ""} ${responsable.paterno || ""} ${responsable.materno || ""}`.replace(/\s+/g, ' ').trim();
+  const fullName = sanitizeActaText(`${responsable.nombre1 || ""} ${responsable.nombre2 || ""} ${responsable.paterno || ""} ${responsable.materno || ""}`) || "—";
 
   // Logo superior izquierda: logo-oj.png solo en individual (param logo),
   // resto de reportes usa el logo habitual (public/logo.jpg).
@@ -289,13 +326,13 @@ const drawActaHeader = async (doc, { numeroActa, responsable, logo = null }) => 
   doc.setFont("helvetica", "bold");
   doc.text("CARGO:", col1, infoY + 6);
   doc.setFont("helvetica", "normal");
-  const splitCargo = doc.splitTextToSize(String(responsable.cargo || "—"), 90);
+  const splitCargo = doc.splitTextToSize(sanitizeActaText(responsable.cargo) || "—", 90);
   doc.text(splitCargo, col2, infoY + 6);
 
   doc.setFont("helvetica", "bold");
   doc.text("C.I.:", col3, startYInfo + 6);
   doc.setFont("helvetica", "normal");
-  doc.text(String(responsable.cirun || "—"), col4, startYInfo + 6);
+  doc.text(sanitizeActaText(responsable.cirun) || "—", col4, startYInfo + 6);
 
   doc.setFont("helvetica", "bold");
   doc.text("ESTADO:", col3, infoY + 6);
@@ -344,14 +381,14 @@ const drawSignatureFooter = (doc, { finalY, cantidad, pageWidth, responsable }) 
       doc.text(label, x, y + 4, { align: "center" });
 
       if (i === 2 && responsable) {
-        const fullName = `${responsable.nombre1 || ""} ${responsable.nombre2 || ""} ${responsable.paterno || ""} ${responsable.materno || ""}`.replace(/\s+/g, " ").trim();
-        const nameLines = doc.splitTextToSize(fullName || "—", 50);
+        const fullName = sanitizeActaText(`${responsable.nombre1 || ""} ${responsable.nombre2 || ""} ${responsable.paterno || ""} ${responsable.materno || ""}`) || "—";
+        const nameLines = doc.splitTextToSize(fullName, 50);
         doc.setFont("helvetica", "bold");
         doc.setFontSize(8);
         doc.text(nameLines, x, y + 10, { align: "center" });
         doc.setFont("helvetica", "normal");
         doc.setFontSize(7);
-        doc.text(`C.I.: ${String(responsable.cirun || "—")}`, x, y + 10 + nameLines.length * 3 + 2, { align: "center" });
+        doc.text(`C.I.: ${sanitizeActaText(responsable.cirun) || "—"}`, x, y + 10 + nameLines.length * 3 + 2, { align: "center" });
       }
     });
   };
@@ -413,7 +450,7 @@ export const useActaAsignacion = () => {
       const actaPairSet = new Set(
         (actaRows || [])
           .filter((r) => String(r.cirun || "").trim() !== "" && r.numeroacta != null && String(r.numeroacta).trim() !== "")
-          .map((a) => `${String(a.cirun).trim()}|${String(a.codigoambiente || "").trim()}`)
+          .map((a) => `${String(a.cirun).trim()}|${normCode(a.codigoambiente)}`)
       );
       // Contar activos REVISADO/INVENTARIADO que NO están en actas (ordenado por carnet+ubicación no afecta count)
       const CHUNK_FETCH = 1000;
@@ -429,7 +466,7 @@ export const useActaAsignacion = () => {
         if (error) throw error;
         if (!data || data.length === 0) break;
         const sinActas = data.filter(
-          (row) => !actaPairSet.has(`${String(row.cirun || "").trim()}|${String(row.codigoambiente || "").trim()}`)
+          (row) => !actaPairSet.has(`${String(row.cirun || "").trim()}|${normCode(row.codigoambiente)}`)
         );
         totalSinActas += sinActas.length;
         if (data.length < CHUNK_FETCH) break;
@@ -464,7 +501,7 @@ export const useActaAsignacion = () => {
 
       // Calcular activos que se imprimirán: act_activos por par (cirun, codigoambiente) con ultimoregistro=1 y REVISADO/INVENTARIADO
       const uniqueCiruns = [...new Set(filteredActas.map((a) => String(a.cirun).trim()))];
-      const actaPairSet = new Set(filteredActas.map((a) => `${String(a.cirun).trim()}|${String(a.codigoambiente || "").trim()}`));
+      const actaPairSet = new Set(filteredActas.map((a) => `${String(a.cirun).trim()}|${normCode(a.codigoambiente)}`));
 
       // Fetch paginado de activos para esos ciruns (chunk IN 500 para evitar límite)
       const CHUNK_IN = 500;
@@ -485,7 +522,7 @@ export const useActaAsignacion = () => {
           if (!data || data.length === 0) break;
           // Filtrar solo pares que realmente tienen acta
           const matched = data.filter((row) =>
-            actaPairSet.has(`${String(row.cirun || "").trim()}|${String(row.codigoambiente || "").trim()}`)
+            actaPairSet.has(`${String(row.cirun || "").trim()}|${normCode(row.codigoambiente)}`)
           );
           totalActivos += matched.length;
           if (data.length < CHUNK_FETCH) break;
@@ -519,7 +556,7 @@ export const useActaAsignacion = () => {
         return;
       }
       const uniqueCiruns = [...new Set(filteredActas.map((a) => String(a.cirun).trim()))];
-      const actaPairSet = new Set(filteredActas.map((a) => `${String(a.cirun).trim()}|${String(a.codigoambiente || "").trim()}`));
+      const actaPairSet = new Set(filteredActas.map((a) => `${String(a.cirun).trim()}|${normCode(a.codigoambiente)}`));
       const CHUNK_IN = 500;
       const CHUNK_FETCH = 1000;
       let totalActivos = 0;
@@ -537,7 +574,7 @@ export const useActaAsignacion = () => {
           if (error) throw error;
           if (!data || data.length === 0) break;
           const matched = data.filter((row) =>
-            actaPairSet.has(`${String(row.cirun || "").trim()}|${String(row.codigoambiente || "").trim()}`)
+            actaPairSet.has(`${String(row.cirun || "").trim()}|${normCode(row.codigoambiente)}`)
           );
           totalActivos += matched.length;
           if (data.length < CHUNK_FETCH) break;
@@ -577,7 +614,8 @@ export const useActaAsignacion = () => {
         return;
       }
 
-      const numeroActa = await getNumeroActa(responsable, locationFilters);
+      const numeroActaRaw = await getNumeroActa(responsable, locationFilters);
+      const numeroActa = Number.isFinite(Number(numeroActaRaw)) ? numeroActaRaw : "—";
 
       const doc = new jsPDF({
         orientation: "landscape",
@@ -593,14 +631,13 @@ export const useActaAsignacion = () => {
       const sanitize = (s) => cellText(s, 25);
       const tableData = assets.map(a => {
         const trId = a.tipoRubroAct || a.tiporubroact;
-        const rn = cellText(tipoRubroMap[trId] || "", 15);
-        const tn = cellText(descTipoRubroMap[trId] || "", 12);
-        const desc = cellText(a.descripcionActivo ?? a.descripcionactivo ?? "", 22);
-        const rawObs = cellText(a.observaciones || "", 18);
-        const rawDescActivo = cellText(a.descripcionActivo || a.descripcionactivo || "", 22);
-        const obs = rawObs && (rawObs === "0" || rawObs === rawDescActivo || rawObs === desc) ? "" : rawObs;
-        const codigoFormateado = `OJ-02-${cellText(a.codigoActivo || a.codigoactivo || "", 15)}`;
-        const ubicacion = cellText(resolveUbicacion(a.codigoAmbiente || a.codigoambiente) || "", 18);
+        const rn = cellText(tipoRubroMap[trId] || "—", 15);
+        const tn = cellText(descTipoRubroMap[trId] || "—", 12);
+        const descRaw = cellText(a.descripcionActivo ?? a.descripcionactivo ?? "", 22);
+        const desc = descRaw || "—";
+        const obs = buildObs(a.descripcionActivo ?? a.descripcionactivo ?? "", a.observaciones || "");
+        const codigoFormateado = formatCodigoActivo(a);
+        const ubicacion = cellText(resolveUbicacion(a.codigoAmbiente || a.codigoambiente) || "—", 18);
 
         return [
           codigoFormateado,
@@ -609,7 +646,7 @@ export const useActaAsignacion = () => {
           desc,
           obs,
           ubicacion,
-          cellText(a.estadoConservacion || a.estadoconservacion || "REGULAR", 12).toUpperCase() || "REGULAR"
+          normEstado(a.estadoConservacion || a.estadoconservacion)
         ];
       });
 
@@ -658,8 +695,8 @@ export const useActaAsignacion = () => {
         didParseCell: (hookData) => {
           // Fuerza wrap incluso con palabras largas sin espacios (RUBRO,TIPO,DESCRIPCIÓN,OBSERVACIONES,UBICACIÓN).
           // Límites proporcionales al cellWidth: TIPO(20mm)=12, RUBRO(26mm)=15, DESC(78mm)=22, OBS(38mm)=18, UBIC(42mm)=18.
-          if ([1,2,3,4,5].includes(hookData.column.index)) {
-            forceWrapCell(doc, hookData, ({1:26,2:20,3:78,4:38,5:42})[hookData.column.index]||0);
+          if ([0,1,2,3,4,5,6].includes(hookData.column.index)) {
+            forceWrapCell(doc, hookData, ({0:20,1:26,2:20,3:78,4:38,5:42,6:18})[hookData.column.index]||0);
           }
         },
       });
@@ -710,7 +747,8 @@ export const useActaAsignacion = () => {
         return;
       }
 
-      const numeroActa = await getNumeroActa(responsable, locationFilters);
+      const numeroActaRaw = await getNumeroActa(responsable, locationFilters);
+      const numeroActa = Number.isFinite(Number(numeroActaRaw)) ? numeroActaRaw : "—";
 
       const doc = new jsPDF({
         orientation: "landscape",
@@ -722,18 +760,16 @@ export const useActaAsignacion = () => {
 
       const { tableStartY, pageWidth } = await drawActaHeader(doc, { numeroActa, responsable });
 
-      const sanitize2 = (s) => String(s ?? "").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "").replace(/\s+/g, " ").trim();
+      const sanitize2 = (s) => String(s ?? "").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "").replace(/\s+/g, " ").trim().replace(/;/g, ",");
       const lineas = assets.map(a => {
         const trId = a.tipoRubroAct || a.tiporubroact;
-        const rn = sanitize2(tipoRubroMap[trId] || "");
-        const tn = sanitize2(descTipoRubroMap[trId] || "");
-        const desc = sanitize2(a.descripcionActivo ?? a.descripcionactivo ?? "");
-        const rawObs = sanitize2(a.observaciones || "");
-        const rawDescActivo = sanitize2(a.descripcionActivo || a.descripcionactivo || "");
-        const obs = rawObs && (rawObs === "0" || rawObs === rawDescActivo || rawObs === desc) ? "" : rawObs;
-        const codigo = `OJ-02-${sanitize2(a.codigoActivo || a.codigoactivo || "")}`;
-        const ubicacion = sanitize2(resolveUbicacion(a.codigoAmbiente || a.codigoambiente) || "");
-        const estado = sanitize2(a.estadoConservacion || a.estadoconservacion || "REGULAR").toUpperCase() || "REGULAR";
+        const rn = sanitize2(tipoRubroMap[trId] || "—");
+        const tn = sanitize2(descTipoRubroMap[trId] || "—");
+        const desc = sanitize2(a.descripcionActivo ?? a.descripcionactivo ?? "") || "—";
+        const obs = sanitize2(buildObs(a.descripcionActivo ?? a.descripcionactivo ?? "", a.observaciones || ""));
+        const codigo = sanitize2(formatCodigoActivo(a));
+        const ubicacion = sanitize2(resolveUbicacion(a.codigoAmbiente || a.codigoambiente) || "—");
+        const estado = sanitize2(normEstado(a.estadoConservacion || a.estadoconservacion));
         return [codigo, rn, tn, desc, obs, ubicacion, estado].join(";");
       });
 
@@ -891,6 +927,7 @@ export const useActaAsignacion = () => {
       // 4. Crear documento masivo
       const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "letter" });
       doc.setFont("helvetica");
+      const ojLogo = await getOjLogo();
       let generatedCount = 0;
       let skippedCount = 0;
       let firstActa = true;
@@ -939,18 +976,17 @@ export const useActaAsignacion = () => {
         }
         firstActa = false;
 
-        const { tableStartY } = await drawActaHeader(doc, { numeroActa, responsable });
+        const { tableStartY } = await drawActaHeader(doc, { numeroActa, responsable, logo: ojLogo });
 
         const tableData = assets.map((a) => {
           const trId = a.tipoRubroAct || a.tiporubroact;
-          const rn = cellText(tipoRubroMap[trId] || "", 15);
-          const tn = cellText(descTipoRubroMap[trId] || "", 12);
-          const desc = cellText(a.descripcionActivo ?? a.descripcionactivo ?? "", 22);
-          const rawObs = cellText(a.observaciones || "", 18);
-          const rawDescActivo = cellText(a.descripcionActivo || a.descripcionactivo || "", 22);
-          const obs = rawObs && (rawObs === "0" || rawObs === rawDescActivo || rawObs === desc) ? "" : rawObs;
-          const codigoFormateado = `OJ-02-${cellText(a.codigoActivo || a.codigoactivo || "", 15)}`;
-          const ubicacion = cellText(resolveUbicacion(a.codigoAmbiente || a.codigoambiente) || "", 18);
+          const rn = cellText(tipoRubroMap[trId] || "—", 15);
+          const tn = cellText(descTipoRubroMap[trId] || "—", 12);
+          const descRaw = cellText(a.descripcionActivo ?? a.descripcionactivo ?? "", 22);
+          const desc = descRaw || "—";
+          const obs = buildObs(a.descripcionActivo ?? a.descripcionactivo ?? "", a.observaciones || "");
+          const codigoFormateado = formatCodigoActivo(a);
+          const ubicacion = cellText(resolveUbicacion(a.codigoAmbiente || a.codigoambiente) || "—", 18);
           return [
             codigoFormateado,
             rn,
@@ -958,7 +994,7 @@ export const useActaAsignacion = () => {
             desc,
             obs,
             ubicacion,
-            sanitize(a.estadoConservacion || a.estadoconservacion || "REGULAR").toUpperCase() || "REGULAR"
+            normEstado(a.estadoConservacion || a.estadoconservacion)
           ];
         });
 
@@ -1023,7 +1059,7 @@ export const useActaAsignacion = () => {
         return;
       }
 
-      drawPageNumbers(doc);
+      drawPageNumbers(doc, ojLogo, false);
 
       const dateStr = new Date().toISOString().slice(0, 10);
       doc.save(`Actas_Asignacion_Masivas_${dateStr}.pdf`);
@@ -1061,7 +1097,7 @@ export const useActaAsignacion = () => {
       const actaPairSet = new Set(
         (actaRows || [])
           .filter((r) => String(r.cirun || "").trim() !== "" && r.numeroacta != null && String(r.numeroacta).trim() !== "")
-          .map((a) => `${String(a.cirun).trim()}|${String(a.codigoambiente || "").trim()}`)
+          .map((a) => `${String(a.cirun).trim()}|${normCode(a.codigoambiente)}`)
       );
 
       // 2. Precargar catálogos
@@ -1137,7 +1173,7 @@ export const useActaAsignacion = () => {
         if (error) throw error;
         if (!data || data.length === 0) break;
         const filtered = data.filter(
-          (row) => !actaPairSet.has(`${String(row.cirun || "").trim()}|${String(row.codigoambiente || "").trim()}`)
+          (row) => !actaPairSet.has(`${String(row.cirun || "").trim()}|${normCode(row.codigoambiente)}`)
         );
         allSinActasRaw = allSinActasRaw.concat(filtered);
         if (data.length < CHUNK_FETCH) break;
@@ -1159,20 +1195,20 @@ export const useActaAsignacion = () => {
       // Enriquecer para orden carnet + ubicación
       const enriched = assets.map((a) => {
         const trId = a.tipoRubroAct || a.tiporubroact;
-        const rn = tipoRubroMap[trId] || "";
-        const tn = descTipoRubroMap[trId] || "";
-        const ubicacion = resolveUbicacion(a.codigoAmbiente || a.codigoambiente);
-        const ci = String(a.cirun || "").trim() || "—";
+        const rn = sanitizeActaText(tipoRubroMap[trId] || "—");
+        const tn = sanitizeActaText(descTipoRubroMap[trId] || "—");
+        const ubicacion = sanitizeActaText(resolveUbicacion(a.codigoAmbiente || a.codigoambiente)) || "—";
+        const ci = sanitizeActaText(a.cirun) || "—";
         return {
           a,
           rn,
           tn,
           ubicacion,
           ci,
-          codigoFormateado: `OJ-02-${String(a.codigoActivo || a.codigoactivo || "").trim()}`,
-          descripcion: String(a.descripcionActivo ?? a.descripcionactivo ?? "").trim() || "—",
-          observaciones: String(a.observaciones || "").trim() || "",
-          estado: String(a.estadoConservacion || a.estadoconservacion || "REGULAR").toUpperCase() || "REGULAR",
+          codigoFormateado: formatCodigoActivo(a),
+          descripcion: sanitizeActaText(a.descripcionActivo ?? a.descripcionactivo ?? "") || "—",
+          observaciones: buildObs(a.descripcionActivo ?? a.descripcionactivo ?? "", a.observaciones || ""),
+          estado: normEstado(a.estadoConservacion || a.estadoconservacion),
         };
       });
 
@@ -1227,8 +1263,8 @@ export const useActaAsignacion = () => {
         },
         margin: { top: 36, left: 14, right: 14 },
         didParseCell: (hookData) => {
-          if ([1,2,3,4,5].includes(hookData.column.index)) {
-            forceWrapCell(doc, hookData, ({1:26,2:22,3:68,4:60})[hookData.column.index]||0);
+          if ([0,1,2,3,4,5,6].includes(hookData.column.index)) {
+            forceWrapCell(doc, hookData, ({0:22,1:26,2:22,3:68,4:60,6:18})[hookData.column.index]||0);
           }
         },
       });
@@ -1359,12 +1395,7 @@ export const useActaAsignacion = () => {
       };
 
       // Fetch activos agrupados por acta (par cirun+ambiente) con conteo
-      const normCode = (v) => {
-        const s = String(v ?? "").trim();
-        if (s === "") return "";
-        const n = Number(s);
-        return Number.isNaN(n) ? s : String(n);
-      };
+      // (usa normCode global para igualar "00123" con "123").
       const actaPairSet = new Set(filteredActas.map((a) => `${String(a.cirun).trim()}|${normCode(a.codigoambiente)}`));
       const activosPorActa = new Map(); // key -> lista
       filteredActas.forEach((a) => {
@@ -1393,8 +1424,7 @@ export const useActaAsignacion = () => {
           if (!data || data.length === 0) break;
           const batch = toCamelCaseArray(data);
           batch.forEach((row) => {
-            // cirun viene ahora en el select, asegurar fallback por si toCamelCase lo mapea a cirun
-            const cirunVal = row.cirun || row.cirun || "";
+            const cirunVal = row.cirun || "";
             const key = `${String(cirunVal).trim()}|${normCode(row.codigoAmbiente || row.codigoambiente)}`;
             if (activosPorActa.has(key)) {
               activosPorActa.get(key).push(row);
@@ -1412,15 +1442,15 @@ export const useActaAsignacion = () => {
         .map((acta) => {
           const key = `${String(acta.cirun).trim()}|${normCode(acta.codigoambiente)}`;
           const responsable = responsableMap[String(acta.cirun).trim()] || {};
-          const fullName = `${responsable.nombre1 || ""} ${responsable.nombre2 || ""} ${responsable.paterno || ""} ${responsable.materno || ""}`.replace(/\s+/g, " ").trim() || "—";
+          const fullName = sanitizeActaText(`${responsable.nombre1 || ""} ${responsable.nombre2 || ""} ${responsable.paterno || ""} ${responsable.materno || ""}`) || "—";
           const ubicacion = resolveUbicacion(acta.codigoambiente);
           const activos = activosPorActa.get(key) || [];
           return {
             numeroActa: acta.numeroacta,
             numeroActaNum: Number(String(acta.numeroacta).trim()) || Infinity,
-            cirun: String(acta.cirun).trim(),
+            cirun: sanitizeActaText(acta.cirun) || "—",
             responsable: fullName,
-            cargo: String(responsable.cargo || "—").trim() || "—",
+            cargo: sanitizeActaText(responsable.cargo) || "—",
             ubicacion,
             cantidad: activos.length,
             activos,
@@ -1516,10 +1546,10 @@ export const useActaAsignacion = () => {
         const activos = r.activos;
         const detalleData = activos.map((a) => {
           const trId = a.tipoRubroAct || a.tiporubroact;
-          const codigo = `OJ-02-${cellText(a.codigoActivo || a.codigoactivo || "", 15)}`;
-          const desc = cellText(a.descripcionActivo ?? a.descripcionactivo ?? "", 30);
-          const rn = cellText(tipoRubroMap[trId] || "", 18);
-          const estado = cellText(a.estadoConservacion || a.estadoconservacion || "REGULAR", 12).toUpperCase();
+          const codigo = formatCodigoActivo(a);
+          const desc = cellText(a.descripcionActivo ?? a.descripcionactivo ?? "", 30) || "—";
+          const rn = cellText(tipoRubroMap[trId] || "—", 18);
+          const estado = normEstado(a.estadoConservacion || a.estadoconservacion);
           return [codigo, rn, desc, estado];
         });
 

@@ -16,15 +16,32 @@ import ActaPreviewModal from "./ActaPreviewModal";
 
 const ESTADO_MAP = { 0: "Inactivo", 1: "Activo" };
 
-const getNumeroActa = (r, ambienteCodes) => {
+const getNumeroActa = (r, ambienteCodes, numeroActaFilter) => {
   const codes = Array.isArray(ambienteCodes) && ambienteCodes.length > 0
     ? new Set(ambienteCodes.map(String))
     : null;
   if (codes) {
-    const found = (r.actas || []).find((a) =>
-      a.codigoambiente && codes.has(String(a.codigoambiente)),
-    );
-    return found ? found.numeroacta : "—";
+    // Actas del cirun dentro de los ambientes del filtro (ciudad/inmueble/nivel/ambiente).
+    // Si el filtro abarca varias, se listan todas en orden ascendente.
+    const matched = (r.actas || [])
+      .filter((a) => a.codigoambiente && codes.has(String(a.codigoambiente)))
+      .map((a) => String(a.numeroacta ?? "").trim())
+      .filter((n) => n !== "");
+    if (matched.length === 0) return "—";
+    matched.sort((a, b) => {
+      const na = Number(a);
+      const nb = Number(b);
+      if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
+      return a.localeCompare(b);
+    });
+    return matched.join(", ");
+  }
+  // Sin filtro de ubicación: si se buscó por N° acta, mostrar el acta coincidente.
+  const query = String(numeroActaFilter || "").trim().toLowerCase();
+  if (query && Array.isArray(r.actas)) {
+    const hit = r.actas.find((a) => String(a.numeroacta ?? "").trim().toLowerCase() === query)
+      || r.actas.find((a) => String(a.numeroacta ?? "").trim().toLowerCase().includes(query));
+    if (hit && String(hit.numeroacta ?? "").trim() !== "") return String(hit.numeroacta).trim();
   }
   return r.numeroacta ?? "—";
 };
@@ -125,7 +142,7 @@ const ResponsableTable = memo(({
                   </Badge>
                 </TableCell>
                 <TableCell className="text-center font-mono text-xs">
-                  {getNumeroActa(r, ambienteCodes)}
+                  {getNumeroActa(r, ambienteCodes, numeroActaFilter)}
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex space-x-1 justify-end">

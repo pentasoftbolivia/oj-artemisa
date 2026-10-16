@@ -1,0 +1,191 @@
+"use strict";
+import { jsx, jsxs } from "react/jsx-runtime";
+import { memo, useState } from "react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Users, Edit, Printer, FileText, Loader2 } from "lucide-react";
+import { useActaAsignacion } from "../hooks/useActaAsignacion";
+import { useToast } from "@/hooks/use-toast";
+import ActaPreviewModal from "./ActaPreviewModal";
+const ESTADO_MAP = { 0: "Inactivo", 1: "Activo" };
+const getNumeroActa = (r, ambienteCodes, numeroActaFilter) => {
+  const codes = Array.isArray(ambienteCodes) && ambienteCodes.length > 0 ? new Set(ambienteCodes.map(String)) : null;
+  if (codes) {
+    const matched = (r.actas || []).filter((a) => a.codigoambiente && codes.has(String(a.codigoambiente))).map((a) => String(a.numeroacta ?? "").trim()).filter((n) => n !== "");
+    if (matched.length === 0) return "\u2014";
+    matched.sort((a, b) => {
+      const na = Number(a);
+      const nb = Number(b);
+      if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
+      return a.localeCompare(b);
+    });
+    return matched.join(", ");
+  }
+  const query = String(numeroActaFilter || "").trim().toLowerCase();
+  if (query && Array.isArray(r.actas)) {
+    const hit = r.actas.find((a) => String(a.numeroacta ?? "").trim().toLowerCase() === query) || r.actas.find((a) => String(a.numeroacta ?? "").trim().toLowerCase().includes(query));
+    if (hit && String(hit.numeroacta ?? "").trim() !== "") return String(hit.numeroacta).trim();
+  }
+  return r.numeroacta ?? "\u2014";
+};
+const ResponsableTable = memo(({
+  responsables,
+  hasActiveFilters,
+  onEdit,
+  onDelete,
+  messages,
+  locationFilters,
+  ambienteCodes,
+  numeroActaFilter
+}) => {
+  const { printActaAsignacion, printActaListado, isPrinting, printingId } = useActaAsignacion();
+  const { toast } = useToast();
+  const [printModalOpen, setPrintModalOpen] = useState(false);
+  const [selectedPrintData, setSelectedPrintData] = useState(null);
+  const canPrintActa = Boolean(locationFilters?.ambiente || String(numeroActaFilter || "").trim());
+  const handlePrintClick = (r, type) => {
+    if (type === "asignacion" && !canPrintActa) {
+      toast({
+        title: "Seleccione un ambiente",
+        description: "Debe seleccionar un ambiente para imprimir el acta de asignaci\xF3n.",
+        variant: "destructive"
+      });
+      return;
+    }
+    let effectiveFilters = locationFilters || {};
+    if (!effectiveFilters.ambiente && String(numeroActaFilter || "").trim() && Array.isArray(r.actas)) {
+      const query = String(numeroActaFilter).trim().toLowerCase();
+      const matched = r.actas.find((a) => String(a.numeroacta ?? "").trim().toLowerCase() === query) || r.actas.find((a) => String(a.numeroacta ?? "").trim().toLowerCase().includes(query));
+      if (matched?.codigoambiente) {
+        effectiveFilters = { ...effectiveFilters, ambiente: String(matched.codigoambiente).trim() };
+      }
+    }
+    setSelectedPrintData({ responsable: r, type, locationFilters: effectiveFilters });
+    setPrintModalOpen(true);
+  };
+  const confirmPrint = () => {
+    if (!selectedPrintData) return;
+    const { responsable, type, locationFilters: locationFilters2 } = selectedPrintData;
+    if (type === "asignacion") {
+      printActaAsignacion(responsable, locationFilters2);
+    } else if (type === "listado") {
+      printActaListado(responsable, locationFilters2);
+    }
+    setPrintModalOpen(false);
+    setSelectedPrintData(null);
+  };
+  const closePrintModal = () => {
+    setPrintModalOpen(false);
+    setSelectedPrintData(null);
+  };
+  return /* @__PURE__ */ jsxs("div", { className: "rounded-md border", children: [
+    /* @__PURE__ */ jsxs(Table, { children: [
+      /* @__PURE__ */ jsx(TableHeader, { children: /* @__PURE__ */ jsxs(TableRow, { children: [
+        /* @__PURE__ */ jsx(TableHead, { children: "CI" }),
+        /* @__PURE__ */ jsx(TableHead, { children: "Primer Nombre" }),
+        /* @__PURE__ */ jsx(TableHead, { children: "Segundo Nombre" }),
+        /* @__PURE__ */ jsx(TableHead, { children: "Apellido Paterno" }),
+        /* @__PURE__ */ jsx(TableHead, { children: "Apellido Materno" }),
+        /* @__PURE__ */ jsx(TableHead, { children: "Cargo" }),
+        /* @__PURE__ */ jsx(TableHead, { children: "Estado Activo" }),
+        /* @__PURE__ */ jsx(TableHead, { children: "N\xFAmero Acta" }),
+        /* @__PURE__ */ jsx(TableHead, { className: "text-center", children: "Acciones" })
+      ] }) }),
+      /* @__PURE__ */ jsx(TableBody, { children: responsables.length > 0 ? responsables.map((r) => /* @__PURE__ */ jsxs(TableRow, { children: [
+        /* @__PURE__ */ jsx(TableCell, { className: "font-medium font-mono text-xs", children: r.cirun }),
+        /* @__PURE__ */ jsx(TableCell, { children: r.nombre1?.trim() || "\u2014" }),
+        /* @__PURE__ */ jsx(TableCell, { children: r.nombre2?.trim() || "\u2014" }),
+        /* @__PURE__ */ jsx(TableCell, { children: r.paterno?.trim() || "\u2014" }),
+        /* @__PURE__ */ jsx(TableCell, { children: r.materno?.trim() || "\u2014" }),
+        /* @__PURE__ */ jsx(TableCell, { children: r.cargo?.trim() || "\u2014" }),
+        /* @__PURE__ */ jsx(TableCell, { children: /* @__PURE__ */ jsx(
+          Badge,
+          {
+            variant: r.registroActivo === 1 ? "default" : "secondary",
+            children: ESTADO_MAP[r.registroActivo] ?? "\u2014"
+          }
+        ) }),
+        /* @__PURE__ */ jsx(TableCell, { className: "text-center font-mono text-xs", children: getNumeroActa(r, ambienteCodes, numeroActaFilter) }),
+        /* @__PURE__ */ jsx(TableCell, { className: "text-right", children: /* @__PURE__ */ jsxs("div", { className: "flex space-x-1 justify-end", children: [
+          canPrintActa ? /* @__PURE__ */ jsx(
+            Button,
+            {
+              variant: "ghost",
+              size: "sm",
+              onClick: () => handlePrintClick(r, "asignacion"),
+              title: "Imprimir Acta de Asignaci\xF3n",
+              className: "text-blue-500 hover:text-blue-700",
+              disabled: isPrinting && printingId === r.cirun,
+              children: isPrinting && printingId === r.cirun ? /* @__PURE__ */ jsx(Loader2, { className: "h-4 w-4 animate-spin" }) : /* @__PURE__ */ jsx(Printer, { className: "h-4 w-4" })
+            }
+          ) : hasActiveFilters ? /* @__PURE__ */ jsx(
+            Button,
+            {
+              variant: "ghost",
+              size: "sm",
+              title: "Imprimir Acta de Asignaci\xF3n (requiere ambiente o b\xFAsqueda por N\xB0 Acta)",
+              className: "text-blue-500/40",
+              disabled: true,
+              children: /* @__PURE__ */ jsx(Printer, { className: "h-4 w-4" })
+            }
+          ) : null,
+          /* @__PURE__ */ jsx(
+            Button,
+            {
+              variant: "ghost",
+              size: "sm",
+              onClick: () => handlePrintClick(r, "listado"),
+              title: "Imprimir listado",
+              className: "text-teal-500 hover:text-teal-700",
+              disabled: isPrinting && printingId === `${r.cirun}:listado`,
+              children: isPrinting && printingId === `${r.cirun}:listado` ? /* @__PURE__ */ jsx(Loader2, { className: "h-4 w-4 animate-spin" }) : /* @__PURE__ */ jsx(FileText, { className: "h-4 w-4" })
+            }
+          ),
+          /* @__PURE__ */ jsx(
+            Button,
+            {
+              variant: "ghost",
+              size: "sm",
+              onClick: () => onEdit(r),
+              title: "Editar responsable",
+              className: "text-yellow-500 hover:text-yellow-700",
+              children: /* @__PURE__ */ jsx(Edit, { className: "h-4 w-4" })
+            }
+          )
+        ] }) })
+      ] }, r.cirun)) : /* @__PURE__ */ jsx(TableRow, { children: /* @__PURE__ */ jsxs(
+        TableCell,
+        {
+          colSpan: 9,
+          className: "text-center py-12 text-muted-foreground",
+          children: [
+            /* @__PURE__ */ jsx(Users, { className: "mx-auto h-12 w-12 opacity-20 mb-2" }),
+            /* @__PURE__ */ jsx("p", { className: "text-lg font-medium", children: hasActiveFilters ? messages.empty.filtered : messages.empty.noSearch }),
+            /* @__PURE__ */ jsx("p", { className: "text-sm mt-1", children: hasActiveFilters ? messages.empty.adjustFilters : messages.empty.startSearch })
+          ]
+        }
+      ) }) })
+    ] }),
+    /* @__PURE__ */ jsx(
+      ActaPreviewModal,
+      {
+        isOpen: printModalOpen,
+        onClose: closePrintModal,
+        onAccept: confirmPrint,
+        responsable: selectedPrintData?.responsable,
+        type: selectedPrintData?.type,
+        locationFilters: selectedPrintData?.locationFilters
+      }
+    )
+  ] });
+});
+ResponsableTable.displayName = "ResponsableTable";
+export default ResponsableTable;

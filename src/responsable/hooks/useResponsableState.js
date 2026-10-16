@@ -83,9 +83,9 @@ export const useResponsableState = (responsables) => {
       setIsLocationSearching(true);
       try {
         newMatching = await fetchMatchingCiruns({ ciudad, inmueble, nivel, ambiente });
-        if (ambiente) {
-          newAmbienteCodes = await resolveAmbienteCodes(ambiente);
-        }
+        // Códigos de ambiente del filtro de ubicación (cualquiera de los 4 niveles)
+        // para mostrar en la columna el acta correspondiente y no el resumen global.
+        newAmbienteCodes = await resolveAmbienteCodes({ ciudad, inmueble, nivel, ambiente });
       } catch (error) {
         console.error("Error fetching location data:", error);
         toast({
