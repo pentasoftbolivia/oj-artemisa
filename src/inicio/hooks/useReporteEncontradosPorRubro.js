@@ -23,6 +23,13 @@ const formatError = (err) => {
 
 const LOGO_W = 32;
 const LOGO_H = LOGO_W * (57 / 256);
+
+const fmtMoney = (v) => {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "0,0000";
+  return n.toLocaleString("es-BO", { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+};
+
 const addLogo = (doc) => {
   try {
     doc.addImage(LOGO_JPG_DATA_URL, "JPEG", 14, 8, LOGO_W, LOGO_H);
@@ -38,6 +45,8 @@ const addLogo = (doc) => {
  * AND artemisaaltabaja=0 AND ultimoregistro=1.
  * Con la opción soloActivos agrega AND esactivo=true.
  * Agrupado por rubro: nombre del rubro + total de activos.
+ * Con la opción todoRevaluo agrega la columna Valor Revalúo, sumando
+ * act_activos.valorrevaluo por rubro.
  */
 export const useReporteEncontradosPorRubro = () => {
   const { toast } = useToast();
@@ -87,7 +96,7 @@ export const useReporteEncontradosPorRubro = () => {
         // AND esactivo=false (solo cuando soloNoActivos)
         let query = supabase
           .from("act_activos")
-          .select(`${ACTIVO_COLUMNS},artemisaaltabaja,esactivo,estadoconservacion,activonuevo,pararevaluo`);
+          .select(`${ACTIVO_COLUMNS},artemisaaltabaja,esactivo,estadoconservacion,activonuevo,pararevaluo,valorrevaluo`);
         if (todoRevaluo) {
           // OR exacto de los 3 grupos de revalúo. Sin los filtros base globales:
           // el grupo 3 solo exige activonuevo=true.
@@ -224,13 +233,24 @@ export const useReporteEncontradosPorRubro = () => {
       }
 
       const conteoPorRubro = new Map();
+      const valorRevaluoPorRubro = new Map();
       allActivos.forEach((a) => {
         const tipo = a.tipoRubroAct ?? a.tiporubroact;
         const rubroDesc = String(rubroFromTipo[tipo] ?? rubroFromTipo[String(tipo)] ?? "SIN RUBRO").trim() || "SIN RUBRO";
         conteoPorRubro.set(rubroDesc, (conteoPorRubro.get(rubroDesc) ?? 0) + 1);
+        valorRevaluoPorRubro.set(
+          rubroDesc,
+          (valorRevaluoPorRubro.get(rubroDesc) ?? 0) + (Number(a.valorRevaluo ?? a.valorrevaluo) || 0)
+        );
       });
       const rubrosOrdenados = [...conteoPorRubro.keys()].sort((x, y) => x.localeCompare(y, "es"));
-      const body = rubrosOrdenados.map((rubro, idx) => [String(idx + 1), rubro, String(conteoPorRubro.get(rubro))]);
+      const totalRevaluo = allActivos.reduce((s, a) => s + (Number(a.valorRevaluo ?? a.valorrevaluo) || 0), 0);
+      const body = rubrosOrdenados.map((rubro, idx) => [
+        String(idx + 1),
+        rubro,
+        String(conteoPorRubro.get(rubro)),
+        ...(todoRevaluo ? [fmtMoney(valorRevaluoPorRubro.get(rubro) ?? 0)] : []),
+      ]);
 
       toast({ title: "Generando PDF", description: `Construyendo reporte con ${rubrosOrdenados.length} rubros...` });
 
@@ -245,24 +265,37 @@ export const useReporteEncontradosPorRubro = () => {
       doc.setFontSize(9);
       doc.text(`Total activos: ${allActivos.length} en ${rubrosOrdenados.length} rubros`, pageWidth / 2, 25, { align: "center" });
 
-      const tableWidth = 12 + 120 + 30;
+      const tableWidth = todoRevaluo ? 12 + 95 + 30 + 40 : 12 + 120 + 30;
       const marginLeft = (pageWidth - tableWidth) / 2;
       autoTable(doc, {
         startY: 30,
-        head: [["N°", "Rubro", "Total Activos"]],
+        head: [[
+          "N°", "Rubro", "Total Activos",
+          ...(todoRevaluo ? ["Valor Revalúo"] : []),
+        ]],
         body,
-        foot: [["", "TOTAL GENERAL", String(allActivos.length)]],
+        foot: [[
+          "", "TOTAL GENERAL", String(allActivos.length),
+          ...(todoRevaluo ? [fmtMoney(totalRevaluo)] : []),
+        ]],
         showFoot: "lastPage",
         theme: "striped",
         tableWidth,
         styles: { font: "helvetica", fontSize: 8, cellPadding: 1.8, overflow: "linebreak", valign: "middle" },
         headStyles: { fillColor: [16, 70, 140], textColor: [255, 255, 255], halign: "center", fontStyle: "bold", fontSize: 8 },
         footStyles: { fillColor: [230, 240, 255], textColor: [16, 70, 140], halign: "center", fontStyle: "bold", fontSize: 8 },
-        columnStyles: {
-          0: { cellWidth: 12, halign: "center" },
-          1: { cellWidth: 120, halign: "left" },
-          2: { cellWidth: 30, halign: "center", fontStyle: "bold" },
-        },
+        columnStyles: todoRevaluo
+          ? {
+              0: { cellWidth: 12, halign: "center" },
+              1: { cellWidth: 95, halign: "left" },
+              2: { cellWidth: 30, halign: "center", fontStyle: "bold" },
+              3: { cellWidth: 40, halign: "right" },
+            }
+          : {
+              0: { cellWidth: 12, halign: "center" },
+              1: { cellWidth: 120, halign: "left" },
+              2: { cellWidth: 30, halign: "center", fontStyle: "bold" },
+            },
         margin: { left: marginLeft, right: marginLeft, top: 26 },
       });
 

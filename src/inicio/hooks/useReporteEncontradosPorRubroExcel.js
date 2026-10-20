@@ -21,12 +21,16 @@ const formatError = (err) => {
 
 const HEADERS = ["N°", "Rubro", "Total Activos"];
 
+const TODO_REVALUO_HEADERS = [...HEADERS, "Valor Revalúo"];
+
 /**
  * Reporte ENCONTRADOS POR RUBRO en Excel.
  * Mismo criterio que ENCONTRADOS EN ESTADO BAJA:
  * codigoactivo <= 43753 AND estadoinventario IS NOT NULL AND estadoinventario <> ''
  * AND artemisaaltabaja=0 AND ultimoregistro=1.
  * Con la opción soloActivos agrega AND esactivo=true.
+ * Con la opción todoRevaluo agrega la columna Valor Revalúo, sumando
+ * act_activos.valorrevaluo por rubro.
  */
 export const useReporteEncontradosPorRubroExcel = () => {
   const { toast } = useToast();
@@ -71,7 +75,7 @@ export const useReporteEncontradosPorRubroExcel = () => {
       while (true) {
         let query = supabase
           .from("act_activos")
-          .select(`${ACTIVO_COLUMNS},artemisaaltabaja,esactivo,activonuevo`);
+          .select(`${ACTIVO_COLUMNS},artemisaaltabaja,esactivo,activonuevo,valorrevaluo`);
         if (todoRevaluo) {
           // OR exacto de los 3 grupos de revalúo. Sin los filtros base globales:
           // el grupo 3 solo exige activonuevo=true.
@@ -209,30 +213,53 @@ export const useReporteEncontradosPorRubroExcel = () => {
       }
 
       const conteoPorRubro = new Map();
+      const valorRevaluoPorRubro = new Map();
       allActivos.forEach((a) => {
         const tipo = a.tipoRubroAct ?? a.tiporubroact;
         const rubroDesc = String(rubroFromTipo[tipo] ?? rubroFromTipo[String(tipo)] ?? "SIN RUBRO").trim() || "SIN RUBRO";
         conteoPorRubro.set(rubroDesc, (conteoPorRubro.get(rubroDesc) ?? 0) + 1);
+        valorRevaluoPorRubro.set(
+          rubroDesc,
+          (valorRevaluoPorRubro.get(rubroDesc) ?? 0) + (Number(a.valorRevaluo ?? a.valorrevaluo) || 0)
+        );
       });
       const rubrosOrdenados = [...conteoPorRubro.keys()].sort((x, y) => x.localeCompare(y, "es"));
+      const totalRevaluo = allActivos.reduce((s, a) => s + (Number(a.valorRevaluo ?? a.valorrevaluo) || 0), 0);
 
       toast({ title: "Generando Excel", description: `Construyendo reporte con ${rubrosOrdenados.length} rubros...` });
 
       const dateStr = new Date().toISOString().slice(0, 10);
-      const rows = rubrosOrdenados.map((rubro, idx) => [idx + 1, rubro, conteoPorRubro.get(rubro)]);
+      const rows = rubrosOrdenados.map((rubro, idx) => [
+        idx + 1,
+        rubro,
+        conteoPorRubro.get(rubro),
+        ...(todoRevaluo ? [valorRevaluoPorRubro.get(rubro) ?? 0] : []),
+      ]);
 
       const sheetData = [
         [encontradosEnBajaFisicamente ? "ENCONTRADOS EN BAJA FISICAMENTE POR RUBRO - ÓRGANO JUDICIAL" : encontradosFisicamente ? "ENCONTRADOS FISICAMENTE POR RUBRO - ÓRGANO JUDICIAL" : revaluo1355 ? "REVALUO 1355 POR RUBRO - ÓRGANO JUDICIAL" : revaluo2553 ? "REVALUO 2553 POR RUBRO - ÓRGANO JUDICIAL" : todoRevaluo ? "TODO REVALUO POR RUBRO - ÓRGANO JUDICIAL" : obsoleto ? "OBSOLETO POR RUBRO - ÓRGANO JUDICIAL" : estabanEnBaja ? "ACTIVOS QUE ESTABAN EN BAJA POR RUBRO - ÓRGANO JUDICIAL" : enAlta ? "ENCONTRADO BAJA SI SON ACTIVOS POR RUBRO - ÓRGANO JUDICIAL" : soloActivos ? "ENCONTRADO BAJA SI SON ACTIVOS POR RUBRO - ÓRGANO JUDICIAL" : soloNoActivos ? "ENCONTRADOS BAJA NO SON ACTIVOS POR RUBRO - ÓRGANO JUDICIAL" : "ENCONTRADOS POR RUBRO - ÓRGANO JUDICIAL"],
         [`Total activos: ${allActivos.length} en ${rubrosOrdenados.length} rubros`],
         [`Fecha: ${dateStr}`],
         [],
-        HEADERS,
+        todoRevaluo ? TODO_REVALUO_HEADERS : HEADERS,
         ...rows,
-        ["", "TOTAL GENERAL", allActivos.length],
+        [
+          "", "TOTAL GENERAL", allActivos.length,
+          ...(todoRevaluo ? [totalRevaluo] : []),
+        ],
       ];
 
       const ws = XLSX.utils.aoa_to_sheet(sheetData);
-      ws["!cols"] = [{ wch: 6 }, { wch: 60 }, { wch: 16 }];
+      ws["!cols"] = todoRevaluo
+        ? [{ wch: 6 }, { wch: 55 }, { wch: 16 }, { wch: 20 }]
+        : [{ wch: 6 }, { wch: 60 }, { wch: 16 }];
+      if (todoRevaluo) {
+        const moneyFormat = "0.0000";
+        for (let i = 0; i <= rubrosOrdenados.length; i++) {
+          const cell = ws[XLSX.utils.encode_cell({ r: 5 + i, c: 3 })];
+          if (cell && cell.t === "n") cell.z = moneyFormat;
+        }
+      }
       ws["!pageSetup"] = { orientation: "portrait", paperSize: 1, fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
       ws["!margins"] = { left: 0.5, right: 0.5, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 };
       const wb = XLSX.utils.book_new();
