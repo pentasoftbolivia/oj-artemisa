@@ -219,7 +219,7 @@ export const useReporteActivosObsoletosExcel = () => {
 
       const sheetData = [
         ["ACTIVOS OBSOLETOS - ÓRGANO JUDICIAL"],
-        [`Total activos obsoletos: ${allActivos.length} (estadoconservacion=MALO)`],
+        [`Total activos obsoletos: ${allActivos.length}`],
         [`Fecha: ${dateStr}`],
         [],
         HEADERS,

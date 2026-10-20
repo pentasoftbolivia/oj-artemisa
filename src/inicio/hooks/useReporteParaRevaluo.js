@@ -198,7 +198,7 @@ export const useReporteParaRevaluo = () => {
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
       doc.text(
-        `Total: ${allActivos.length} | Con estadoinventario: ${conEstado.length} | Faltantes (sin estado): ${sinEstado.length}`,
+        `Total: ${allActivos.length} | Con estadoinventario: ${conEstado.length} | Faltantes: ${sinEstado.length}`,
         pageWidth / 2, 21, { align: "center" }
       );
 
@@ -207,12 +207,12 @@ export const useReporteParaRevaluo = () => {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(9);
       doc.setTextColor(16, 70, 140);
-      doc.text("RESUMEN DE TOTALES (pararevaluo = true)", pageWidth / 2, currentY, { align: "center" });
+      doc.text("RESUMEN DE TOTALES", pageWidth / 2, currentY, { align: "center" });
       currentY += 4;
       const resumenBody = [
         ["1", "Total activos para revalúo", String(allActivos.length)],
         ["2", "Con dato en estadoinventario", String(conEstado.length)],
-        ["3", "Faltantes (estadoinventario NULL/vacío)", String(sinEstado.length)],
+        ["3", "Faltantes", String(sinEstado.length)],
       ];
       const resumenW = 12 + 90 + 30;
       const resumenX = (pageWidth - resumenW) / 2;

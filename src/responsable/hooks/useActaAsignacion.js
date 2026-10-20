@@ -1318,7 +1318,7 @@ export const useActaAsignacion = () => {
       doc.setFontSize(6);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(100);
-      const disclaimer = "Reporte de activos con estado INVENTARIADO/REVISADO (ultimoregistro=1) cuyo par (cirun, codigoambiente) NO existe en act_responsable_acta. Ordenado por CI y ubicación jerárquica.";
+      const disclaimer = "Reporte de activos con estado INVENTARIADO/REVISADO cuyo par (cirun, codigoambiente) NO existe en act_responsable_acta. Ordenado por CI y ubicación jerárquica.";
       const discLines = doc.splitTextToSize(disclaimer, pageWidth - 28);
       doc.text(discLines, 14, finalY);
       doc.setTextColor(0);
@@ -1516,7 +1516,7 @@ export const useActaAsignacion = () => {
       doc.setFontSize(8);
       doc.setFont("helvetica", "normal");
       const fechaStr = new Date().toLocaleDateString("es-BO", { day: "2-digit", month: "long", year: "numeric" }).toUpperCase();
-      doc.text(`FECHA: ${fechaStr}  |  ACTAS: ${enriched.length}  |  ACTIVOS: ${totalActivos} (ultimoregistro=1, REVISADO/INVENTARIADO)`, pageWidth / 2, 26, { align: "center" });
+      doc.text(`FECHA: ${fechaStr}  |  ACTAS: ${enriched.length}  |  ACTIVOS: ${totalActivos}`, pageWidth / 2, 26, { align: "center" });
       doc.setFontSize(7);
       doc.text("Ordenado por Número de Acta ascendente - Cada acta agrupa activos por (cirun + codigoambiente)", pageWidth / 2, 31, { align: "center" });
 
@@ -1637,7 +1637,7 @@ export const useActaAsignacion = () => {
       doc.setFontSize(6);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(100);
-      const disclaimer = `Reporte generado automáticamente. Incluye ${enriched.length} actas con ${totalActivos} activos (ultimoregistro=1, REVISADO/INVENTARIADO). Detalle por acta limitado a ${MAX_DETALLE_POR_ACTA} activos por acta para legibilidad. Cantidad por acta visible en columna CANT. ACTIVOS.`;
+      const disclaimer = `Reporte generado automáticamente. Incluye ${enriched.length} actas con ${totalActivos} activos. Detalle por acta limitado a ${MAX_DETALLE_POR_ACTA} activos por acta para legibilidad. Cantidad por acta visible en columna CANT. ACTIVOS.`;
       const discLines = doc.splitTextToSize(disclaimer, pageWidth - 28);
       doc.text(discLines, 14, finalY);
 

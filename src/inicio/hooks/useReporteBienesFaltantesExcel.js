@@ -219,7 +219,7 @@ export const useReporteBienesFaltantesExcel = () => {
 
       const sheetData = [
         ["BIENES FALTANTES - ÓRGANO JUDICIAL"],
-        [`Total bienes faltantes: ${allActivos.length} (ultimoregistro=1, sin estadoinventario)`],
+        [`Total bienes faltantes: ${allActivos.length}`],
         [`Fecha: ${dateStr}`],
         [],
         HEADERS,

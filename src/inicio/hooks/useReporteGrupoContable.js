@@ -46,7 +46,7 @@ const fmtBs = (n) =>
 
 /**
  * Reporte Grupo Contable (PDF) — PRODUCTO 3.
- * Criterio: ultimoregistro=1 AND estado=1 (solo activos en alta).
+ * Criterio: artemisaaltabaja=1 (todos los activos en alta de Artemisa).
  * Hoja 1: N°, GRUPO CONTABLE, CANTIDAD ACTIVOS (excluye 3 rubros)
  * Hoja 2: GRUPO CONTABLE DE RUBROS EXCLUIDOS — solo BIBLIOTECA, TERRENOS, EDIFICACIONES
  * Hoja 3: ACTIVOS REVALUADOS POR GRUPO CONTABLE (cantidad y neto de todos, revaluado suma valorrevaluo)
@@ -76,7 +76,7 @@ export const useReporteGrupoContable = () => {
         rubroFromTipo[String(t.tiporubroact)] = rubroDescMap[t.codigorubroact];
       });
 
-      toast({ title: "Cargando activos", description: "Obteniendo activos en alta (ultimoregistro=1 y estado=1)..." });
+      toast({ title: "Cargando activos", description: "Obteniendo activos con artemisaaltabaja=1..." });
 
       let allActivos = [];
       let from = 0;
@@ -84,9 +84,8 @@ export const useReporteGrupoContable = () => {
       while (true) {
         const { data, error } = await supabase
           .from("act_activos")
-          .select(ACTIVO_COLUMNS)
-          .eq("ultimoregistro", 1)
-          .eq("estado", 1)
+          .select(`${ACTIVO_COLUMNS},artemisaaltabaja`)
+          .eq("artemisaaltabaja", 1)
           .order("codigoactivointerno", { ascending: true })
           .range(from, from + FETCH_CHUNK - 1);
         if (error) throw error;
@@ -98,22 +97,22 @@ export const useReporteGrupoContable = () => {
         if (allActivos.length > 100000) break;
         await new Promise((r) => setTimeout(r, 0));
       }
-      // Refuerzo en cliente: estado 1/true/ALTA
+      // Refuerzo en cliente: artemisaaltabaja=1
       allActivos = allActivos.filter((a) => {
-        const est = String(a.estado ?? a.estadoActivo ?? "").trim().toUpperCase();
-        return est === "1" || est === "TRUE" || est === "ALTA";
+        const v = a.artemisaaltabaja ?? a.artemisaAltaBaja;
+        return Number(v) === 1;
       });
       const totalVigentes = allActivos.length;
       // Hoja 2 (rubros excluidos) usa la misma base de vigentes
       const baseRubrosExcluidos = [...allActivos];
 
-      // Hoja 1: ultimoregistro=1 y estado=1, solo se excluyen los 3 rubros
+      // Hoja 1: artemisaaltabaja=1, solo se excluyen los 3 rubros
       allActivos = allActivos.filter((a) => {
         const rubroDesc = rubroFromTipo[a.tipoRubroAct] ?? rubroFromTipo[String(a.tipoRubroAct)] ?? "";
         const n = normTxt(rubroDesc);
         return !RUBROS_EXCLUIDOS.some((k) => n.includes(k));
       });
-      console.debug("[GrupoContable] vigentes (ultim=1):", totalVigentes, "| tras excluir 3 rubros:", allActivos.length);
+      console.debug("[GrupoContable] vigentes (artemisaaltabaja=1):", totalVigentes, "| tras excluir 3 rubros:", allActivos.length);
 
       if (allActivos.length === 0) {
         toast({ title: "Sin datos", description: "No hay activos vigentes para el reporte.", variant: "destructive" });
@@ -149,11 +148,20 @@ export const useReporteGrupoContable = () => {
         21,
         { align: "center" }
       );
+      doc.setFontSize(8);
+      doc.setTextColor(100);
+      doc.text(
+        "Rubros excluidos: BIBLIOTECAS, TERRENOS, EDIFICACIONES (detalle en hoja 2)",
+        pageWidth / 2,
+        25,
+        { align: "center" }
+      );
+      doc.setTextColor(0);
 
       const tableWidth = 12 + 120 + 30;
       const marginLeft = (pageWidth - tableWidth) / 2;
       autoTable(doc, {
-        startY: 26,
+        startY: 30,
         head: [["N°", "GRUPO CONTABLE", "CANTIDAD ACTIVOS"]],
         body,
         foot: [["", "TOTAL GENERAL", String(totalCantidad)]],
@@ -168,17 +176,17 @@ export const useReporteGrupoContable = () => {
           1: { cellWidth: 120, halign: "left" },
           2: { cellWidth: 30, halign: "center", fontStyle: "bold" },
         },
-        margin: { left: marginLeft, right: marginLeft, top: 26 },
+        margin: { left: marginLeft, right: marginLeft, top: 30 },
       });
 
       // ---- Hoja 2: GRUPO CONTABLE DE RUBROS EXCLUIDOS ----
-      // ultimoregistro=1 y estado=1, SOLO
+      // artemisaaltabaja=1, SOLO
       // BIBLIOTECA, TERRENOS y EDIFICACIONES, agrupado por rubro.
       const excActivos = baseRubrosExcluidos.filter((a) => {
         const rubroDesc = rubroFromTipo[a.tipoRubroAct] ?? rubroFromTipo[String(a.tipoRubroAct)] ?? "";
         return RUBROS_EXCLUIDOS.some((k) => normTxt(rubroDesc).includes(k));
       });
-      console.debug("[GrupoContable] vigentes:", totalVigentes, "| rubros excluidos (ultim=1, estado=1):", excActivos.length);
+      console.debug("[GrupoContable] vigentes:", totalVigentes, "| rubros excluidos (artemisaaltabaja=1):", excActivos.length);
       const excGrupos = new Map();
       excActivos.forEach((a) => {
         const rubroDesc = String(rubroFromTipo[a.tipoRubroAct] ?? rubroFromTipo[String(a.tipoRubroAct)] ?? "SIN RUBRO").trim() || "SIN RUBRO";
@@ -196,8 +204,17 @@ export const useReporteGrupoContable = () => {
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
       doc.text(`Total activos: ${excTotal} en ${excOrdenados.length} grupos`, pageWidth / 2, 21, { align: "center" });
+      doc.setFontSize(8);
+      doc.setTextColor(100);
+      doc.text(
+        "Solo rubros excluidos de la hoja 1: BIBLIOTECAS, TERRENOS, EDIFICACIONES",
+        pageWidth / 2,
+        25,
+        { align: "center" }
+      );
+      doc.setTextColor(0);
       autoTable(doc, {
-        startY: 26,
+        startY: 30,
         head: [["N°", "GRUPO CONTABLE", "CANTIDAD ACTIVOS"]],
         body: excBody.length > 0 ? excBody : [["", "Sin activos en rubros excluidos", ""]],
         foot: [["", "TOTAL GENERAL", String(excTotal)]],
@@ -212,15 +229,15 @@ export const useReporteGrupoContable = () => {
           1: { cellWidth: 120, halign: "left" },
           2: { cellWidth: 30, halign: "center", fontStyle: "bold" },
         },
-        margin: { left: marginLeft, right: marginLeft, top: 26 },
+        margin: { left: marginLeft, right: marginLeft, top: 30 },
       });
 
       // ---- Hoja 3: activos revaluados por grupo contable ----
-      // Base: ultimoregistro=1 y estado=1.
+      // Base: artemisaaltabaja=1.
       // CANTIDAD y VALOR NETO de todos; VALOR REVALUADO = suma de valorrevaluo
       // (los no revaluados aportan 0).
-      toast({ title: "Cargando revalúo", description: "Obteniendo todos los activos vigentes..." });
-      const SELECT_REV = `${ACTIVO_COLUMNS},valorneto,valorrevaluo`;
+      toast({ title: "Cargando revalúo", description: "Obteniendo todos los activos con artemisaaltabaja=1..." });
+      const SELECT_REV = `${ACTIVO_COLUMNS},artemisaaltabaja,valorneto,valorrevaluo`;
       let revActivos = [];
       {
         let rFrom = 0;
@@ -228,8 +245,7 @@ export const useReporteGrupoContable = () => {
           const { data, error } = await supabase
             .from("act_activos")
             .select(SELECT_REV)
-            .eq("ultimoregistro", 1)
-            .eq("estado", 1)
+            .eq("artemisaaltabaja", 1)
             .order("codigoactivointerno", { ascending: true })
             .range(rFrom, rFrom + FETCH_CHUNK - 1);
           if (error) throw error;
@@ -242,13 +258,13 @@ export const useReporteGrupoContable = () => {
           await new Promise((r) => setTimeout(r, 0));
         }
       }
-      // Refuerzo en cliente: estado 1/true/ALTA
+      // Refuerzo en cliente: artemisaaltabaja=1
       revActivos = revActivos.filter((a) => {
-        const est = String(a.estado ?? a.estadoActivo ?? "").trim().toUpperCase();
-        return est === "1" || est === "TRUE" || est === "ALTA";
+        const v = a.artemisaaltabaja ?? a.artemisaAltaBaja;
+        return Number(v) === 1;
       });
       const totalRevBase = revActivos.length;
-      console.debug("[GrupoContable] hoja3 base todos ultim=1:", totalRevBase);
+      console.debug("[GrupoContable] hoja3 base todos artemisaaltabaja=1:", totalRevBase);
 
       const revGrupos = new Map();
       revActivos.forEach((a) => {

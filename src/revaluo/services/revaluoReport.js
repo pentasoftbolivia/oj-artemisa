@@ -529,11 +529,17 @@ export const generateRevaluoLotesPDFReport = async ({
     y += 2;
     drawTwoCols("Promedio:", fmtBsPdf(calc.promedio ?? ""), "Precio Revalúo:", fmtBsPdf(calc.precio ?? ""));
     y += 2;
-    // URLs de las fotos de respaldo de cada cotización (bucket `revaluo`)
+    // URL 1/2/3 del recuadro RESPALDOS: URL cargada del Excel (worksheet u1/u2/u3,
+    // columna URL 1-3 de revaluo4.xlsx) + URLs de fotos de respaldo (bucket `revaluo`).
+    // Si hay dato en el Excel siempre se muestra; si además hay fotos se concatenan.
     const cotFotos = allCotizaciones[idx] || [];
     const cotUrls = (n) => {
+      const wsUrl = String(wsRow[`u${n}`] ?? "").trim();
       const list = cotFotos.filter((f) => f.cotIndex === n).map((f) => f.url);
-      return list.length > 0 ? list.join(" ") : "—";
+      const parts = [];
+      if (wsUrl && wsUrl !== "—") parts.push(wsUrl);
+      if (list.length > 0) parts.push(...list);
+      return parts.length > 0 ? parts.join(" ") : "—";
     };
     const chunkStr = (s, n) => {
       const t = String(s || "—");
@@ -740,6 +746,9 @@ export const generateRevaluoFaltantesReport = async ({
     { header: "N° Cot 1", key: "ncot1", width: 13 },
     { header: "N° Cot 2", key: "ncot2", width: 13 },
     { header: "N° Cot 3", key: "ncot3", width: 13 },
+    { header: "URL 1", key: "url1", width: 40 },
+    { header: "URL 2", key: "url2", width: 40 },
+    { header: "URL 3", key: "url3", width: 40 },
     { header: "F. Rev B", key: "frB", width: 11 },
     { header: "F. Rev R", key: "frR", width: 11 },
     { header: "F. Rev M", key: "frM", width: 11 },
@@ -852,6 +861,9 @@ export const generateRevaluoFaltantesReport = async ({
       String(wsRow.n1 || ""),
       String(wsRow.n2 || ""),
       String(wsRow.n3 || ""),
+      String(wsRow.u1 || ""),
+      String(wsRow.u2 || ""),
+      String(wsRow.u3 || ""),
       calc.fkey === "B" ? calc.fr ?? "" : "",
       calc.fkey === "R" ? calc.fr ?? "" : "",
       calc.fkey === "M" ? calc.fr ?? "" : "",
@@ -868,7 +880,13 @@ export const generateRevaluoFaltantesReport = async ({
     const row = wsExcel.getRow(headerRowNumber + 1 + idx);
     columns.forEach((col, i) => {
       const cell = row.getCell(i + 1);
-      cell.value = values[i] ?? "";
+      const v = values[i] ?? "";
+      if ((col.key === "url1" || col.key === "url2" || col.key === "url3") && typeof v === "string" && v.startsWith("http")) {
+        cell.value = { text: v, hyperlink: v };
+        cell.font = { color: { argb: "FF0563C1" }, underline: true, size: 9 };
+      } else {
+        cell.value = v;
+      }
       cell.alignment = { vertical: "middle", wrapText: true, horizontal: typeof values[i] === "number" ? "right" : "left" };
       cell.border = {
         top: { style: "thin", color: { argb: "FFD9D9D9" } },
@@ -1021,6 +1039,9 @@ export const generateRevaluoConservacionPDFReport = async ({
   const fmtInt = (v) => (v === null || v === undefined || v === "" ? "" : String(v));
 
   // Azul estándar de todos los reportes (FF1F4E79).
+  // NOTA: este PDF (botón "Generar PDF" del modal SUBIR DATOS) no lleva
+  // columnas URL 1-3. Las URL solo se muestran en el Reporte por Lotes
+  // (generateRevaluoLotesPDFReport, recuadro RESPALDOS -> URL 1/2/3) y en el Excel.
   const blue = { fillColor: [31, 78, 121], textColor: [255, 255, 255] };
   const span2 = (content) => ({ content, rowSpan: 2, styles: blue });
   // Fila superior agrupada igual que el Excel (mismos títulos), toda en azul estándar.

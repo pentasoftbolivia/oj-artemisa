@@ -232,7 +232,7 @@ export const useReporteBajasEncontradasExcel = () => {
 
       const sheetData = [
         ["BAJAS ENCONTRADAS - ÓRGANO JUDICIAL"],
-        [`Total bajas encontradas: ${allActivos.length} (estado=0, esactivo=true y con estadoinventario)`],
+        [`Total bajas encontradas: ${allActivos.length}`],
         [`Fecha: ${dateStr}`],
         [],
         HEADERS,

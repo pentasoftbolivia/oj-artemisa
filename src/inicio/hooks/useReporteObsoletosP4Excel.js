@@ -212,7 +212,7 @@ export const useReporteObsoletosP4Excel = () => {
 
       const sheetData = [
         ["ACTIVOS OBSOLETOS - ÓRGANO JUDICIAL"],
-        [`Total activos obsoletos: ${allActivos.length} (estado=1, ultimoregistro=1, MALO, esactivo=true)`],
+        [`Total activos obsoletos: ${allActivos.length}`],
         [`Fecha: ${dateStr}`],
         [],
         HEADERS,

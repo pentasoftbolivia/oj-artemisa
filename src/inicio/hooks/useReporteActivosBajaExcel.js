@@ -223,7 +223,7 @@ export const useReporteActivosBajaExcel = () => {
 
       const sheetData = [
         ["ACTIVOS DE BAJA - ÓRGANO JUDICIAL"],
-        [`Total activos de baja: ${allActivos.length} (estado=0)`],
+        [`Total activos de baja: ${allActivos.length}`],
         [`Fecha: ${dateStr}`],
         [],
         HEADERS,

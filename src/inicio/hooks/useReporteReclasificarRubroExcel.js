@@ -59,7 +59,7 @@ export const useReporteReclasificarRubroExcel = () => {
 
       const detalleSheet = [
         ["RECLASIFICAR EL RUBRO - DETALLE - ÓRGANO JUDICIAL"],
-        [`Total a reclasificar: ${items.length} (ultimoregistro=1, código no canónico)`],
+        [`Total a reclasificar: ${items.length}`],
         [`Fecha: ${dateStr}`],
         [],
         HEADERS,

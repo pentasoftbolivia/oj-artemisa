@@ -120,14 +120,18 @@ export const useReporteInventariados = () => {
   const refreshCount = useCallback(async () => {
     setIsCounting(true);
     try {
-      // Conteo exacto igual que la generación: ultimoregistro=1 + REVISADO/INVENTARIADO
+      // Conteo exacto igual que la generación: codigoactivo <= 43753, estadoinventario con dato,
+      // artemisaaltabaja in (0,1) y ultimoregistro=1
       // Usamos range paginado para evitar límites de count head con RLS y variaciones de case/espacios
       // Primero intentamos count head rápido, si difiere del fetch real lo corregimos en generate
       const { count, error } = await supabase
         .from("act_activos")
         .select("codigoactivointerno", { count: "exact", head: true })
-        .eq("ultimoregistro", 1)
-        .in("estadoinventario", ["REVISADO", "INVENTARIADO"]);
+        .lte("codigoactivo", 43753)
+        .not("estadoinventario", "is", null)
+        .neq("estadoinventario", "")
+        .in("artemisaaltabaja", [0, 1])
+        .eq("ultimoregistro", 1);
       if (error) throw error;
 
       // Validación secundaria: count sin ultimoregistro para debug de discrepancia reportada (22228)
@@ -143,8 +147,11 @@ export const useReporteInventariados = () => {
           const { data, error: e2 } = await supabase
             .from("act_activos")
             .select("codigoactivointerno")
+            .lte("codigoactivo", 43753)
+            .not("estadoinventario", "is", null)
+            .neq("estadoinventario", "")
+            .in("artemisaaltabaja", [0, 1])
             .eq("ultimoregistro", 1)
-            .in("estadoinventario", ["REVISADO", "INVENTARIADO"])
             .range(from, from + CHUNK - 1);
           if (e2) throw e2;
           if (!data || data.length === 0) break;
@@ -258,9 +265,12 @@ export const useReporteInventariados = () => {
       while (true) {
         const { data, error } = await supabase
           .from("act_activos")
-          .select(ACTIVO_COLUMNS)
+          .select(`${ACTIVO_COLUMNS},artemisaaltabaja`)
+          .lte("codigoactivo", 43753)
+          .not("estadoinventario", "is", null)
+          .neq("estadoinventario", "")
+          .in("artemisaaltabaja", [0, 1])
           .eq("ultimoregistro", 1)
-          .in("estadoinventario", ["REVISADO", "INVENTARIADO"])
           .order("codigoambiente", { ascending: true })
           .order("codigoactivo", { ascending: true })
           .range(from, from + FETCH_CHUNK - 1);
@@ -273,8 +283,25 @@ export const useReporteInventariados = () => {
         if (allActivos.length > 44000) break;
         await new Promise((r) => setTimeout(r, 0));
       }
+
+      // Regla: codigoactivo <= 43753, estadoinventario con dato, artemisaaltabaja in (0,1), ultimoregistro = 1
+      allActivos = allActivos.filter((a) => {
+        const codigoActivo = Number(a.codigoActivo ?? a.codigoactivo ?? 0);
+        const v = a.artemisaaltabaja ?? a.artemisaAltaBaja;
+        const estadoInv = a.estadoinventario ?? a.estadoInventario;
+        const ultimoVal = String(a.ultimoregistro ?? "").trim();
+        return (
+          codigoActivo <= 43753 &&
+          estadoInv !== null &&
+          estadoInv !== undefined &&
+          String(estadoInv) !== "" &&
+          (Number(v) === 0 || Number(v) === 1) &&
+          ultimoVal === "1"
+        );
+      });
+
       if (allActivos.length === 0) {
-        toast({ title: "Sin datos", description: "No hay activos.", variant: "destructive" });
+        toast({ title: "Sin datos", description: "No hay activos con codigoactivo <= 43753, estadoinventario con dato, artemisaaltabaja in (0,1) y ultimoregistro=1.", variant: "destructive" });
         return;
       }
       let enrichedAll = allActivos.map((a) => {

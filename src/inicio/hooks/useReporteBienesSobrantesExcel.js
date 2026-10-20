@@ -60,7 +60,8 @@ export const useReporteBienesSobrantesExcel = () => {
   const { toast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const generate = useCallback(async () => {
+  const generate = useCallback(async (options = {}) => {
+    const porRubro = options?.porRubro === true;
     setIsGenerating(true);
     try {
       toast({ title: "Generando Bienes Sobrantes (Excel)", description: "Cargando catálogos..." });
@@ -167,8 +168,30 @@ export const useReporteBienesSobrantesExcel = () => {
       allActivos = allActivos.filter((a) => isTrueish(a.activonuevo ?? a.activoNuevo));
       allActivos.sort((a, b) => Number(a.codigoActivo ?? a.codigoactivo ?? 0) - Number(b.codigoActivo ?? b.codigoactivo ?? 0));
 
-      if (allActivos.length === 0) {
-        toast({ title: "Sin datos", description: "No hay bienes sobrantes con ese criterio.", variant: "destructive" });
+      if (porRubro) {
+        const conteoPorRubro = new Map();
+        allActivos.forEach((a) => {
+          const tipo = a.tipoRubroAct ?? a.tiporubroact;
+          const rubroDesc = String(rubroFromTipo[tipo] ?? rubroFromTipo[String(tipo)] ?? "SIN RUBRO").trim() || "SIN RUBRO";
+          conteoPorRubro.set(rubroDesc, (conteoPorRubro.get(rubroDesc) ?? 0) + 1);
+        });
+        const rubrosOrdenados = [...conteoPorRubro.keys()].sort((x, y) => x.localeCompare(y, "es"));
+        const dateStr = new Date().toISOString().slice(0, 10);
+        const rows = rubrosOrdenados.map((rubro, idx) => [idx + 1, rubro, conteoPorRubro.get(rubro)]);
+        const sheetData = [
+          ["BIENES SOBRANTES POR RUBRO - ÓRGANO JUDICIAL"],
+          [`Total activos: ${allActivos.length} en ${rubrosOrdenados.length} rubros`],
+          [`Fecha: ${dateStr}`],
+          [],
+          ["N°", "Rubro", "Total Activos"],
+          ...rows,
+          ["", "TOTAL GENERAL", allActivos.length],
+        ];
+        const ws = XLSX.utils.aoa_to_sheet(sheetData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Sobrantes Rubro");
+        XLSX.writeFile(wb, `Bienes_Sobrantes_Por_Rubro_${dateStr}.xlsx`);
+        toast({ title: "Reporte generado", description: `Se exportaron ${allActivos.length} activos en ${rubrosOrdenados.length} rubros.` });
         return;
       }
 
@@ -221,7 +244,7 @@ export const useReporteBienesSobrantesExcel = () => {
 
       const sheetData = [
         ["BIENES SOBRANTES - ÓRGANO JUDICIAL"],
-        [`Total bienes sobrantes: ${allActivos.length} (ultimoregistro=1, activonuevo=TRUE)`],
+        [`Total bienes sobrantes: ${allActivos.length}`],
         [`Fecha: ${dateStr}`],
         [],
         HEADERS,

@@ -225,7 +225,7 @@ export const useReporteFungibleExcel = () => {
 
       const sheetData = [
         ["FUNGIBLE - ÓRGANO JUDICIAL"],
-        [`Total activos fungibles: ${allActivos.length} (esactivo=false)`],
+        [`Total activos fungibles: ${allActivos.length}`],
         [`Fecha: ${dateStr}`],
         [],
         HEADERS,

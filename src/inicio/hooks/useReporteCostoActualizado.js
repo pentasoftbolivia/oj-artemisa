@@ -1,7 +1,8 @@
 import { useState, useCallback } from "react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import * as XLSX from "xlsx";
+import { supabase } from "@/lib/supabase";
+import { toCamelCaseArray } from "@/lib/mapFields";
 import { getCachedCatalog } from "@/lib/catalogCache";
 import { useToast } from "@/hooks/use-toast";
 import { LOGO_JPG_DATA_URL } from "@/lib/logoJpgBase64";
@@ -27,46 +28,34 @@ const addLogo = (doc) => {
   } catch { }
 };
 
-const EXCEL_URL = `${import.meta.env.BASE_URL || "/"}ACT_ActivosArtemisa.xlsx`;
-
-// Lee el Excel local (public/ACT_ActivosArtemisa.xlsx, hoja ACT_Activos) y devuelve
-// las filas con UltimoRegistro=1 y Se_Imprime=1: { tipoRubroAct, rubroExcel, saldoInicial, costoAct, depAcum }
-const loadActivosFromExcel = async (onProgress) => {
-  const res = await fetch(EXCEL_URL);
-  if (!res.ok) throw new Error(`No se pudo leer ${EXCEL_URL} (HTTP ${res.status})`);
-  const buf = await res.arrayBuffer();
-  onProgress?.("Procesando Excel local (~25MB)...");
-  const wb = XLSX.read(buf, { type: "array" });
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true });
-  if (!rows || rows.length < 2) return [];
-  const H = rows[0].map((h) => String(h ?? "").trim());
-  const idxTipo = H.indexOf("TipoRubroAct");
-  const idxUlt = H.indexOf("UltimoRegistro");
-  const idxImp = H.indexOf("Se_Imprime");
-  const idxSaldo = H.indexOf("ValorInicial"); // -> columna "Saldo Inicial" del reporte
-  const idxCosto = H.indexOf("SaldoInicial_Exp"); // -> columna "Costo Actualizado" del reporte
-  const idxDA = H.indexOf("DepAcum_Exp");
-  const idxRubroEmb = H.indexOf("Rubro"); // existe si el Excel ya fue completado
-  if ([idxTipo, idxUlt, idxImp, idxSaldo, idxCosto, idxDA].some((i) => i < 0)) {
-    throw new Error("El Excel no tiene las columnas esperadas (TipoRubroAct, UltimoRegistro, Se_Imprime, ValorInicial, SaldoInicial_Exp, DepAcum_Exp)");
+// Lee los activos desde Supabase con el criterio:
+// codigoactivo <= 43753, estadoinventario con dato, artemisaaltabaja in (0,1), ultimoregistro = 1.
+const FETCH_CHUNK = 1000;
+const loadActivosFromDB = async (onProgress) => {
+  let all = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from("act_activos")
+      .select("codigoactivo,tiporubroact,valorinicial,saldoinicial_exp,depacum_exp,estadoinventario,artemisaaltabaja,ultimoregistro")
+      .lte("codigoactivo", 43753)
+      .not("estadoinventario", "is", null)
+      .neq("estadoinventario", "")
+      .in("artemisaaltabaja", [0, 1])
+      .eq("ultimoregistro", 1)
+      .order("codigoactivointerno", { ascending: true })
+      .range(from, from + FETCH_CHUNK - 1);
+    if (error) throw error;
+    const batch = toCamelCaseArray(data || []);
+    if (batch.length === 0) break;
+    all = all.concat(batch);
+    if (batch.length < FETCH_CHUNK) break;
+    from += FETCH_CHUNK;
+    if (all.length > 100000) break;
+    onProgress?.(`Cargando activos (${all.length})...`);
+    await new Promise((r) => setTimeout(r, 0));
   }
-  const out = [];
-  for (let i = 1; i < rows.length; i++) {
-    const r = rows[i];
-    if (!r) continue;
-    if (String(r[idxUlt] ?? "").trim() !== "1") continue;
-    if (String(r[idxImp] ?? "").trim() !== "1") continue;
-    out.push({
-      tipoRubroAct: r[idxTipo],
-      rubroExcel: idxRubroEmb >= 0 ? r[idxRubroEmb] : "",
-      valorinicial: r[idxSaldo],
-      saldoinicial_exp: r[idxCosto],
-      depacum_exp: r[idxDA],
-    });
-    if (out.length % 20000 === 0) await new Promise((rel) => setTimeout(rel, 0));
-  }
-  return out;
+  return all;
 };
 
 const toNumber = (v) => {
@@ -81,11 +70,12 @@ const fmt = (n) =>
 
 /**
  * Reporte Costo Actualizado y Depreciación (PDF).
- * Fuente: Excel local public/ACT_ActivosArtemisa.xlsx (hoja ACT_Activos).
- * Agrupa por RUBRO y suma: ValorInicial -> Saldo Inicial,
- * SaldoInicial_Exp -> Costo Actualizado,
- * DepAcum_Exp -> Depreciación Acumulada Actualizada al 01/01/2026.
- * Alcance: filas del Excel con UltimoRegistro=1 y Se_Imprime=1 (sin otros filtros).
+ * Fuente: Supabase (act_activos).
+ * Agrupa por RUBRO y suma: valorinicial -> Saldo Inicial,
+ * saldoinicial_exp -> Costo Actualizado,
+ * depacum_exp -> Depreciación Acumulada Actualizada al 01/01/2026.
+ * Alcance: codigoactivo <= 43753, estadoinventario con dato,
+ * artemisaaltabaja in (0,1) y ultimoregistro = 1.
  */
 export const useReporteCostoActualizado = () => {
   const { toast } = useToast();
@@ -111,29 +101,27 @@ export const useReporteCostoActualizado = () => {
         rubroFromTipo[String(t.tiporubroact)] = rubroDescMap[t.codigorubroact];
       });
 
-      toast({ title: "Cargando datos", description: "Leyendo Excel local ACT_ActivosArtemisa.xlsx..." });
+      toast({ title: "Cargando datos", description: "Obteniendo activos desde Supabase..." });
 
-      const allActivos = await loadActivosFromExcel((msg) =>
-        toast({ title: "Procesando Excel", description: msg })
+      const allActivos = await loadActivosFromDB((msg) =>
+        toast({ title: "Procesando activos", description: msg })
       );
 
       if (allActivos.length === 0) {
-        toast({ title: "Sin datos", description: "El Excel no tiene filas con UltimoRegistro=1 y Se_Imprime=1.", variant: "destructive" });
+        toast({ title: "Sin datos", description: "No hay activos con codigoactivo <= 43753, estadoinventario con dato, artemisaaltabaja in (0,1) y ultimoregistro=1.", variant: "destructive" });
         return;
       }
 
-      // Agrupar por RUBRO y sumar las 3 columnas (usa columna Rubro del Excel si ya fue completado)
+      // Agrupar por RUBRO y sumar las 3 columnas
       const grupos = new Map();
       allActivos.forEach((a) => {
-        const key = String(a.tipoRubroAct ?? "").trim();
-        const desc = String(a.rubroExcel ?? "").trim()
-          || String(rubroFromTipo[a.tipoRubroAct] ?? rubroFromTipo[key] ?? "").trim()
-          || "SIN RUBRO";
+        const key = String(a.tipoRubroAct ?? a.tiporubroact ?? "").trim();
+        const desc = String(rubroFromTipo[key] ?? rubroFromTipo[a.tipoRubroAct] ?? "").trim() || "SIN RUBRO";
         if (!grupos.has(desc)) grupos.set(desc, { saldoInicial: 0, costoAct: 0, depAcum: 0, count: 0, tipos: new Set() });
         const g = grupos.get(desc);
-        g.saldoInicial += toNumber(a.valorinicial);
-        g.costoAct += toNumber(a.saldoinicial_exp);
-        g.depAcum += toNumber(a.depacum_exp);
+        g.saldoInicial += toNumber(a.valorInicial ?? a.valorinicial);
+        g.costoAct += toNumber(a.saldoInicialExp ?? a.saldoinicial_exp);
+        g.depAcum += toNumber(a.depAcumExp ?? a.depacum_exp);
         g.count += 1;
         if (key) g.tipos.add(key);
       });
@@ -163,7 +151,7 @@ export const useReporteCostoActualizado = () => {
       doc.text("COSTO ACTUALIZADO Y DEPRECIACIÓN - ÓRGANO JUDICIAL", pageWidth / 2, 16, { align: "center" });
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
-      doc.text(`Totales por rubro al 01/01/2026 | Total activos: ${allActivos.length} (Excel UltimoRegistro=1 y Se_Imprime=1)`, pageWidth / 2, 21, { align: "center" });
+      doc.text(`Totales por rubro al 01/01/2026 | Total activos: ${allActivos.length}`, pageWidth / 2, 21, { align: "center" });
 
       autoTable(doc, {
         startY: 26,

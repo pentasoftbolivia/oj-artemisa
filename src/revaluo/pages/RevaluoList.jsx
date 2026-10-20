@@ -953,7 +953,7 @@ const RevaluoList = () => {
     }
   };
   // SUBIR DATOS: misma lógica que Datos Aleatorios pero con valores del Excel
-  // prueba1.xlsx (MERCADO 1-3 -> c1/c2/c3, NOMBRE 1-3 -> n1/n2/n3),
+  // revaluo4.xlsx (MERCADO 1-3 -> c1/c2/c3, NOMBRE 1-3 -> n1/n2/n3, URL 1-3 -> u1/u2/u3),
   // solo en las filas con dato en Conservación. El Promedio lo calcula la interfaz.
   const [isSubirModalOpen, setIsSubirModalOpen] = useState(false);
   const [isUploadingExcel, setIsUploadingExcel] = useState(false);
@@ -961,7 +961,7 @@ const RevaluoList = () => {
   // Tipo de cambio para convertir MERCADO 1-3 del Excel antes de llevarlos a la interfaz.
   const TIPO_CAMBIO_MERCADO = 11.7;
 
-  const handleCargarPrueba1 = async () => {
+  const handleCargarRevaluo4 = async () => {
     const filas = filteredEnriched.filter(tieneConservacion);
     if (filas.length === 0) {
       toast({ title: "Sin datos", description: "No hay filas con dato en Conservación en la lista actual.", variant: "destructive" });
@@ -969,8 +969,8 @@ const RevaluoList = () => {
     }
     setIsUploadingExcel(true);
     try {
-      const res = await fetch(`${import.meta.env.BASE_URL}prueba1.xlsx`);
-      if (!res.ok) throw new Error("No se encontró el archivo prueba1.xlsx.");
+      const res = await fetch(`${import.meta.env.BASE_URL}revaluo4.xlsx`);
+      if (!res.ok) throw new Error("No se encontró el archivo revaluo4.xlsx.");
       const buf = await res.arrayBuffer();
       const { items, sinCodigo } = parseCotizacionesExcel(buf);
       if (items.length === 0) {
@@ -989,6 +989,7 @@ const RevaluoList = () => {
         const cell = {};
         it.c.forEach((v, k) => { if (v !== null) cell[`c${k + 1}`] = (v * TIPO_CAMBIO_MERCADO).toFixed(2); });
         it.n.forEach((v, k) => { if (v) cell[`n${k + 1}`] = v; });
+        (it.u || []).forEach((v, k) => { if (v) cell[`u${k + 1}`] = v; });
         if (Object.keys(cell).length === 0) return;
         patch[rowKeyOfList(a)] = cell;
       });
@@ -1008,9 +1009,9 @@ const RevaluoList = () => {
         noEncontrados.length > 0 ? `${noEncontrados.length} códigos no están en la lista` : null,
         sinCodigo > 0 ? `${sinCodigo} filas sin código` : null,
       ].filter(Boolean).join(" · ");
-      toast({ title: "Datos cargados", description: `Cotizaciones y respaldos del Excel para ${actualizados} filas con Conservación.${extras ? ` (${extras})` : ""}` });
+      toast({ title: "Datos cargados", description: `Cotizaciones, respaldos y URLs del Excel para ${actualizados} filas con Conservación.${extras ? ` (${extras})` : ""}` });
     } catch (err) {
-      console.error("Error cargando prueba1.xlsx:", err);
+      console.error("Error cargando revaluo4.xlsx:", err);
       toast({ title: "Error", description: err.message || "No se pudo leer el Excel.", variant: "destructive" });
     } finally {
       setIsUploadingExcel(false);
@@ -1302,7 +1303,7 @@ const RevaluoList = () => {
             <Dices className="mr-2 h-4 w-4 shrink-0" />
             <span className="truncate">Datos Aleatorios</span>
           </Button>
-          <Button onClick={() => setIsSubirModalOpen(true)} disabled={filteredEnriched.length === 0} className="bg-emerald-600 hover:bg-emerald-700 text-white w-full sm:w-auto min-h-11 sm:min-h-9 text-xs sm:text-sm" title="Cargar cotizaciones (MERCADO 1-3) y respaldos (NOMBRE 1-3) del Excel prueba1.xlsx por Codigo Activo">
+          <Button onClick={() => setIsSubirModalOpen(true)} disabled={filteredEnriched.length === 0} className="bg-emerald-600 hover:bg-emerald-700 text-white w-full sm:w-auto min-h-11 sm:min-h-9 text-xs sm:text-sm" title="Cargar cotizaciones (MERCADO 1-3) y respaldos (NOMBRE 1-3) del Excel revaluo4.xlsx por Codigo Activo">
             <Upload className="mr-2 h-4 w-4 shrink-0" />
             <span className="truncate">SUBIR DATOS</span>
           </Button>
@@ -1517,13 +1518,13 @@ const RevaluoList = () => {
             <DialogTitle className="text-base sm:text-lg leading-tight">Subir Datos</DialogTitle>
             <DialogDescription className="text-xs sm:text-sm leading-tight">
               {filteredEnriched.length > 0
-                ? "Carga cotizaciones (MERCADO 1-3 × 11,70) y su respaldo en N° Cotización (NOMBRE 1-3) desde el Excel prueba1.xlsx, solo en las filas con dato en Conservación. El reporte en Excel incluye todos los activos de la lista; el PDF incluye los activos con Precio Revalúo."
+                ? "Carga cotizaciones (MERCADO 1-3 × 11,70), su respaldo en N° Cotización (NOMBRE 1-3) y sus URL (URL 1-3) desde el Excel revaluo4.xlsx, solo en las filas con dato en Conservación. El reporte en Excel incluye todos los activos de la lista; el PDF incluye los activos con Precio Revalúo."
                 : "No hay activos en la lista con los filtros actuales."}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-2 py-2">
             <Button
-              onClick={handleCargarPrueba1}
+              onClick={handleCargarRevaluo4}
               disabled={filteredEnriched.length === 0 || isUploadingExcel}
               className="bg-emerald-600 hover:bg-emerald-700 text-white w-full min-h-11 text-xs sm:text-sm"
             >

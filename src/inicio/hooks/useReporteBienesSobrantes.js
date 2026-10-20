@@ -76,7 +76,8 @@ export const useReporteBienesSobrantes = () => {
   const { toast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const generate = useCallback(async () => {
+  const generate = useCallback(async (options = {}) => {
+    const porRubro = options?.porRubro === true;
     setIsGenerating(true);
     try {
       toast({ title: "Generando Bienes Sobrantes", description: "Cargando catálogos..." });
@@ -185,8 +186,49 @@ export const useReporteBienesSobrantes = () => {
       allActivos = allActivos.filter((a) => isTrueish(a.activonuevo ?? a.activoNuevo));
       allActivos.sort((a, b) => Number(a.codigoActivo ?? a.codigoactivo ?? 0) - Number(b.codigoActivo ?? b.codigoactivo ?? 0));
 
-      if (allActivos.length === 0) {
-        toast({ title: "Sin datos", description: "No hay bienes sobrantes con ese criterio.", variant: "destructive" });
+      if (porRubro) {
+        const conteoPorRubro = new Map();
+        allActivos.forEach((a) => {
+          const tipo = a.tipoRubroAct ?? a.tiporubroact;
+          const rubroDesc = String(rubroFromTipo[tipo] ?? rubroFromTipo[String(tipo)] ?? "SIN RUBRO").trim() || "SIN RUBRO";
+          conteoPorRubro.set(rubroDesc, (conteoPorRubro.get(rubroDesc) ?? 0) + 1);
+        });
+        const rubrosOrdenados = [...conteoPorRubro.keys()].sort((x, y) => x.localeCompare(y, "es"));
+        const body = rubrosOrdenados.map((rubro, idx) => [String(idx + 1), rubro, String(conteoPorRubro.get(rubro))]);
+        const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" });
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+        addLogo(doc);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(13);
+        doc.text("BIENES SOBRANTES POR RUBRO - ÓRGANO JUDICIAL", pageWidth / 2, 20, { align: "center" });
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.text(`Total activos: ${allActivos.length} en ${rubrosOrdenados.length} rubros`, pageWidth / 2, 25, { align: "center" });
+        autoTable(doc, {
+          startY: 30,
+          head: [["N°", "Rubro", "Total Activos"]],
+          body,
+          foot: [["", "TOTAL GENERAL", String(allActivos.length)]],
+          showFoot: "lastPage",
+          theme: "striped",
+          styles: { font: "helvetica", fontSize: 8, cellPadding: 1.8, overflow: "linebreak", valign: "middle" },
+          headStyles: { fillColor: [16, 70, 140], textColor: [255, 255, 255], halign: "center", fontStyle: "bold", fontSize: 8 },
+          footStyles: { fillColor: [230, 240, 255], textColor: [16, 70, 140], halign: "center", fontStyle: "bold", fontSize: 8 },
+          columnStyles: { 0: { cellWidth: 12, halign: "center" }, 1: { cellWidth: 120, halign: "left" }, 2: { cellWidth: 30, halign: "center", fontStyle: "bold" } },
+          margin: { top: 26, left: 8, right: 8 },
+        });
+        const totalPages = doc.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+          doc.setPage(i);
+          if (i > 1) addLogo(doc);
+          doc.setFontSize(7);
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(80);
+          doc.text(`Página ${i} de ${totalPages}`, pageWidth / 2, pageHeight - 7, { align: "center" });
+        }
+        doc.save("Bienes_Sobrantes_Por_Rubro.pdf");
+        toast({ title: "Reporte generado", description: `Se exportaron ${allActivos.length} activos en ${rubrosOrdenados.length} rubros.` });
         return;
       }
 

@@ -5,7 +5,7 @@ import { getCachedCatalog } from "@/lib/catalogCache";
 import { toCamelCaseArray } from "@/lib/mapFields";
 import { useToast } from "@/hooks/use-toast";
 import { ACTIVO_COLUMNS } from "@/lib/activoColumns";
-import { normalizeCi, normalizeCiLoose, getCiPrefix, CIUDADES_EXCEPCION_SET } from "../constants/inventarioConstants";
+import { normalizeCi, normalizeCiLoose, getCiPrefix } from "../constants/inventarioConstants";
 
 const formatError = (err) => {
   if (!err) return "Error desconocido";
@@ -162,7 +162,7 @@ export const useReporteFaltantesExcel = () => {
         return [resp.nombre1, resp.nombre2, resp.paterno, resp.materno].map((s) => (s || "").trim()).filter(Boolean).join(" ") || resp.cirun;
       };
 
-      toast({ title: "Cargando activos", description: "Obteniendo activos faltantes (ultimoregistro=1 y estadoinventario vacío/nulo)..." });
+      toast({ title: "Cargando activos", description: "Obteniendo activos con codigoactivo <= 43753, estadoinventario nulo/vacío y artemisaaltabaja=1..." });
 
       let allActivos = [];
       let from = 0;
@@ -170,8 +170,10 @@ export const useReporteFaltantesExcel = () => {
       while (true) {
         const { data, error } = await supabase
           .from("act_activos")
-          .select(ACTIVO_COLUMNS)
-          .eq("ultimoregistro", 1)
+          .select(`${ACTIVO_COLUMNS},artemisaaltabaja`)
+          .lte("codigoactivo", 43753)
+          .or("estadoinventario.is.null,estadoinventario.eq.")
+          .eq("artemisaaltabaja", 1)
           .order("codigoactivointerno", { ascending: true }).range(from, from + FETCH_CHUNK - 1);
         if (error) throw error;
         const batch = toCamelCaseArray(data || []);
@@ -183,26 +185,20 @@ export const useReporteFaltantesExcel = () => {
         await new Promise((r) => setTimeout(r, 0));
       }
 
-      // Lógica FALTANTES: ultimoregistro=1 y estadoinventario vacío/nulo,
-      // excluyendo ciudades excepción
+      // Lógica FALTANTES: codigoactivo <= 43753, estadoinventario NULL o vacío y artemisaaltabaja=1
       allActivos = allActivos.filter((a) => {
-        const ambCode = String(a.codigoAmbiente ?? "").trim();
-        const ciudad = String(ciudadPorAmbiente[ambCode] ?? "").trim().toUpperCase();
-        if (CIUDADES_EXCEPCION_SET.has(ciudad)) return false;
-        const estadoInv = String(a.estadoinventario ?? a.estadoInventario ?? "").trim();
-        return estadoInv === "";
-      });
-
-      // Excluir rubros BIBLIOTECAS, EDIFICACIONES y TERRENOS del reporte
-      const normRubroExc = (s) => String(s || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      const RUBROS_EXCLUIDOS = ["BIBLIOTEC", "EDIFICAC", "TERRENO"];
-      allActivos = allActivos.filter((a) => {
-        const rubroDesc = rubroFromTipo[a.tipoRubroAct] ?? rubroFromTipo[String(a.tipoRubroAct)] ?? "";
-        return !RUBROS_EXCLUIDOS.some((k) => normRubroExc(rubroDesc).includes(k));
+        const codigoActivo = Number(a.codigoActivo ?? a.codigoactivo ?? 0);
+        const v = a.artemisaaltabaja ?? a.artemisaAltaBaja;
+        const estadoInv = a.estadoinventario ?? a.estadoInventario;
+        return (
+          codigoActivo <= 43753 &&
+          (estadoInv === null || estadoInv === undefined || String(estadoInv) === "") &&
+          Number(v) === 1
+        );
       });
 
       if (allActivos.length === 0) {
-        toast({ title: "Sin datos", description: "No hay activos faltantes (ultimoregistro=1 y estadoinventario vacío/nulo).", variant: "destructive" });
+        toast({ title: "Sin datos", description: "No hay activos con codigoactivo <= 43753, estadoinventario nulo/vacío y artemisaaltabaja=1.", variant: "destructive" });
         return;
       }
 
@@ -264,7 +260,7 @@ export const useReporteFaltantesExcel = () => {
       const resumenRows = ordenCiudades.map((c, idx) => [idx + 1, c, (grupos.get(c) || []).length]);
       const resumenSheet = [
         ["REPORTE FALTANTES POR UBICACIÓN - RESUMEN POR CIUDAD - ÓRGANO JUDICIAL"],
-        [`Total activos faltantes: ${allActivos.length} (ultimoregistro=1, estadoinventario vacío/nulo)`],
+        [`Total activos faltantes: ${allActivos.length}`],
         [`Fecha: ${dateStr}`],
         [],
         ["#", "Ciudad", "Total Activos"],
@@ -283,7 +279,7 @@ export const useReporteFaltantesExcel = () => {
       });
       const detalleSheet = [
         ["REPORTE FALTANTES POR UBICACIÓN - ÓRGANO JUDICIAL"],
-        [`Total activos faltantes: ${allActivos.length} (ultimoregistro=1, estadoinventario vacío/nulo, ordenados por ciudad y código)`],
+        [`Total activos faltantes: ${allActivos.length}`],
         [`Fecha: ${dateStr}`],
         [],
         ["N°", "Ciudad", "Código Activo", "Rubro", "Tipo Rubro", "Descripción del Activo", "Inmueble", "Nivel", "Ambiente", "Responsable", "Carnet"],

@@ -20,8 +20,9 @@ const colIndexOf = (headers, re) => headers.findIndex((h) => re.test(normHeader(
 
 /**
  * Lee un ArrayBuffer de Excel y extrae por fila:
- * { codigo, c1, c2, c3, n1, n2, n3 }
- * Columnas Excel: Codigo Activo | MERCADO 1/2/3 -> c1/c2/c3 | NOMBRE 1/2/3 -> n1/n2/n3.
+ * { codigo, c1, c2, c3, n1, n2, n3, u1, u2, u3 }
+ * Columnas Excel: Codigo Activo | MERCADO 1/2/3 -> c1/c2/c3 | NOMBRE 1/2/3 -> n1/n2/n3
+ * | URL 1/2/3 -> u1/u2/u3 (opcionales, no bloquean la carga).
  * El Promedio NO se guarda: la interfaz lo calcula como (c1+c2+c3)/3 (calcRow).
  */
 export const parseCotizacionesExcel = (arrayBuffer) => {
@@ -41,6 +42,7 @@ export const parseCotizacionesExcel = (arrayBuffer) => {
   const idxCodigo = headers.findIndex(isCodigoActivoHeader);
   const idxM = [1, 2, 3].map((i) => colIndexOf(headers, new RegExp(`MERCADO0*${i}`)));
   const idxN = [1, 2, 3].map((i) => colIndexOf(headers, new RegExp(`NOMBRE0*${i}`)));
+  const idxU = [1, 2, 3].map((i) => colIndexOf(headers, new RegExp(`^URL0*${i}$`)));
 
   const faltantes = [];
   idxM.forEach((ix, k) => { if (ix === -1) faltantes.push(`MERCADO ${k + 1}`); });
@@ -60,6 +62,7 @@ export const parseCotizacionesExcel = (arrayBuffer) => {
       codigo,
       c: [idxM[0], idxM[1], idxM[2]].map((ix) => parseMonto(row[ix])),
       n: [idxN[0], idxN[1], idxN[2]].map((ix) => String(row[ix] ?? "").replace(/\s+/g, " ").trim()),
+      u: [idxU[0], idxU[1], idxU[2]].map((ix) => (ix === -1 ? "" : String(row[ix] ?? "").trim())),
     });
   }
   return { items: out, sinCodigo };

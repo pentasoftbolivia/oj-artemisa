@@ -7,7 +7,7 @@ import { toCamelCaseArray } from "@/lib/mapFields";
 import { useToast } from "@/hooks/use-toast";
 import { LOGO_JPG_DATA_URL } from "@/lib/logoJpgBase64";
 import { ACTIVO_COLUMNS } from "@/lib/activoColumns";
-import { normalizeCi, normalizeCiLoose, getCiPrefix, CIUDADES_EXCEPCION_SET } from "../constants/inventarioConstants";
+import { normalizeCi, normalizeCiLoose, getCiPrefix } from "../constants/inventarioConstants";
 
 const formatError = (err) => {
   if (!err) return "Error desconocido";
@@ -71,7 +71,6 @@ export const useReporteInventarioGeneral = () => {
       (ciudades || []).forEach((c) => { ciudadMap[String(c.codigociudad ?? "").trim()] = c; });
 
       const ubicacionJerarquiaMap = {};
-      const ciudadPorAmbiente = {};
       (ambientes || []).forEach((a) => {
         const code = String(a.codigoambiente ?? "").trim();
         if (!code) return;
@@ -84,13 +83,6 @@ export const useReporteInventarioGeneral = () => {
             .map((s) => (s || "").trim())
             .filter(Boolean)
             .join(" / ") || String(code);
-        // Ciudad para regla de excepción (con mismas reglas especiales que Reporte por Ubicación)
-        let ciudadDesc = String(ciudad?.descripcion ?? "").trim().toUpperCase();
-        if (inmuebleCode === "2309" && ciudadDesc === "LA PAZ") ciudadDesc = "ACHOCALLA";
-        else if (inmuebleCode === "2327" && ciudadDesc === "LA PAZ") ciudadDesc = "LAJA";
-        else if (inmuebleCode === "2341" && ciudadDesc === "LA PAZ") ciudadDesc = "PALOS BLANCOS";
-        else if (inmuebleCode === "2371" && ciudadDesc === "LA PAZ") ciudadDesc = "SAN ANDRES DE MACHACA";
-        ciudadPorAmbiente[code] = ciudadDesc || "SIN CIUDAD";
       });
 
       const responsableMap = {};
@@ -115,7 +107,7 @@ export const useReporteInventarioGeneral = () => {
         return [resp.nombre1, resp.nombre2, resp.paterno, resp.materno].map((s) => (s || "").trim()).filter(Boolean).join(" ") || resp.cirun;
       };
 
-      toast({ title: "Cargando activos", description: "Obteniendo activos con ultimoregistro=1 (con excepción por ciudades)..." });
+      toast({ title: "Cargando activos", description: "Obteniendo activos con codigoactivo <= 43753, estadoinventario con dato, artemisaaltabaja in (0,1) y ultimoregistro=1..." });
 
       let allActivos = [];
       let from = 0;
@@ -123,11 +115,15 @@ export const useReporteInventarioGeneral = () => {
       while (true) {
         const { data, error } = await supabase
           .from("act_activos")
-          .select(ACTIVO_COLUMNS)
+          .select(`${ACTIVO_COLUMNS},artemisaaltabaja`)
+          .lte("codigoactivo", 43753)
+          .not("estadoinventario", "is", null)
+          .neq("estadoinventario", "")
+          .in("artemisaaltabaja", [0, 1])
           .eq("ultimoregistro", 1)
-          // Ordenar por PK única para paginación estable (codigoactivo no es único
-          // y podía saltear/duplicar 1 fila entre páginas). El orden por código
-          // se hace en memoria más abajo.
+          // Ordenar por PK ǧnica para paginaci��n estable (codigoactivo no es ǧnico
+          // y pod��a saltear/duplicar 1 fila entre pǭginas). El orden por c��digo
+          // se hace en memoria mǭs abajo.
           .order("codigoactivointerno", { ascending: true })
           .range(from, from + FETCH_CHUNK - 1);
         if (error) throw error;
@@ -140,26 +136,26 @@ export const useReporteInventarioGeneral = () => {
         await new Promise((r) => setTimeout(r, 0));
       }
 
-      // Regla: estadoinventario no vacío, EXCEPTO ciudades excepción que traen todo con ultimoregistro=1
+      // Regla: codigoactivo <= 43753, estadoinventario con dato, artemisaaltabaja in (0,1), ultimoregistro = 1
       allActivos = allActivos.filter((a) => {
-        const ambCode = String(a.codigoAmbiente ?? "").trim();
-        const ciudad = String(ciudadPorAmbiente[ambCode] ?? "").trim().toUpperCase();
-        if (CIUDADES_EXCEPCION_SET.has(ciudad)) return true;
-        const estadoInv = String(a.estadoinventario ?? a.estadoInventario ?? "").trim();
-        return estadoInv !== "";
+        const codigoActivo = Number(a.codigoActivo ?? a.codigoactivo ?? 0);
+        const v = a.artemisaaltabaja ?? a.artemisaAltaBaja;
+        const estadoInv = a.estadoinventario ?? a.estadoInventario;
+        const ultimoVal = String(a.ultimoregistro ?? "").trim();
+        return (
+          codigoActivo <= 43753 &&
+          estadoInv !== null &&
+          estadoInv !== undefined &&
+          String(estadoInv) !== "" &&
+          (Number(v) === 0 || Number(v) === 1) &&
+          ultimoVal === "1"
+        );
       });
 
-      // Excluir rubros BIBLIOTECAS, EDIFICACIONES y TERRENOS del Inventario General
-      const normRubroExc = (s) => String(s || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      const RUBROS_EXCLUIDOS = ["BIBLIOTEC", "EDIFICAC", "TERRENO"];
-      allActivos = allActivos.filter((a) => {
-        const rubroDesc = rubroFromTipo[a.tipoRubroAct] ?? rubroFromTipo[String(a.tipoRubroAct)] ?? "";
-        return !RUBROS_EXCLUIDOS.some((k) => normRubroExc(rubroDesc).includes(k));
-      });
-      console.debug("[InventarioGeneral] fetched ultimoregistro=1:", allActivos.length, "tras filtros estado+rubro");
+      console.debug("[InventarioGeneral] fetched:", allActivos.length, "tras filtro codigoactivo<=43753, estadoinventario con dato, artemisaaltabaja in (0,1), ultimoregistro=1");
 
       if (allActivos.length === 0) {
-        toast({ title: "Sin datos", description: "No hay activos con ultimoregistro=1 y estadoinventario no vacío.", variant: "destructive" });
+        toast({ title: "Sin datos", description: "No hay activos con codigoactivo <= 43753, estadoinventario con dato, artemisaaltabaja in (0,1) y ultimoregistro=1.", variant: "destructive" });
         return;
       }
 
@@ -235,7 +231,7 @@ export const useReporteInventarioGeneral = () => {
         doc.text(`Página ${i} de ${totalPages}`, pageWidth / 2, pageHeight - 7, { align: "center" });
       }
 
-      doc.save(`Inventario_General_ultimoregistro1.pdf`);
+      doc.save(`Inventario_General.pdf`);
       toast({ title: "Reporte generado", description: `Se exportaron ${body.length} activos ordenados por código.` });
     } catch (err) {
       console.error("Error generando Inventario General", err);

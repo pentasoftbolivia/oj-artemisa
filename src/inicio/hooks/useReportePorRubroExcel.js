@@ -134,7 +134,7 @@ export const useReportePorRubroExcel = () => {
       const dateStr = new Date().toISOString().slice(0, 10);
       const sheetData = [
         ["REPORTE POR RUBRO - ÓRGANO JUDICIAL"],
-        [`Total activos: ${allActivos.length} en ${rubrosOrdenados.length} rubros (misma lógica del Inventario General)`],
+        [`Total activos: ${allActivos.length} en ${rubrosOrdenados.length} rubros`],
         [`Fecha: ${dateStr}`],
         [],
         ["N°", "Rubro", "Total Activos"],

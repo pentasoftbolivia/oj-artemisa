@@ -187,9 +187,9 @@ export const useReporteParaRevaluoExcel = () => {
         [`Fecha: ${dateStr}`],
         [],
         ["#", "Concepto", "Total"],
-        [1, "Total activos para revalúo (pararevaluo=true)", allActivos.length],
+        [1, "Total activos para revalúo", allActivos.length],
         [2, "Con dato en estadoinventario", conEstado.length],
-        [3, "Faltantes (estadoinventario NULL/vacío)", sinEstado.length],
+        [3, "Faltantes", sinEstado.length],
       ];
 
       let n = 0;
@@ -199,7 +199,7 @@ export const useReporteParaRevaluoExcel = () => {
 
       const conSheet = [
         ["ACTIVOS PARA REVALUO - CON DATO EN ESTADOINVENTARIO - ÓRGANO JUDICIAL"],
-        [`Total: ${conEstado.length} (pararevaluo=true, estadoinventario con dato)`],
+        [`Total: ${conEstado.length}`],
         [`Fecha: ${dateStr}`],
         [],
         HEADERS,
@@ -207,7 +207,7 @@ export const useReporteParaRevaluoExcel = () => {
       ];
       const sinSheet = [
         ["ACTIVOS PARA REVALUO - FALTANTES (SIN DATO EN ESTADOINVENTARIO) - ÓRGANO JUDICIAL"],
-        [`Total: ${sinEstado.length} (pararevaluo=true, estadoinventario NULL/vacío)`],
+        [`Total: ${sinEstado.length}`],
         [`Fecha: ${dateStr}`],
         [],
         HEADERS,
