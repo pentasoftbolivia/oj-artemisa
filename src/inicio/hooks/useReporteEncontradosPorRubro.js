@@ -26,7 +26,9 @@ const LOGO_H = LOGO_W * (57 / 256);
 const addLogo = (doc) => {
   try {
     doc.addImage(LOGO_JPG_DATA_URL, "JPEG", 14, 8, LOGO_W, LOGO_H);
-  } catch {}
+  } catch {
+    // El logo es opcional: si falla la carga, se genera el PDF sin logo.
+  }
 };
 
 /**
@@ -85,25 +87,33 @@ export const useReporteEncontradosPorRubro = () => {
         // AND esactivo=false (solo cuando soloNoActivos)
         let query = supabase
           .from("act_activos")
-          .select(`${ACTIVO_COLUMNS},artemisaaltabaja,esactivo,estadoconservacion,activonuevo,pararevaluo`)
-          .lte("codigoactivo", 43753)
-          .not("estadoinventario", "is", null)
-          .neq("estadoinventario", "")
-          .eq("ultimoregistro", 1);
-        if (revaluo1355) query = query.eq("artemisaaltabaja", 1).eq("pararevaluo", true).eq("activonuevo", false).neq("estadoconservacion", "MALO");
-        else if (revaluo2553) query = query.eq("artemisaaltabaja", 1).eq("pararevaluo", true).eq("activonuevo", false).neq("estadoconservacion", "MALO");
-        else if (encontradosFisicamente) query = query.eq("artemisaaltabaja", 1);
-        else if (encontradosEnBajaFisicamente) query = query.eq("artemisaaltabaja", 0);
-        else if (todoRevaluo) {
-          // No filtrar por artemisaaltabaja, se filtra en cliente por los 3 grupos
+          .select(`${ACTIVO_COLUMNS},artemisaaltabaja,esactivo,estadoconservacion,activonuevo,pararevaluo`);
+        if (todoRevaluo) {
+          // OR exacto de los 3 grupos de revalúo. Sin los filtros base globales:
+          // el grupo 3 solo exige activonuevo=true.
+          query = query.or([
+            "and(codigoactivo.lte.43753,artemisaaltabaja.eq.0,ultimoregistro.eq.1,esactivo.eq.true,estadoconservacion.neq.MALO)",
+            "and(codigoactivo.lte.43753,artemisaaltabaja.eq.1,pararevaluo.eq.true,activonuevo.eq.false,estadoconservacion.neq.MALO)",
+            "activonuevo.eq.true",
+          ].join(","));
+        } else {
+          query = query
+            .lte("codigoactivo", 43753)
+            .not("estadoinventario", "is", null)
+            .neq("estadoinventario", "")
+            .eq("ultimoregistro", 1);
+          if (revaluo1355) query = query.eq("artemisaaltabaja", 1).eq("pararevaluo", true).eq("activonuevo", false).neq("estadoconservacion", "MALO");
+          else if (revaluo2553) query = query.eq("artemisaaltabaja", 1).eq("pararevaluo", true).eq("activonuevo", false).neq("estadoconservacion", "MALO");
+          else if (encontradosFisicamente) query = query.eq("artemisaaltabaja", 1);
+          else if (encontradosEnBajaFisicamente) query = query.eq("artemisaaltabaja", 0);
+          else if (obsoleto) query = query.eq("artemisaaltabaja", 1).eq("estadoconservacion", "MALO");
+          else if (estabanEnBaja) query = query.eq("artemisaaltabaja", 0).eq("esactivo", true).neq("estadoconservacion", "MALO");
+          else if (soloActivos) query = query.eq("artemisaaltabaja", 0).eq("esactivo", true);
+          else if (soloNoActivos) query = query.eq("artemisaaltabaja", 0).eq("esactivo", false);
+          else query = query.eq("artemisaaltabaja", 0);
         }
-        else if (obsoleto) query = query.eq("artemisaaltabaja", 1).eq("estadoconservacion", "MALO");
-        else if (estabanEnBaja) query = query.eq("artemisaaltabaja", 0).eq("esactivo", true).neq("estadoconservacion", "MALO");
-        else if (soloActivos) query = query.eq("artemisaaltabaja", 0).eq("esactivo", true);
-        else if (soloNoActivos) query = query.eq("artemisaaltabaja", 0).eq("esactivo", false);
-        else query = query.eq("artemisaaltabaja", 0);
         const { data, error } = await query
-          .order("codigoactivo", { ascending: true })
+          .order("codigoactivointerno", { ascending: true })
           .range(from, from + FETCH_CHUNK - 1);
         if (error) throw error;
         const batch = toCamelCaseArray(data || []);
@@ -116,6 +126,26 @@ export const useReporteEncontradosPorRubro = () => {
       }
 
       allActivos = allActivos.filter((a) => {
+        if (todoRevaluo) {
+          const codigoActivo = Number(a.codigoActivo ?? a.codigoactivo ?? 0);
+          const estInv = String(a.estadoinventario ?? a.estadoInventario ?? "").trim();
+          const tieneEstInv = estInv !== "";
+          const esUltimo = String(a.ultimoregistro ?? a.ultimoRegistro ?? "").trim() === "1";
+          const artemisa = Number(a.artemisaaltabaja ?? a.artemisaAltaBaja ?? NaN);
+          const esActivoRaw = a.esactivo ?? a.esActivo;
+          const esActivo = esActivoRaw === true || String(esActivoRaw).trim().toUpperCase() === "TRUE" || Number(esActivoRaw) === 1;
+          const pararevaluoRaw = a.pararevaluo ?? a.paraRevaluo;
+          const esParaRevaluo = pararevaluoRaw === true || String(pararevaluoRaw).trim().toUpperCase() === "TRUE" || Number(pararevaluoRaw) === 1;
+          const activoNuevoRaw = a.activonuevo ?? a.activoNuevo;
+          const esActivoNuevo = activoNuevoRaw === true || String(activoNuevoRaw).trim().toUpperCase() === "TRUE" || Number(activoNuevoRaw) === 1;
+          const esMalo = String(a.estadoconservacion ?? a.estadoConservacion ?? "").trim().toUpperCase() === "MALO";
+
+          const grupo1 = codigoActivo <= 43753 && tieneEstInv && artemisa === 0 && esUltimo && esActivo && !esMalo;
+          const grupo2 = codigoActivo <= 43753 && tieneEstInv && artemisa === 1 && esParaRevaluo && !esActivoNuevo && !esMalo;
+          const grupo3 = esActivoNuevo;
+
+          return grupo1 || grupo2 || grupo3;
+        }
         const estInv = String(a.estadoinventario ?? a.estadoInventario ?? "").trim();
         if (estInv === "") return false;
         const v = a.artemisaaltabaja ?? a.artemisaAltaBaja;
@@ -156,26 +186,6 @@ export const useReporteEncontradosPorRubro = () => {
           if (!esPV || esAN) return false;
           if (Number(v) !== 1) return false;
           if (ec === "MALO") return false;
-        } else if (todoRevaluo) {
-          const estInv = String(a.estadoinventario ?? a.estadoInventario ?? "").trim();
-          const tieneEstInv = estInv !== "";
-          const ult = String(a.ultimoregistro ?? a.ultimoRegistro ?? "").trim();
-          const esUltimo = ult === "1";
-          const artemisa = Number(a.artemisaaltabaja ?? a.artemisaAltaBaja ?? NaN);
-          const esActivoRaw = a.esactivo ?? a.esActivo;
-          const esActivo = esActivoRaw === true || String(esActivoRaw).trim().toUpperCase() === "TRUE" || Number(esActivoRaw) === 1;
-          const pararevaluoRaw = a.pararevaluo ?? a.paraRevaluo;
-          const esParaRevaluo = pararevaluoRaw === true || String(pararevaluoRaw).trim().toUpperCase() === "TRUE" || Number(pararevaluoRaw) === 1;
-          const activoNuevoRaw = a.activonuevo ?? a.activoNuevo;
-          const esActivoNuevo = activoNuevoRaw === true || String(activoNuevoRaw).trim().toUpperCase() === "TRUE" || Number(activoNuevoRaw) === 1;
-          const estadoCons = String(a.estadoconservacion ?? a.estadoConservacion ?? "").trim().toUpperCase();
-          const esMalo = estadoCons === "MALO";
-
-          const grupo1 = codigoActivo <= 43753 && tieneEstInv && artemisa === 0 && esUltimo && esActivo && !esMalo;
-          const grupo2 = codigoActivo <= 43753 && tieneEstInv && artemisa === 1 && esParaRevaluo && !esActivoNuevo && !esMalo;
-          const grupo3 = esActivoNuevo;
-
-          if (!grupo1 && !grupo2 && !grupo3) return false;
         } else if (obsoleto) {
           if (!(Number(v) === 1)) return false;
           const ec = String(a.estadoconservacion ?? a.estadoConservacion ?? "").trim().toUpperCase();

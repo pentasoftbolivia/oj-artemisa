@@ -12,69 +12,127 @@ const isNetworkLike = (err) =>
   err instanceof TypeError ||
   /failed to fetch|networkerror|load failed|cors/i.test(String(err?.message || err || ""));
 
+let enCurso = false;
+
 /**
  * Graba el Valor Neto calculado en act_activos.valorneto.
  * items: [{ interno (codigoactivointerno), valorNeto (calculado), actual (valorneto en BD) }]
- * Solo actualiza filas con valor calculado distinto al actual (redondeado a 2 dec).
- * No lanza: devuelve { total, actualizados, omitidos, errores }.
+ * Solo actualiza filas con valor calculado distinto al actual (redondeado a 4 decimales).
+ * No lanza: devuelve { total, actualizados, omitidos, errores } o null si ya hay
+ * una grabación en curso (evita duplicar PATCH al generar PDF y Excel seguidos).
  */
 export const grabarValorNeto = async (supabase, items, onProgress) => {
-  const pendientes = (items || []).filter((it) => {
-    if (it.interno == null || String(it.interno).trim() === "") return false;
-    if (it.valorNeto === null || it.valorNeto === undefined) return false;
-    if (it.actual !== null && it.actual !== undefined) {
-      try {
-        if (round2(it.valorNeto) === round2(it.actual)) return false;
-      } catch {
-        return true;
+  if (enCurso) return null;
+  enCurso = true;
+  try {
+    const pendientes = (items || []).filter((it) => {
+      if (it.interno == null || String(it.interno).trim() === "") return false;
+      if (it.valorNeto === null || it.valorNeto === undefined) return false;
+      if (it.actual !== null && it.actual !== undefined) {
+        try {
+          if (round2(it.valorNeto) === round2(it.actual)) return false;
+        } catch {
+          return true;
+        }
       }
-    }
-    return true;
-  });
-  let actualizados = 0;
-  const errores = [];
-  let firstErrorMsg = "";
-  const doOne = (p) =>
-    supabase
-      .from("act_activos")
-      .update({ valorneto: round2(p.valorNeto) })
-      .eq("codigoactivointerno", p.interno)
-      .eq("ultimoregistro", 1);
-  for (let k = 0; k < pendientes.length; k += BATCH_SIZE) {
-    const slice = pendientes.slice(k, k + BATCH_SIZE);
-    const res = await Promise.allSettled(slice.map(doOne));
-    // Reintento único para fallos de red/CORS (los 4xx/RLS no se reintentan).
-    const retryIdx = [];
-    res.forEach((r, idx) => {
-      const err = r.status === "rejected" ? r.reason : r.value?.error;
-      if (!err) return;
-      if (!firstErrorMsg) firstErrorMsg = String(err?.message || err);
-      if (isNetworkLike(err) || r.status === "rejected") retryIdx.push(idx);
+      return true;
     });
-    if (retryIdx.length > 0) {
-      await sleep(BATCH_PAUSE_MS);
-      const res2 = await Promise.allSettled(retryIdx.map((i) => doOne(slice[i])));
-      res2.forEach((r, j) => {
-        const idx = retryIdx[j];
+    let actualizados = 0;
+    const errores = [];
+    let firstErrorMsg = "";
+    const doOne = (p) =>
+      supabase
+        .from("act_activos")
+        .update({ valorneto: round2(p.valorNeto) })
+        .eq("codigoactivointerno", p.interno)
+        .eq("ultimoregistro", 1);
+    for (let k = 0; k < pendientes.length; k += BATCH_SIZE) {
+      const slice = pendientes.slice(k, k + BATCH_SIZE);
+      const res = await Promise.allSettled(slice.map(doOne));
+      // Reintento único para fallos de red/CORS (los 4xx/RLS no se reintentan).
+      const retryIdx = [];
+      res.forEach((r, idx) => {
         const err = r.status === "rejected" ? r.reason : r.value?.error;
-        if (!err) res[idx] = { status: "fulfilled", value: {} };
-        else if (!firstErrorMsg) firstErrorMsg = String(err?.message || err);
+        if (!err) return;
+        if (!firstErrorMsg) firstErrorMsg = String(err?.message || err);
+        if (isNetworkLike(err) || r.status === "rejected") retryIdx.push(idx);
       });
+      if (retryIdx.length > 0) {
+        await sleep(BATCH_PAUSE_MS);
+        const res2 = await Promise.allSettled(retryIdx.map((i) => doOne(slice[i])));
+        res2.forEach((r, j) => {
+          const idx = retryIdx[j];
+          const err = r.status === "rejected" ? r.reason : r.value?.error;
+          if (!err) res[idx] = { status: "fulfilled", value: {} };
+          else if (!firstErrorMsg) firstErrorMsg = String(err?.message || err);
+        });
+      }
+      res.forEach((r, idx) => {
+        const err = r.status === "rejected" ? r.reason : r.value?.error;
+        if (!err) actualizados += 1;
+        else errores.push(slice[idx].interno);
+      });
+      onProgress?.(Math.min(k + BATCH_SIZE, pendientes.length), pendientes.length);
+      await sleep(BATCH_PAUSE_MS);
     }
-    res.forEach((r, idx) => {
-      const err = r.status === "rejected" ? r.reason : r.value?.error;
-      if (!err) actualizados += 1;
-      else errores.push(slice[idx].interno);
-    });
-    onProgress?.(Math.min(k + BATCH_SIZE, pendientes.length), pendientes.length);
-    await sleep(BATCH_PAUSE_MS);
+    return {
+      total: (items || []).length,
+      pendientes: pendientes.length,
+      actualizados,
+      omitidos: (items || []).length - pendientes.length,
+      errores,
+      firstError: firstErrorMsg,
+    };
+  } finally {
+    enCurso = false;
   }
-  return {
-    total: (items || []).length,
-    pendientes: pendientes.length,
-    actualizados,
-    omitidos: (items || []).length - pendientes.length,
-    errores,
-    firstError: firstErrorMsg,
-  };
+};
+
+/**
+ * Envuelve grabarValorNeto con un toast de progreso (se actualiza cada segundo).
+ * Pensado para ejecutarse en segundo plano tras generar el reporte.
+ */
+export const grabarValorNetoConProgreso = async (supabase, items, toast) => {
+  const progreso = toast({
+    title: "Guardando Valor Neto",
+    description: `Preparando ${items.length.toLocaleString("es-BO")} activos...`,
+  });
+  let ultima = 0;
+  try {
+    const res = await grabarValorNeto(supabase, items, (hechos, total) => {
+      const ahora = Date.now();
+      if (ahora - ultima < 1000) return;
+      ultima = ahora;
+      progreso.update({
+        id: progreso.id,
+        open: true,
+        title: "Guardando Valor Neto",
+        description: `${hechos.toLocaleString("es-BO")} de ${total.toLocaleString("es-BO")} activos...`,
+      });
+    });
+    if (!res) {
+      progreso.dismiss();
+      return null;
+    }
+    const conError = res.errores.length > 0;
+    progreso.update({
+      id: progreso.id,
+      open: true,
+      title: conError ? "Valor Neto guardado con errores" : "Valor Neto guardado",
+      description: conError
+        ? `Actualizados: ${res.actualizados.toLocaleString("es-BO")} · Omitidos: ${res.omitidos.toLocaleString("es-BO")} · Errores: ${res.errores.length.toLocaleString("es-BO")}${res.firstError ? ` (${res.firstError})` : ""}`
+        : `Actualizados: ${res.actualizados.toLocaleString("es-BO")} · Omitidos: ${res.omitidos.toLocaleString("es-BO")}`,
+      variant: conError ? "destructive" : "default",
+    });
+    return res;
+  } catch (e) {
+    progreso.update({
+      id: progreso.id,
+      open: true,
+      title: "Valor Neto no guardado",
+      description: String(e?.message || e),
+      variant: "destructive",
+    });
+    return null;
+  }
 };

@@ -37,7 +37,9 @@ const parseNumDep = (v) => {
 const addLogo = (doc) => {
   try {
     doc.addImage(LOGO_JPG_DATA_URL, "JPEG", 14, 8, LOGO_W, LOGO_H);
-  } catch {}
+  } catch {
+    // El logo es opcional: si falla, el reporte se genera igual.
+  }
 };
 
 /**
@@ -45,6 +47,9 @@ const addLogo = (doc) => {
  * Criterio: codigoactivo <= 43753 AND estadoinventario IS NOT NULL AND estadoinventario <> ''
  * AND artemisaaltabaja IN (0,1) AND ultimoregistro = 1 (mismos activos que el reporte Depreciación).
  * Agrupa por RUBRO y suma las mismas columnas monetarias, incluido el Valor Neto.
+ * Usa los mismos datos del PDF recalculado: en activos con Valor Neto negativo,
+ * Dep. Periodo = 1, Dep. Total = Dep. Acum. Total + 1 y
+ * Valor Neto = Costo Total Actualizado al 09/10/2026 - Dep. Total.
  */
 export const useReporteDepreciacionPorRubro = () => {
   const { toast } = useToast();
@@ -141,6 +146,17 @@ export const useReporteDepreciacionPorRubro = () => {
         const depTotal = depAcumTotal + depPeriodo;
         const costoTotalRevaluado = costoTotal0910 + revaluo;
         const valorNeto = costoTotalRevaluado - depTotal;
+        // Mismos datos del PDF recalculado: si el Valor Neto es negativo,
+        // Dep. Periodo = 1, Dep. Total = Dep. Acum. Total + 1 y
+        // Valor Neto = Costo Total Actualizado al 09/10/2026 - Dep. Total.
+        let depPeriodoFinal = depPeriodo;
+        let depTotalFinal = depTotal;
+        let valorNetoFinal = valorNeto;
+        if (valorNeto < 0) {
+          depPeriodoFinal = 1;
+          depTotalFinal = depAcumTotal + 1;
+          valorNetoFinal = costoTotal0910 - depTotalFinal;
+        }
 
         if (!grupos.has(rubroDesc)) {
           grupos.set(rubroDesc, {
@@ -155,10 +171,10 @@ export const useReporteDepreciacionPorRubro = () => {
         g.costoAct += costoAct;
         g.depActualizada += depActualizada;
         g.depAcumTotal += depAcumTotal;
-        g.depPeriodo += depPeriodo;
+        g.depPeriodo += depPeriodoFinal;
         g.costoTotalRevaluado += costoTotalRevaluado;
-        g.depTotal += depTotal;
-        g.valorNeto += valorNeto;
+        g.depTotal += depTotalFinal;
+        g.valorNeto += valorNetoFinal;
       });
 
       const rubrosOrdenados = [...grupos.keys()].sort((x, y) => x.localeCompare(y, "es"));
@@ -174,7 +190,6 @@ export const useReporteDepreciacionPorRubro = () => {
           fmtMoneyDep(g.depActualizada),
           fmtMoneyDep(g.depAcumTotal),
           fmtMoneyDep(g.depPeriodo),
-          fmtMoneyDep(g.costoTotalRevaluado),
           fmtMoneyDep(g.depTotal),
           fmtMoneyDep(g.valorNeto),
         ];
@@ -213,7 +228,7 @@ export const useReporteDepreciacionPorRubro = () => {
 
       autoTable(doc, {
         startY: 26,
-        head: [["N°", "Rubro", "Activos", "Costo Inicial al 31/12/2025", "Dep. Acumulada al 31/12/2025", "Costo Actualizado", "Dep. Actualizada", "Dep. Acum. Total", "Dep. Periodo", "Costo Total Actualizado Revaluado", "Dep. Total", "Valor Neto"]],
+        head: [["N°", "Rubro", "Activos", "Costo Inicial al 31/12/2025", "Dep. Acumulada al 31/12/2025", "Costo Actualizado", "Dep. Actualizada", "Dep. Acum. Total", "Dep. Periodo", "Dep. Total", "Valor Neto"]],
         body,
         foot: [[
           "",
@@ -225,7 +240,6 @@ export const useReporteDepreciacionPorRubro = () => {
           fmtMoneyDep(tot.depActualizada),
           fmtMoneyDep(tot.depAcumTotal),
           fmtMoneyDep(tot.depPeriodo),
-          fmtMoneyDep(tot.costoTotalRevaluado),
           fmtMoneyDep(tot.depTotal),
           fmtMoneyDep(tot.valorNeto),
         ]],
@@ -244,9 +258,8 @@ export const useReporteDepreciacionPorRubro = () => {
           6: { cellWidth: 20, halign: "right" },
           7: { cellWidth: 20, halign: "right" },
           8: { cellWidth: 20, halign: "right" },
-          9: { cellWidth: 27, halign: "right" },
+          9: { cellWidth: 20, halign: "right" },
           10: { cellWidth: 20, halign: "right" },
-          11: { cellWidth: 20, halign: "right" },
         },
         margin: { top: 26, left: 8, right: 8 },
       });

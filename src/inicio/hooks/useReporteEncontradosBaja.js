@@ -25,10 +25,19 @@ const formatError = (err) => {
 const LOGO_W = 32;
 const LOGO_H = LOGO_W * (57 / 256);
 
+const fmtMoney = (v) => {
+  if (v === null || v === undefined || String(v).trim() === "") return "—";
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "—";
+  return n.toLocaleString("es-BO", { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+};
+
 const addLogo = (doc) => {
   try {
     doc.addImage(LOGO_JPG_DATA_URL, "JPEG", 14, 8, LOGO_W, LOGO_H);
-  } catch {}
+  } catch {
+    // El logo es opcional: si falla la carga, se genera el PDF sin logo.
+  }
 };
 
 /**
@@ -142,25 +151,34 @@ export const useReporteEncontradosBaja = () => {
           // AND esactivo=false (solo cuando soloNoActivos)
           let query = supabase
             .from("act_activos")
-            .select(`${ACTIVO_COLUMNS},artemisaaltabaja,esactivo,estadoconservacion,activonuevo,pararevaluo`)
-            .lte("codigoactivo", 43753)
-            .not("estadoinventario", "is", null)
-            .neq("estadoinventario", "")
-            .eq("ultimoregistro", 1);
-          if (revaluo1355) query = query.eq("artemisaaltabaja", 1).eq("pararevaluo", true).eq("activonuevo", false).neq("estadoconservacion", "MALO");
-          else if (revaluo2553) query = query.eq("artemisaaltabaja", 1).eq("pararevaluo", true).eq("activonuevo", false).neq("estadoconservacion", "MALO");
-          else if (encontradosFisicamente) query = query.eq("artemisaaltabaja", 1);
-          else if (encontradosEnBajaFisicamente) query = query.eq("artemisaaltabaja", 0);
-          else if (todoRevaluo) {
-            // No filtrar por artemisaaltabaja, se filtra en cliente por los 3 grupos
-          } else if (enAlta) query = query.eq("artemisaaltabaja", 1).eq("esactivo", true);
-          else if (obsoleto) query = query.eq("artemisaaltabaja", 1).eq("estadoconservacion", "MALO");
-          else if (estabanEnBaja) query = query.eq("artemisaaltabaja", 0).eq("esactivo", true).neq("estadoconservacion", "MALO");
-          else if (soloActivos) query = query.eq("artemisaaltabaja", 0).eq("esactivo", true);
-          else if (soloNoActivos) query = query.eq("artemisaaltabaja", 0).eq("esactivo", false);
-          else query = query.eq("artemisaaltabaja", 0);
+            .select(`${ACTIVO_COLUMNS},artemisaaltabaja,esactivo,estadoconservacion,activonuevo,pararevaluo,valorrevaluo`);
+          if (todoRevaluo) {
+            // OR exacto de los 3 grupos de revalúo. Sin los filtros base globales:
+            // el grupo 3 solo exige activonuevo=true.
+            query = query.or([
+              "and(codigoactivo.lte.43753,artemisaaltabaja.eq.0,ultimoregistro.eq.1,esactivo.eq.true,estadoconservacion.neq.MALO)",
+              "and(codigoactivo.lte.43753,artemisaaltabaja.eq.1,pararevaluo.eq.true,activonuevo.eq.false,estadoconservacion.neq.MALO)",
+              "activonuevo.eq.true",
+            ].join(","));
+          } else {
+            query = query
+              .lte("codigoactivo", 43753)
+              .not("estadoinventario", "is", null)
+              .neq("estadoinventario", "")
+              .eq("ultimoregistro", 1);
+            if (revaluo1355) query = query.eq("artemisaaltabaja", 1).eq("pararevaluo", true).eq("activonuevo", false).neq("estadoconservacion", "MALO");
+            else if (revaluo2553) query = query.eq("artemisaaltabaja", 1).eq("pararevaluo", true).eq("activonuevo", false).neq("estadoconservacion", "MALO");
+            else if (encontradosFisicamente) query = query.eq("artemisaaltabaja", 1);
+            else if (encontradosEnBajaFisicamente) query = query.eq("artemisaaltabaja", 0);
+            else if (enAlta) query = query.eq("artemisaaltabaja", 1).eq("esactivo", true);
+            else if (obsoleto) query = query.eq("artemisaaltabaja", 1).eq("estadoconservacion", "MALO");
+            else if (estabanEnBaja) query = query.eq("artemisaaltabaja", 0).eq("esactivo", true).neq("estadoconservacion", "MALO");
+            else if (soloActivos) query = query.eq("artemisaaltabaja", 0).eq("esactivo", true);
+            else if (soloNoActivos) query = query.eq("artemisaaltabaja", 0).eq("esactivo", false);
+            else query = query.eq("artemisaaltabaja", 0);
+          }
           const { data, error } = await query
-            .order("codigoactivo", { ascending: true })
+            .order("codigoactivointerno", { ascending: true })
             .range(from, from + FETCH_CHUNK - 1);
           if (error) throw error;
           const batch = toCamelCaseArray(data || []);
@@ -178,6 +196,26 @@ export const useReporteEncontradosBaja = () => {
       // Refuerzo en cliente: codigoactivo <= 43753, estadoinventario con dato,
       // artemisaaltabaja=0 y ultimoregistro=1
       allActivos = allActivos.filter((a) => {
+        if (todoRevaluo) {
+          const codigoActivo = Number(a.codigoActivo ?? a.codigoactivo ?? 0);
+          const estInv = String(a.estadoinventario ?? a.estadoInventario ?? "").trim();
+          const tieneEstInv = estInv !== "";
+          const esUltimo = String(a.ultimoregistro ?? a.ultimoRegistro ?? "").trim() === "1";
+          const artemisa = Number(a.artemisaaltabaja ?? a.artemisaAltaBaja ?? NaN);
+          const esActivoRaw = a.esactivo ?? a.esActivo;
+          const esActivo = esActivoRaw === true || String(esActivoRaw).trim().toUpperCase() === "TRUE" || Number(esActivoRaw) === 1;
+          const pararevaluoRaw = a.pararevaluo ?? a.paraRevaluo;
+          const esParaRevaluo = pararevaluoRaw === true || String(pararevaluoRaw).trim().toUpperCase() === "TRUE" || Number(pararevaluoRaw) === 1;
+          const activoNuevoRaw = a.activonuevo ?? a.activoNuevo;
+          const esActivoNuevo = activoNuevoRaw === true || String(activoNuevoRaw).trim().toUpperCase() === "TRUE" || Number(activoNuevoRaw) === 1;
+          const esMalo = String(a.estadoconservacion ?? a.estadoConservacion ?? "").trim().toUpperCase() === "MALO";
+
+          const grupo1 = codigoActivo <= 43753 && tieneEstInv && artemisa === 0 && esUltimo && esActivo && !esMalo;
+          const grupo2 = codigoActivo <= 43753 && tieneEstInv && artemisa === 1 && esParaRevaluo && !esActivoNuevo && !esMalo;
+          const grupo3 = esActivoNuevo;
+
+          return grupo1 || grupo2 || grupo3;
+        }
         const estInv = String(a.estadoinventario ?? a.estadoInventario ?? "").trim();
         if (estInv === "") return false;
         const v = a.artemisaaltabaja ?? a.artemisaAltaBaja;
@@ -218,27 +256,6 @@ export const useReporteEncontradosBaja = () => {
           if (!esPV || esAN) return false;
           if (Number(v) !== 1) return false;
           if (ec === "MALO") return false;
-        } else if (todoRevaluo) {
-          const codigoActivo = Number(a.codigoActivo ?? a.codigoactivo ?? 0);
-          const estInv = String(a.estadoinventario ?? a.estadoInventario ?? "").trim();
-          const tieneEstInv = estInv !== "";
-          const ult = String(a.ultimoregistro ?? a.ultimoRegistro ?? "").trim();
-          const esUltimo = ult === "1";
-          const artemisa = Number(a.artemisaaltabaja ?? a.artemisaAltaBaja ?? NaN);
-          const esActivoRaw = a.esactivo ?? a.esActivo;
-          const esActivo = esActivoRaw === true || String(esActivoRaw).trim().toUpperCase() === "TRUE" || Number(esActivoRaw) === 1;
-          const pararevaluoRaw = a.pararevaluo ?? a.paraRevaluo;
-          const esParaRevaluo = pararevaluoRaw === true || String(pararevaluoRaw).trim().toUpperCase() === "TRUE" || Number(pararevaluoRaw) === 1;
-          const activoNuevoRaw = a.activonuevo ?? a.activoNuevo;
-          const esActivoNuevo = activoNuevoRaw === true || String(activoNuevoRaw).trim().toUpperCase() === "TRUE" || Number(activoNuevoRaw) === 1;
-          const estadoCons = String(a.estadoconservacion ?? a.estadoConservacion ?? "").trim().toUpperCase();
-          const esMalo = estadoCons === "MALO";
-
-          const grupo1 = codigoActivo <= 43753 && tieneEstInv && artemisa === 0 && esUltimo && esActivo && !esMalo;
-          const grupo2 = codigoActivo <= 43753 && tieneEstInv && artemisa === 1 && esParaRevaluo && !esActivoNuevo && !esMalo;
-          const grupo3 = esActivoNuevo;
-
-          if (!grupo1 && !grupo2 && !grupo3) return false;
         } else if (obsoleto) {
           if (!(Number(v) === 1)) return false;
           const ec = String(a.estadoconservacion ?? a.estadoConservacion ?? "").trim().toUpperCase();
@@ -272,6 +289,10 @@ export const useReporteEncontradosBaja = () => {
       });
       allActivos.sort((a, b) => Number(a.codigoActivo ?? a.codigoactivo ?? 0) - Number(b.codigoActivo ?? b.codigoactivo ?? 0));
 
+      const totalRevaluo = todoRevaluo
+        ? allActivos.reduce((s, a) => s + (Number(a.valorRevaluo ?? a.valorrevaluo) || 0), 0)
+        : 0;
+
       if (allActivos.length === 0) {
         toast({ title: "Sin datos", description: "No hay activos encontrados en estado baja con ese criterio.", variant: "destructive" });
         return;
@@ -293,6 +314,7 @@ export const useReporteEncontradosBaja = () => {
           String(ubicacionMap[ambCode] || ambCode || "—"),
           String(responsableNameOf(ciRaw)),
           ciRaw || "—",
+          ...(todoRevaluo ? [fmtMoney(a.valorRevaluo ?? a.valorrevaluo)] : []),
         ];
       });
 
@@ -311,24 +333,42 @@ export const useReporteEncontradosBaja = () => {
 
       autoTable(doc, {
         startY: 26,
-        head: [["N°", "Código Activo", "Rubro", "Tipo Rubro", "Descripción", "Ubicación", "Responsable", "Carnet"]],
+        head: [[
+          "N°", "Código Activo", "Rubro", "Tipo Rubro", "Descripción", "Ubicación", "Responsable", "Carnet",
+          ...(todoRevaluo ? ["Valor Revalúo"] : []),
+        ]],
         body,
-        foot: [["", "", "", "", "", "", "TOTAL", String(allActivos.length)]],
+        foot: [[
+          "", "", "", "", "", "", "TOTAL", String(allActivos.length),
+          ...(todoRevaluo ? [fmtMoney(totalRevaluo)] : []),
+        ]],
         showFoot: "lastPage",
         theme: "striped",
         styles: { font: "helvetica", fontSize: 7, cellPadding: 1.5, overflow: "linebreak", valign: "middle" },
         headStyles: { fillColor: [16, 70, 140], textColor: [255, 255, 255], halign: "center", fontStyle: "bold", fontSize: 7 },
         footStyles: { fillColor: [230, 240, 255], textColor: [16, 70, 140], halign: "center", fontStyle: "bold", fontSize: 8 },
-        columnStyles: {
-          0: { cellWidth: 10, halign: "center" },
-          1: { cellWidth: 22, halign: "center" },
-          2: { cellWidth: 32, halign: "left" },
-          3: { cellWidth: 34, halign: "left" },
-          4: { cellWidth: 60, halign: "left" },
-          5: { cellWidth: 50, halign: "left" },
-          6: { cellWidth: 40, halign: "left" },
-          7: { cellWidth: 20, halign: "center" },
-        },
+        columnStyles: todoRevaluo
+          ? {
+              0: { cellWidth: 9, halign: "center" },
+              1: { cellWidth: 20, halign: "center" },
+              2: { cellWidth: 28, halign: "left" },
+              3: { cellWidth: 28, halign: "left" },
+              4: { cellWidth: 50, halign: "left" },
+              5: { cellWidth: 40, halign: "left" },
+              6: { cellWidth: 32, halign: "left" },
+              7: { cellWidth: 16, halign: "center" },
+              8: { cellWidth: 25, halign: "right" },
+            }
+          : {
+              0: { cellWidth: 10, halign: "center" },
+              1: { cellWidth: 22, halign: "center" },
+              2: { cellWidth: 32, halign: "left" },
+              3: { cellWidth: 34, halign: "left" },
+              4: { cellWidth: 60, halign: "left" },
+              5: { cellWidth: 50, halign: "left" },
+              6: { cellWidth: 40, halign: "left" },
+              7: { cellWidth: 20, halign: "center" },
+            },
         margin: { top: 26, left: 8, right: 8 },
       });
 

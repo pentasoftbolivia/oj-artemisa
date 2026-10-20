@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FileDown, Loader2, BarChart3 } from "lucide-react";
+import { FileDown, Loader2, BarChart3, RefreshCw } from "lucide-react";
 import { useSelector } from "react-redux";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -85,6 +85,7 @@ const ReportesList = () => {
   const { generate: generateEncontradosBajaActivos, isGenerating: isGeneratingEncontradosBajaActivos } = useReporteEncontradosBaja();
   const { generate: generateEncontradosBajaActivosExcel, isGenerating: isGeneratingEncontradosBajaActivosExcel } = useReporteEncontradosBajaExcel();
   const { generate: generateDepreciacion, isGenerating: isGeneratingDepreciacion } = useReporteDepreciacion();
+  const { generate: generateDepreciacionRecalculada, isGenerating: isGeneratingDepreciacionRecalculada } = useReporteDepreciacion();
   const { generate: generateDepreciacionExcel, isGenerating: isGeneratingDepreciacionExcel } = useReporteDepreciacionExcel();
   const { generate: generateDepreciacionPorRubro, isGenerating: isGeneratingDepreciacionPorRubro } = useReporteDepreciacionPorRubro();
   const { generate: generateDepreciacionPorRubroExcel, isGenerating: isGeneratingDepreciacionPorRubroExcel } = useReporteDepreciacionPorRubroExcel();
@@ -109,7 +110,7 @@ const ReportesList = () => {
   const [formatoModalKey, setFormatoModalKey] = useState(null);
   const { downloadPDF: downloadRubrosPDF, downloadExcel: downloadRubrosExcel, generatingFormat: formatoRubros } = useRubrosExcluidosLista();
 
-  const busy = isGeneratingGeneral || isGeneratingGeneralExcel || isGeneratingUbicacion || isGeneratingUbicacionExcel || isGeneratingRubro || isGeneratingRubroExcel || isGeneratingFaltantes || isGeneratingFaltantesExcel || isGeneratingCosto || isGeneratingCostoExcel || isGeneratingParaRevaluo || isGeneratingParaRevaluoExcel || isGeneratingReclasificar || isGeneratingReclasificarExcel || isGeneratingGrupoContable || isGeneratingGrupoContableExcel || isGeneratingBaja || isGeneratingBajaExcel || isGeneratingFungible || isGeneratingFungibleExcel || isGeneratingBajasEncontradas || isGeneratingBajasEncontradasExcel || isGeneratingEncontradosBajaActivos || isGeneratingEncontradosBajaActivosExcel || isGeneratingDepreciacion || isGeneratingDepreciacionExcel || isGeneratingDepreciacionPorRubro || isGeneratingDepreciacionPorRubroExcel || isGeneratingObsoletos || isGeneratingObsoletosExcel || isGeneratingFaltantesP3 || isGeneratingFaltantesP3Excel || isGeneratingSobrantes || isGeneratingSobrantesExcel || isGeneratingObsoletosP4 || isGeneratingObsoletosP4Excel || isGeneratingActivo37713 || isGeneratingActivo37713Excel || isGeneratingEncontradosPorRubro || isGeneratingEncontradosPorRubroExcel || isGeneratingFaltantesPorRubro || isGeneratingFaltantesPorRubroExcel || formatoRubros !== null;
+  const busy = isGeneratingGeneral || isGeneratingGeneralExcel || isGeneratingUbicacion || isGeneratingUbicacionExcel || isGeneratingRubro || isGeneratingRubroExcel || isGeneratingFaltantes || isGeneratingFaltantesExcel || isGeneratingCosto || isGeneratingCostoExcel || isGeneratingParaRevaluo || isGeneratingParaRevaluoExcel || isGeneratingReclasificar || isGeneratingReclasificarExcel || isGeneratingGrupoContable || isGeneratingGrupoContableExcel || isGeneratingBaja || isGeneratingBajaExcel || isGeneratingFungible || isGeneratingFungibleExcel || isGeneratingBajasEncontradas || isGeneratingBajasEncontradasExcel || isGeneratingEncontradosBajaActivos || isGeneratingEncontradosBajaActivosExcel || isGeneratingDepreciacion || isGeneratingDepreciacionRecalculada || isGeneratingDepreciacionExcel || isGeneratingDepreciacionPorRubro || isGeneratingDepreciacionPorRubroExcel || isGeneratingObsoletos || isGeneratingObsoletosExcel || isGeneratingFaltantesP3 || isGeneratingFaltantesP3Excel || isGeneratingSobrantes || isGeneratingSobrantesExcel || isGeneratingObsoletosP4 || isGeneratingObsoletosP4Excel || isGeneratingActivo37713 || isGeneratingActivo37713Excel || isGeneratingEncontradosPorRubro || isGeneratingEncontradosPorRubroExcel || isGeneratingFaltantesPorRubro || isGeneratingFaltantesPorRubroExcel || formatoRubros !== null;
 
   // Un solo botón por reporte (menos EVALUACION TECNICA): abre modal con PDF/Excel.
   const FORMATOS = {
@@ -274,12 +275,26 @@ const ReportesList = () => {
       onExcel: () => generateEncontradosBajaActivosExcel({ soloNoActivos: true }),
       pdf: isGeneratingEncontradosBajaActivos, excel: isGeneratingEncontradosBajaActivosExcel,
     },
+    encontradosNoActivosPorRubro: {
+      titulo: "Encontrados Baja No Son Activos por Rubro",
+      descripcion: "Mismo criterio que Encontrados Baja No Son Activos, agrupado por rubro. Elija el formato.",
+      onPDF: () => generateEncontradosPorRubro({ soloNoActivos: true }),
+      onExcel: () => generateEncontradosPorRubroExcel({ soloNoActivos: true }),
+      pdf: isGeneratingEncontradosPorRubro, excel: isGeneratingEncontradosPorRubroExcel,
+    },
     estabanEnBaja: {
       titulo: "Activos que Estaban en Baja",
       descripcion: "Activos codigoactivo <= 43753, estadoinventario con dato, artemisaaltabaja=0, ultimoregistro=1, esactivo=true y estadoconservacion <> MALO. Elija el formato.",
       onPDF: () => generateEncontradosBajaActivos({ estabanEnBaja: true }),
       onExcel: () => generateEncontradosBajaActivosExcel({ estabanEnBaja: true }),
       pdf: isGeneratingEncontradosBajaActivos, excel: isGeneratingEncontradosBajaActivosExcel,
+    },
+    estabanEnBajaPorRubro: {
+      titulo: "Activos que Estaban en Baja por Rubro",
+      descripcion: "Mismo criterio que Activos que Estaban en Baja, agrupado por rubro. Elija el formato.",
+      onPDF: () => generateEncontradosPorRubro({ estabanEnBaja: true }),
+      onExcel: () => generateEncontradosPorRubroExcel({ estabanEnBaja: true }),
+      pdf: isGeneratingEncontradosPorRubro, excel: isGeneratingEncontradosPorRubroExcel,
     },
     obsoleto: {
       titulo: "Obsoleto",
@@ -288,12 +303,26 @@ const ReportesList = () => {
       onExcel: () => generateEncontradosBajaActivosExcel({ obsoleto: true }),
       pdf: isGeneratingEncontradosBajaActivos, excel: isGeneratingEncontradosBajaActivosExcel,
     },
+    obsoletoPorRubro: {
+      titulo: "Obsoleto por Rubro",
+      descripcion: "Mismo criterio que Obsoleto, agrupado por rubro. Elija el formato.",
+      onPDF: () => generateEncontradosPorRubro({ obsoleto: true }),
+      onExcel: () => generateEncontradosPorRubroExcel({ obsoleto: true }),
+      pdf: isGeneratingEncontradosPorRubro, excel: isGeneratingEncontradosPorRubroExcel,
+    },
     todoRevaluo: {
       titulo: "Todo Revaluo",
-      descripcion: "Activos de los 3 grupos de revalúo (Estado Baja, No son MALO, Códigos nuevos). Elija el formato.",
+      descripcion: "Activos de los 3 grupos de revalúo (Estado Baja, No son MALO, Códigos nuevos). Incluye Valor Revalúo. Elija el formato.",
       onPDF: () => generateEncontradosBajaActivos({ todoRevaluo: true }),
       onExcel: () => generateEncontradosBajaActivosExcel({ todoRevaluo: true }),
       pdf: isGeneratingEncontradosBajaActivos, excel: isGeneratingEncontradosBajaActivosExcel,
+    },
+    todoRevaluoPorRubro: {
+      titulo: "Todo Revaluo por Rubro",
+      descripcion: "Mismo criterio que Todo Revaluo (los 3 grupos de revalúo), agrupado por rubro. Elija el formato.",
+      onPDF: () => generateEncontradosPorRubro({ todoRevaluo: true }),
+      onExcel: () => generateEncontradosPorRubroExcel({ todoRevaluo: true }),
+      pdf: isGeneratingEncontradosPorRubro, excel: isGeneratingEncontradosPorRubroExcel,
     },
     revaluo2553: {
       titulo: "Revaluo 2553",
@@ -316,12 +345,26 @@ const ReportesList = () => {
       onExcel: () => generateEncontradosPorRubroExcel({ revaluo1355: true }),
       pdf: isGeneratingEncontradosPorRubro, excel: isGeneratingEncontradosPorRubroExcel,
     },
+    revaluo2553PorRubro: {
+      titulo: "Revaluo 2553 por Rubro",
+      descripcion: "Mismo criterio que Revaluo 2553, agrupado por rubro. Elija el formato.",
+      onPDF: () => generateEncontradosPorRubro({ revaluo2553: true }),
+      onExcel: () => generateEncontradosPorRubroExcel({ revaluo2553: true }),
+      pdf: isGeneratingEncontradosPorRubro, excel: isGeneratingEncontradosPorRubroExcel,
+    },
     encontradosFisicamente: {
       titulo: "Encontrados Fisicamente",
       descripcion: "Activos codigoactivo <= 43753, estadoinventario con dato y artemisaaltabaja=1. Elija el formato.",
       onPDF: () => generateEncontradosBajaActivos({ encontradosFisicamente: true }),
       onExcel: () => generateEncontradosBajaActivosExcel({ encontradosFisicamente: true }),
       pdf: isGeneratingEncontradosBajaActivos, excel: isGeneratingEncontradosBajaActivosExcel,
+    },
+    encontradosFisicamentePorRubro: {
+      titulo: "Encontrados Fisicamente por Rubro",
+      descripcion: "Mismo criterio que Encontrados Fisicamente, agrupado por rubro. Elija el formato.",
+      onPDF: () => generateEncontradosPorRubro({ encontradosFisicamente: true }),
+      onExcel: () => generateEncontradosPorRubroExcel({ encontradosFisicamente: true }),
+      pdf: isGeneratingEncontradosPorRubro, excel: isGeneratingEncontradosPorRubroExcel,
     },
     encontradosEnBajaFisicamente: {
       titulo: "Encontrados en Baja Fisicamente",
@@ -393,19 +436,31 @@ const ReportesList = () => {
           {!canSeeReports ? (
             <p className="text-sm text-muted-foreground">No tiene acceso a estos reportes.</p>
           ) : (
-            <div className="grid gap-2 w-full sm:grid-cols-4 sm:max-w-[1400px]">
+            <div className="grid gap-2 w-full sm:grid-cols-4 sm:max-w-[1400px] items-start">
               {unBoton("grupo", "GRUPO CONTABLE", "bg-indigo-700 hover:bg-indigo-800", "Agrupado por rubro (artemisaaltabaja=1)")}
               {unBoton("baja", "ACTIVOS DE BAJA", "bg-red-800 hover:bg-red-900", "Activos estado=0")}
               {unBoton("fungible", "FUNGIBLE", "bg-emerald-800 hover:bg-emerald-900", "Activos esactivo=false")}
               {unBoton("bajasEncontradas", "BAJAS ENCONTRADAS", "bg-stone-700 hover:bg-stone-800", "Activos estado=0, esactivo=true y con estadoinventario")}
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2 w-full min-w-0">
                 {unBoton("depreciacion", "DEPRECIACION", "bg-cyan-800 hover:bg-cyan-900", "Activos con código <= 43753, estadoinventario con dato, artemisaaltabaja 0/1 y ultimoregistro=1")}
+                <Button
+                  onClick={() => generateDepreciacionRecalculada({ recalcular: true })}
+                  disabled={busy}
+                  className="w-full justify-center text-white min-h-11 !h-auto !py-2 text-[11px] sm:text-xs !whitespace-normal text-center leading-tight bg-cyan-950 hover:bg-cyan-900"
+                  aria-label="Recalcular Depreciación"
+                  title="Fuerza Dep. Periodo = 1 en activos con Valor Neto negativo y recalcula Dep. Total y Valor Neto"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2 shrink-0" />
+                  <span className="whitespace-normal break-words text-center leading-tight">RECALCULAR DEPRECIACION</span>
+                </Button>
                 {unBoton("depreciacionPorRubro", "DEPRECIACION POR RUBRO", "bg-cyan-700 hover:bg-cyan-800", "Mismos activos que Depreciación agrupados por rubro, con valor neto total")}
+              </div>
+              <div className="flex flex-col gap-2 w-full min-w-0">
+                {unBoton("obsoletos", "ACTIVOS OBSOLETOS", "bg-orange-800 hover:bg-orange-900", "Activos estadoconservacion=MALO")}
                 {unBoton("maquinaria", "ACTIVOS DE MAQUINARIA Y EQUIPOS DE PRODUCCION", "bg-cyan-600 hover:bg-cyan-700", "Activos del rubro MAQUINARIA Y EQUIPOS DE PRODUCCION con su código y datos de depreciación")}
               </div>
-              {unBoton("obsoletos", "ACTIVOS OBSOLETOS", "bg-orange-800 hover:bg-orange-900", "Activos estadoconservacion=MALO")}
               {unBoton("faltantesP3", "BIENES FALTANTES", "bg-amber-800 hover:bg-amber-900", "Activos ultimoregistro=1 sin estadoinventario")}
-               <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2 w-full min-w-0">
                 {unBoton("sobrantes", "BIENES SOBRANTES", "bg-teal-800 hover:bg-teal-900", "Activos ultimoregistro=1 y activonuevo=TRUE")}
                 {unBoton("sobrantesPorRubro", "SOBRANTES POR RUBRO", "bg-teal-700 hover:bg-teal-800", "Activos ultimoregistro=1 y activonuevo=TRUE, agrupados por rubro")}
               </div>

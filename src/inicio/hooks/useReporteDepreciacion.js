@@ -9,6 +9,7 @@ import { LOGO_JPG_DATA_URL } from "@/lib/logoJpgBase64";
 import { ACTIVO_COLUMNS } from "@/lib/activoColumns";
 import { normalizeCi, normalizeCiLoose, getCiPrefix } from "../constants/inventarioConstants";
 import { buildParamTasaMap, resolveTasaFromParams } from "../constants/depreciacionConstants";
+import { grabarValorNetoConProgreso } from "../services/grabarValorNeto";
 
 const formatError = (err) => {
   if (!err) return "Error desconocido";
@@ -54,7 +55,9 @@ const esMaquinariaProduccion = (rubroDesc) => {
 const addLogo = (doc) => {
   try {
     doc.addImage(LOGO_JPG_DATA_URL, "JPEG", 14, 8, LOGO_W, LOGO_H);
-  } catch {}
+  } catch {
+    // El logo es opcional: si falla, el reporte se genera igual.
+  }
 };
 
 /**
@@ -68,10 +71,14 @@ const addLogo = (doc) => {
  * Depreciacion del Periodo ((%Dep.Mes_8dec * 10) * Costo Total Actualizado),
  * Costo Total Actualizado al 09/10/2026 (costactuali_exp),
  * Revaluo (valorrevaluo por activo),
- * Costo Total Actualizado Revaluado (Costo Total Actualizado al 09/10/2026 + Revaluo),
  * Depreciacion Total (depacumtotal_exp + Dep. Periodo),
- * Valor Neto (Costo Total Actualizado Revaluado - Dep. Total).
- * Al generar, solo construye el PDF (no modifica valorneto en la base de datos).
+ * Valor Neto ((Costo Total Actualizado al 09/10/2026 + Revaluo) - Dep. Total).
+ * Al generar el reporte completo también guarda el Valor Neto calculado en
+ * act_activos.valorneto (en segundo plano, solo filas cuyo valor cambió).
+ * Con options.recalcular: solo las filas con Valor Neto negativo pasan a tener
+ * Dep. Periodo = 1, se recalcula Dep. Total (Dep. Acum. Total + 1) y
+ * Valor Neto = Costo Total Actualizado al 09/10/2026 - Dep. Total.
+ * Este modo no modifica la base de datos.
  * Orden: codigoactivo ASC.
  */
 export const useReporteDepreciacion = () => {
@@ -80,9 +87,10 @@ export const useReporteDepreciacion = () => {
 
   const generate = useCallback(async (options = {}) => {
     const soloMaquinaria = !!options?.soloMaquinaria;
+    const recalcular = !!options?.recalcular;
     setIsGenerating(true);
     try {
-      toast({ title: soloMaquinaria ? "Generando Maquinaria y Equipos de Producción" : "Generando Depreciación", description: "Cargando catálogos..." });
+      toast({ title: recalcular ? "Generando Depreciación Recalculada" : soloMaquinaria ? "Generando Maquinaria y Equipos de Producción" : "Generando Depreciación", description: "Cargando catálogos..." });
 
       const [rubros, tipoRubros, ambientes, responsables, ciudades, inmuebles, niveles, paramDep] = await Promise.all([
         getCachedCatalog("act_rubro"),
@@ -225,7 +233,7 @@ export const useReporteDepreciacion = () => {
         return;
       }
 
-      let totalValorNeto = 0;
+      const valorNetoItems = [];
       const body = allActivos.map((a, idx) => {
         const codigoActivo = a.codigoActivo ?? a.codigoactivo;
         const tipoRubroAct = a.tipoRubroAct ?? a.tiporubroact;
@@ -248,7 +256,22 @@ export const useReporteDepreciacion = () => {
         const revaluo = parseNumDep(a.valorRevaluo ?? a.valorrevaluo);
         const costoTotalRevaluado = costoTotal0910 !== null && revaluo !== null ? costoTotal0910 + revaluo : null;
         const valorNeto = costoTotalRevaluado !== null && depTotal !== null ? costoTotalRevaluado - depTotal : null;
-        totalValorNeto += valorNeto ?? 0;
+        // Recalcular: solo filas con Valor Neto negativo. Se fuerza Dep. Periodo = 1,
+        // se recalcula Dep. Total (Dep. Acum. Total + 1) y
+        // Valor Neto = Costo Total Actualizado al 09/10/2026 - Dep. Total.
+        let depPeriodoMostrar = depPeriodo;
+        let depTotalMostrar = depTotal;
+        let valorNetoMostrar = valorNeto;
+        if (recalcular && valorNeto !== null && valorNeto < 0) {
+          depPeriodoMostrar = 1;
+          depTotalMostrar = depAcumTotal !== null ? depAcumTotal + 1 : null;
+          valorNetoMostrar = costoTotal0910 !== null && depTotalMostrar !== null ? costoTotal0910 - depTotalMostrar : null;
+        }
+        valorNetoItems.push({
+          interno: a.codigoActivoInterno ?? a.codigoactivointerno,
+          valorNeto: valorNetoMostrar,
+          actual: parseNumDep(a.valorNeto ?? a.valorneto),
+        });
         return [
           String(idx + 1),
           codigoActivo != null ? `OJ-02-${codigoActivo}` : "—",
@@ -264,12 +287,11 @@ export const useReporteDepreciacion = () => {
           fmtMoneyDep(depActualizada),
           fmtMoneyDep(depAcumTotal),
           fmtMesDep(depMes),
-          fmtPerDep(depPeriodo),
+          fmtPerDep(depPeriodoMostrar),
           fmtMoneyDep(costoTotal0910),
           fmtMoneyDep(revaluo),
-          fmtMoneyDep(costoTotalRevaluado),
-          fmtMoneyDep(depTotal),
-          fmtMoneyDep(valorNeto),
+          fmtMoneyDep(depTotalMostrar),
+          fmtMoneyDep(valorNetoMostrar),
         ];
       });
 
@@ -282,9 +304,11 @@ export const useReporteDepreciacion = () => {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(13);
       doc.text(
-        soloMaquinaria
-          ? "ACTIVOS DE MAQUINARIA Y EQUIPOS DE PRODUCCION - ÓRGANO JUDICIAL"
-          : "DEPRECIACION - ÓRGANO JUDICIAL",
+        recalcular
+          ? "RECALCULAR DEPRECIACION - ÓRGANO JUDICIAL"
+          : soloMaquinaria
+            ? "ACTIVOS DE MAQUINARIA Y EQUIPOS DE PRODUCCION - ÓRGANO JUDICIAL"
+            : "DEPRECIACION - ÓRGANO JUDICIAL",
         pageWidth / 2,
         16,
         { align: "center" }
@@ -295,14 +319,11 @@ export const useReporteDepreciacion = () => {
 
       autoTable(doc, {
         startY: 26,
-        head: [["N°", "Código Activo", "Rubro", "Tipo Rubro", "Descripción", "Ubicación", "Responsable", "Carnet", "Costo Inicial al 31/12/2025", "Dep. Acumulada al 31/12/2025", "Costo Actualizado", "Dep. Actualizada", "Dep. Acum. Total", "%Dep. Mes", "Dep. Periodo", "Costo Total Actualizado al 09/10/2026", "Revaluo", "Costo Total Actualizado Revaluado", "Dep. Total", "Valor Neto"]],
+        head: [["N°", "Código Activo", "Rubro", "Tipo Rubro", "Descripción", "Ubicación", "Responsable", "Carnet", "Costo Inicial al 31/12/2025", "Dep. Acumulada al 31/12/2025", "Costo Actualizado", "Dep. Actualizada", "Dep. Acum. Total", "%Dep. Mes", "Dep. Periodo", "Costo Total Actualizado al 09/10/2026", "Revaluo", "Dep. Total", "Valor Neto"]],
         body,
-        foot: [["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "TOTAL", fmtMoneyDep(totalValorNeto)]],
-        showFoot: "lastPage",
         theme: "striped",
         styles: { font: "helvetica", fontSize: 6, cellPadding: 1, overflow: "linebreak", valign: "middle" },
         headStyles: { fillColor: [16, 70, 140], textColor: [255, 255, 255], halign: "center", fontStyle: "bold", fontSize: 6 },
-        footStyles: { fillColor: [230, 240, 255], textColor: [16, 70, 140], halign: "center", fontStyle: "bold", fontSize: 7 },
         // Hoja ya en horizontal (landscape letter). Descripción (col 4) más ancha.
         columnStyles: {
           0: { cellWidth: 7, halign: "center" },
@@ -324,7 +345,6 @@ export const useReporteDepreciacion = () => {
           16: { cellWidth: 12, halign: "right" },
           17: { cellWidth: 13, halign: "right" },
           18: { cellWidth: 12, halign: "right" },
-          19: { cellWidth: 12, halign: "right" },
         },
         margin: { top: 26, left: 8, right: 8 },
       });
@@ -339,8 +359,18 @@ export const useReporteDepreciacion = () => {
         doc.text(`Página ${i} de ${totalPages}`, pageWidth / 2, pageHeight - 7, { align: "center" });
       }
 
-      doc.save(soloMaquinaria ? "Activos_de_MAQUINARIA_Y_EQUIPOS_DE_PRODUCCION.pdf" : "Depreciacion.pdf");
+      doc.save(
+        recalcular
+          ? "Recalcular_Depreciacion.pdf"
+          : soloMaquinaria
+            ? "Activos_de_MAQUINARIA_Y_EQUIPOS_DE_PRODUCCION.pdf"
+            : "Depreciacion.pdf"
+      );
       toast({ title: "Reporte generado", description: `Se exportaron ${allActivos.length} activos.` });
+
+      if (!soloMaquinaria && !recalcular) {
+        void grabarValorNetoConProgreso(supabase, valorNetoItems, toast);
+      }
     } catch (err) {
       console.error("Error generando Depreciación", err);
       toast({ title: "Error", description: `No se pudo generar el reporte: ${formatError(err)}`, variant: "destructive" });

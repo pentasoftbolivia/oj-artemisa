@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ACTIVO_COLUMNS } from "@/lib/activoColumns";
 import { normalizeCi, normalizeCiLoose, getCiPrefix } from "../constants/inventarioConstants";
 import { buildParamTasaMap, resolveTasaFromParams } from "../constants/depreciacionConstants";
+import { grabarValorNetoConProgreso } from "../services/grabarValorNeto";
 
 const formatError = (err) => {
   if (!err) return "Error desconocido";
@@ -40,7 +41,7 @@ const HEADERS = [
   "Costo Inicial al 31/12/2025", "Depreciacion Acumulada al 31/12/2025", "Costo Actualizado",
   "Depreciacion Actualizada", "Depreciacion Acumulado Total", "%Dep. Mes",
   "Depreciacion del Periodo", "Costo Total Actualizado al 09/10/2026", "Revaluo",
-  "Costo Total Actualizado Revaluado", "Depreciacion Total", "Valor Neto",
+  "Depreciacion Total", "Valor Neto",
 ];
 
 /**
@@ -54,10 +55,10 @@ const HEADERS = [
  * Depreciacion del Periodo ((%Dep.Mes_8dec * 10) * Costo Total Actualizado),
  * Costo Total Actualizado al 09/10/2026 (costactuali_exp),
  * Revaluo (valorrevaluo por activo),
- * Costo Total Actualizado Revaluado (Costo Total Actualizado al 09/10/2026 + Revaluo),
  * Depreciacion Total (depacumtotal_exp + Dep. Periodo),
- * Valor Neto (Costo Total Actualizado Revaluado - Dep. Total).
- * Al generar, solo construye el Excel (no modifica valorneto en la base de datos).
+ * Valor Neto ((Costo Total Actualizado al 09/10/2026 + Revaluo) - Dep. Total).
+ * Al generar el reporte completo también guarda el Valor Neto calculado en
+ * act_activos.valorneto (en segundo plano, solo filas cuyo valor cambió).
  * Orden: codigoactivo ASC.
  */
 export const useReporteDepreciacionExcel = () => {
@@ -215,6 +216,7 @@ export const useReporteDepreciacionExcel = () => {
 
       const dateStr = new Date().toISOString().slice(0, 10);
       let totalValorNeto = 0;
+      const valorNetoItems = [];
       const rows = allActivos.map((a, idx) => {
         const codigoActivo = a.codigoActivo ?? a.codigoactivo;
         const tipoRubroAct = a.tipoRubroAct ?? a.tiporubroact;
@@ -232,6 +234,11 @@ export const useReporteDepreciacionExcel = () => {
         const costoTotalRevaluado = costoTotal0910 !== null && revaluo !== null ? costoTotal0910 + revaluo : null;
         const valorNeto = costoTotalRevaluado !== null && depTotal !== null ? costoTotalRevaluado - depTotal : null;
         totalValorNeto += valorNeto ?? 0;
+        valorNetoItems.push({
+          interno: a.codigoActivoInterno ?? a.codigoactivointerno,
+          valorNeto,
+          actual: parseNumDep(a.valorNeto ?? a.valorneto),
+        });
         return [
           idx + 1,
           codigoActivo != null ? `OJ-02-${codigoActivo}` : "—",
@@ -250,7 +257,6 @@ export const useReporteDepreciacionExcel = () => {
           depPeriodo ?? "",
           costoTotal0910 ?? "",
           revaluo ?? "",
-          costoTotalRevaluado ?? "",
           depTotal ?? "",
           valorNeto ?? "",
         ];
@@ -263,12 +269,12 @@ export const useReporteDepreciacionExcel = () => {
         [],
         HEADERS,
         ...rows,
-        ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "TOTAL", totalValorNeto],
+        ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "TOTAL", totalValorNeto],
       ];
 
       const ws = XLSX.utils.aoa_to_sheet(sheetData);
       // Descripción (col E, índice 4) más ancha; resto compacto para que quepa en horizontal.
-      ws["!cols"] = [{ wch: 6 }, { wch: 15 }, { wch: 24 }, { wch: 26 }, { wch: 90 }, { wch: 45 }, { wch: 28 }, { wch: 14 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 20 }, { wch: 16 }, { wch: 20 }, { wch: 18 }, { wch: 18 }];
+      ws["!cols"] = [{ wch: 6 }, { wch: 15 }, { wch: 24 }, { wch: 26 }, { wch: 90 }, { wch: 45 }, { wch: 28 }, { wch: 14 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 20 }, { wch: 16 }, { wch: 18 }, { wch: 18 }];
       // Hoja en forma horizontal al imprimir + ajustar a 1 página de ancho.
       ws["!pageSetup"] = { orientation: "landscape", paperSize: 1, fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
       ws["!margins"] = { left: 0.25, right: 0.25, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 };
@@ -287,12 +293,12 @@ export const useReporteDepreciacionExcel = () => {
         if (mesCell && typeof mesCell.v === "number") mesCell.z = mesFmt;
         const perCell = ws[XLSX.utils.encode_cell({ r: rowNumber - 1, c: 14 })];
         if (perCell && typeof perCell.v === "number") perCell.z = perFmt;
-        for (let c = 15; c <= 19; c++) {
+        for (let c = 15; c <= 18; c++) {
           const sumCell = ws[XLSX.utils.encode_cell({ r: rowNumber - 1, c })];
           if (sumCell && typeof sumCell.v === "number") sumCell.z = moneyFmt;
         }
       }
-      const totalNetoCell = ws[XLSX.utils.encode_cell({ r: 5 + rows.length, c: 19 })];
+      const totalNetoCell = ws[XLSX.utils.encode_cell({ r: 5 + rows.length, c: 18 })];
       if (totalNetoCell && typeof totalNetoCell.v === "number") totalNetoCell.z = moneyFmt;
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, soloMaquinaria ? "Maquinaria" : "Depreciacion");
@@ -304,6 +310,10 @@ export const useReporteDepreciacionExcel = () => {
       );
 
       toast({ title: "Reporte generado", description: `Se exportaron ${allActivos.length} activos.` });
+
+      if (!soloMaquinaria) {
+        void grabarValorNetoConProgreso(supabase, valorNetoItems, toast);
+      }
     } catch (err) {
       console.error("Error generando Depreciación (Excel)", err);
       toast({ title: "Error", description: `No se pudo generar el reporte: ${formatError(err)}`, variant: "destructive" });

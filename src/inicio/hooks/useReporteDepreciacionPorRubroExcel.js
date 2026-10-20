@@ -38,7 +38,6 @@ const HEADERS = [
   "Dep. Actualizada",
   "Dep. Acum. Total",
   "Dep. Periodo",
-  "Costo Total Actualizado Revaluado",
   "Dep. Total",
   "Valor Neto",
 ];
@@ -48,6 +47,9 @@ const HEADERS = [
  * Criterio: codigoactivo <= 43753 AND estadoinventario IS NOT NULL AND estadoinventario <> ''
  * AND artemisaaltabaja IN (0,1) AND ultimoregistro = 1 (mismos activos que el reporte Depreciación).
  * Agrupa por RUBRO y suma las mismas columnas monetarias, incluido el Valor Neto.
+ * Usa los mismos datos del PDF recalculado: en activos con Valor Neto negativo,
+ * Dep. Periodo = 1, Dep. Total = Dep. Acum. Total + 1 y
+ * Valor Neto = Costo Total Actualizado al 09/10/2026 - Dep. Total.
  */
 export const useReporteDepreciacionPorRubroExcel = () => {
   const { toast } = useToast();
@@ -144,6 +146,17 @@ export const useReporteDepreciacionPorRubroExcel = () => {
         const depTotal = depAcumTotal + depPeriodo;
         const costoTotalRevaluado = costoTotal0910 + revaluo;
         const valorNeto = costoTotalRevaluado - depTotal;
+        // Mismos datos del PDF recalculado: si el Valor Neto es negativo,
+        // Dep. Periodo = 1, Dep. Total = Dep. Acum. Total + 1 y
+        // Valor Neto = Costo Total Actualizado al 09/10/2026 - Dep. Total.
+        let depPeriodoFinal = depPeriodo;
+        let depTotalFinal = depTotal;
+        let valorNetoFinal = valorNeto;
+        if (valorNeto < 0) {
+          depPeriodoFinal = 1;
+          depTotalFinal = depAcumTotal + 1;
+          valorNetoFinal = costoTotal0910 - depTotalFinal;
+        }
 
         if (!grupos.has(rubroDesc)) {
           grupos.set(rubroDesc, {
@@ -158,10 +171,10 @@ export const useReporteDepreciacionPorRubroExcel = () => {
         g.costoAct += costoAct;
         g.depActualizada += depActualizada;
         g.depAcumTotal += depAcumTotal;
-        g.depPeriodo += depPeriodo;
+        g.depPeriodo += depPeriodoFinal;
         g.costoTotalRevaluado += costoTotalRevaluado;
-        g.depTotal += depTotal;
-        g.valorNeto += valorNeto;
+        g.depTotal += depTotalFinal;
+        g.valorNeto += valorNetoFinal;
       });
 
       const rubrosOrdenados = [...grupos.keys()].sort((x, y) => x.localeCompare(y, "es"));
@@ -177,7 +190,6 @@ export const useReporteDepreciacionPorRubroExcel = () => {
           g.depActualizada,
           g.depAcumTotal,
           g.depPeriodo,
-          g.costoTotalRevaluado,
           g.depTotal,
           g.valorNeto,
         ];
@@ -221,14 +233,13 @@ export const useReporteDepreciacionPorRubroExcel = () => {
           tot.depActualizada,
           tot.depAcumTotal,
           tot.depPeriodo,
-          tot.costoTotalRevaluado,
           tot.depTotal,
           tot.valorNeto,
         ],
       ];
 
       const ws = XLSX.utils.aoa_to_sheet(sheetData);
-      ws["!cols"] = [{ wch: 6 }, { wch: 45 }, { wch: 10 }, { wch: 24 }, { wch: 24 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 28 }, { wch: 18 }, { wch: 18 }];
+      ws["!cols"] = [{ wch: 6 }, { wch: 45 }, { wch: 10 }, { wch: 24 }, { wch: 24 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 18 }];
       ws["!pageSetup"] = { orientation: "landscape", paperSize: 1, fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
       ws["!margins"] = { left: 0.25, right: 0.25, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 };
       ws["!printOptions"] = { horizontalCentered: true };
@@ -237,12 +248,12 @@ export const useReporteDepreciacionPorRubroExcel = () => {
       const moneyFmt = "#,##0.0000";
       for (let r = 0; r < rows.length; r++) {
         const rowNumber = 6 + r;
-        for (let c = 3; c <= 11; c++) {
+        for (let c = 3; c <= 10; c++) {
           const cell = ws[XLSX.utils.encode_cell({ r: rowNumber - 1, c })];
           if (cell && typeof cell.v === "number") cell.z = moneyFmt;
         }
       }
-      for (let c = 3; c <= 11; c++) {
+      for (let c = 3; c <= 10; c++) {
         const totalCell = ws[XLSX.utils.encode_cell({ r: 5 + rows.length, c })];
         if (totalCell && typeof totalCell.v === "number") totalCell.z = moneyFmt;
       }
