@@ -47,9 +47,11 @@ const HEADERS = [
  * Criterio: codigoactivo <= 43753 AND estadoinventario IS NOT NULL AND estadoinventario <> ''
  * AND artemisaaltabaja IN (0,1) AND ultimoregistro = 1 (mismos activos que el reporte Depreciación).
  * Agrupa por RUBRO y suma las mismas columnas monetarias, incluido el Valor Neto.
- * Usa los mismos datos del PDF recalculado: en activos con Valor Neto negativo,
- * Dep. Periodo = 1, Dep. Total = Dep. Acum. Total + 1 y
- * Valor Neto = Costo Total Actualizado al 09/10/2026 - Dep. Total.
+ * Usa exactamente el mismo cálculo que el reporte Depreciación (sin recálculo de
+ * valores netos negativos): %Dep. Mes = tasa anual/12 redondeado a 8 decimales,
+ * Dep. Periodo = (%Dep. Mes * 10) * Costo Total Actualizado,
+ * Dep. Total = Dep. Acum. Total + Dep. Periodo y
+ * Valor Neto = (Costo Total Actualizado + Revaluo) - Dep. Total.
  */
 export const useReporteDepreciacionPorRubroExcel = () => {
   const { toast } = useToast();
@@ -89,12 +91,13 @@ export const useReporteDepreciacionPorRubroExcel = () => {
       while (true) {
         const { data, error } = await supabase
           .from("act_activos")
-          .select(`${ACTIVO_COLUMNS},artemisaaltabaja,saldoinicial_exp,depacum_exp,pordepanu,actdepacum_exp,depacumtotal_exp,costactuali_exp,valorrevaluo`)
+          .select(`${ACTIVO_COLUMNS},artemisaaltabaja,esactivo,saldoinicial_exp,depacum_exp,pordepanu,actdepacum_exp,depacumtotal_exp,costactuali_exp,valorrevaluo`)
           .lte("codigoactivo", 43753)
           .not("estadoinventario", "is", null)
           .neq("estadoinventario", "")
           .in("artemisaaltabaja", [0, 1])
           .eq("ultimoregistro", 1)
+          .eq("esactivo", true)
           .order("codigoactivointerno", { ascending: true })
           .range(from, from + FETCH_CHUNK - 1);
         if (error) throw error;
@@ -113,13 +116,15 @@ export const useReporteDepreciacionPorRubroExcel = () => {
         const v = a.artemisaaltabaja ?? a.artemisaAltaBaja;
         const estadoInv = a.estadoinventario ?? a.estadoInventario;
         const ultimoVal = String(a.ultimoregistro ?? "").trim();
+        const esActivo = a.esactivo ?? a.esActivo;
         return (
           codigoActivo <= 43753 &&
           estadoInv !== null &&
           estadoInv !== undefined &&
           String(estadoInv) !== "" &&
           (Number(v) === 0 || Number(v) === 1) &&
-          ultimoVal === "1"
+          ultimoVal === "1" &&
+          (esActivo === true || String(esActivo).toLowerCase() === "true" || Number(esActivo) === 1)
         );
       });
 
@@ -141,22 +146,12 @@ export const useReporteDepreciacionPorRubroExcel = () => {
         const costoTotal0910 = parseNumDep(a.costActualiExp ?? a.costactuali_exp);
         const revaluo = parseNumDep(a.valorRevaluo ?? a.valorrevaluo);
         const tasaAnual = resolveTasaFromParams(rubroDesc, paramTasaMap);
-        const depMes = tasaAnual !== null && tasaAnual !== undefined ? tasaAnual / 12 : null;
-        const depPeriodo = depMes !== null ? (depMes * 10) * costoTotal0910 : 0;
-        const depTotal = depAcumTotal + depPeriodo;
-        const costoTotalRevaluado = costoTotal0910 + revaluo;
-        const valorNeto = costoTotalRevaluado - depTotal;
-        // Mismos datos del PDF recalculado: si el Valor Neto es negativo,
-        // Dep. Periodo = 1, Dep. Total = Dep. Acum. Total + 1 y
-        // Valor Neto = Costo Total Actualizado al 09/10/2026 - Dep. Total.
-        let depPeriodoFinal = depPeriodo;
-        let depTotalFinal = depTotal;
-        let valorNetoFinal = valorNeto;
-        if (valorNeto < 0) {
-          depPeriodoFinal = 1;
-          depTotalFinal = depAcumTotal + 1;
-          valorNetoFinal = costoTotal0910 - depTotalFinal;
-        }
+        const depMesRaw = tasaAnual !== null && tasaAnual !== undefined ? tasaAnual / 12 : null;
+        const depMes = depMesRaw !== null && depMesRaw !== undefined ? Number(depMesRaw.toFixed(8)) : null;
+        const depPeriodo = depMes !== null && costoTotal0910 !== null ? (depMes * 10) * costoTotal0910 : null;
+        const depTotal = depAcumTotal !== null && depPeriodo !== null ? depAcumTotal + depPeriodo : null;
+        const costoTotalRevaluado = costoTotal0910 !== null && revaluo !== null ? costoTotal0910 + revaluo : null;
+        const valorNeto = costoTotalRevaluado !== null && depTotal !== null ? costoTotalRevaluado - depTotal : null;
 
         if (!grupos.has(rubroDesc)) {
           grupos.set(rubroDesc, {
@@ -171,10 +166,10 @@ export const useReporteDepreciacionPorRubroExcel = () => {
         g.costoAct += costoAct;
         g.depActualizada += depActualizada;
         g.depAcumTotal += depAcumTotal;
-        g.depPeriodo += depPeriodoFinal;
-        g.costoTotalRevaluado += costoTotalRevaluado;
-        g.depTotal += depTotalFinal;
-        g.valorNeto += valorNetoFinal;
+        g.depPeriodo += depPeriodo ?? 0;
+        g.costoTotalRevaluado += costoTotalRevaluado ?? 0;
+        g.depTotal += depTotal ?? 0;
+        g.valorNeto += valorNeto ?? 0;
       });
 
       const rubrosOrdenados = [...grupos.keys()].sort((x, y) => x.localeCompare(y, "es"));

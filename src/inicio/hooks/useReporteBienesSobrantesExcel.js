@@ -5,7 +5,6 @@ import { getCachedCatalog } from "@/lib/catalogCache";
 import { toCamelCaseArray } from "@/lib/mapFields";
 import { useToast } from "@/hooks/use-toast";
 import { normalizeCi, normalizeCiLoose, getCiPrefix } from "../constants/inventarioConstants";
-import { buildParamTasaMap, resolveTasaFromParams } from "../constants/depreciacionConstants";
 
 const formatError = (err) => {
   if (!err) return "Error desconocido";
@@ -30,11 +29,7 @@ const parseNumBE = (v) => {
 
 const HEADERS = [
   "N°", "Código Activo", "Rubro", "Tipo Rubro", "Descripción",
-  "Ubicación", "Responsable", "Carnet",
-  "Costo Inicial al 31/12/2025", "Depreciacion Acumulada al 31/12/2025", "Costo Actualizado",
-  "Depreciacion Actualizada", "Depreciacion Acumulado Total", "%Dep. Mes",
-  "Dep. Periodo", "Costo Total Actualizado al 09/10/2026", "Revaluo",
-  "Costo Total Actualizado Revaluado", "Depreciacion Total", "Valor Neto",
+  "Ubicación", "Responsable", "Carnet", "Valor Revaluado",
 ];
 
 const isTrueish = (v) => {
@@ -46,14 +41,7 @@ const isTrueish = (v) => {
 /**
  * Reporte BIENES SOBRANTES en Excel — PRODUCTO 3.
  * Criterio: ultimoregistro=1 AND activonuevo=TRUE.
- * Columnas extra tras Carnet: Costo Inicial al 31/12/2025 (saldoinicial_exp),
- * Depreciacion Acumulada al 31/12/2025 (depacum_exp), Costo Actualizado (pordepanu),
- * Depreciacion Actualizada (actdepacum_exp), Depreciacion Acumulado Total (depacumtotal_exp),
- * %Dep. Mes (tasa_anual/12, 8 decimales), Dep. Periodo ((%Dep.Mes*10)*Costo Total Actualizado),
- * Costo Total Actualizado al 09/10/2026 (costactuali_exp),
- * Revaluo (valorrevaluo), Costo Total Actualizado Revaluado (Costo0910 + Revaluo),
- * Depreciacion Total (depacumtotal_exp + Dep. Periodo),
- * Valor Neto (Costo Revaluado - Dep. Total).
+ * Columnas tras Carnet: Valor Revaluado (valorrevaluo). No hay más columnas.
  * Orden: codigoactivo ASC.
  */
 export const useReporteBienesSobrantesExcel = () => {
@@ -66,7 +54,7 @@ export const useReporteBienesSobrantesExcel = () => {
     try {
       toast({ title: "Generando Bienes Sobrantes (Excel)", description: "Cargando catálogos..." });
 
-      const [rubros, tipoRubros, ambientes, responsables, ciudades, inmuebles, niveles, paramDep] = await Promise.all([
+      const [rubros, tipoRubros, ambientes, responsables, ciudades, inmuebles, niveles] = await Promise.all([
         getCachedCatalog("act_rubro"),
         getCachedCatalog("act_tiporubro"),
         getCachedCatalog("act_ambiente"),
@@ -74,12 +62,7 @@ export const useReporteBienesSobrantesExcel = () => {
         getCachedCatalog("act_ciudad"),
         getCachedCatalog("act_inmueble"),
         getCachedCatalog("act_nivel"),
-        supabase.from("act_param_depreciacion").select("rubro,tasa_anual").then(({ data, error }) => {
-          if (error) throw error;
-          return data || [];
-        }),
       ]);
-      const paramTasaMap = buildParamTasaMap(paramDep);
 
       const rubroDescMap = {};
       (rubros || []).forEach((r) => {
@@ -167,27 +150,44 @@ export const useReporteBienesSobrantesExcel = () => {
       }
       allActivos = allActivos.filter((a) => isTrueish(a.activonuevo ?? a.activoNuevo));
       allActivos.sort((a, b) => Number(a.codigoActivo ?? a.codigoactivo ?? 0) - Number(b.codigoActivo ?? b.codigoactivo ?? 0));
+      const totalRevaluo = allActivos.reduce(
+        (s, a) => s + (parseNumBE(a.valorRevaluo ?? a.valorrevaluo) ?? 0),
+        0
+      );
 
       if (porRubro) {
         const conteoPorRubro = new Map();
+        const valorPorRubro = new Map();
         allActivos.forEach((a) => {
           const tipo = a.tipoRubroAct ?? a.tiporubroact;
           const rubroDesc = String(rubroFromTipo[tipo] ?? rubroFromTipo[String(tipo)] ?? "SIN RUBRO").trim() || "SIN RUBRO";
           conteoPorRubro.set(rubroDesc, (conteoPorRubro.get(rubroDesc) ?? 0) + 1);
+          const revaluo = parseNumBE(a.valorRevaluo ?? a.valorrevaluo) ?? 0;
+          valorPorRubro.set(rubroDesc, (valorPorRubro.get(rubroDesc) ?? 0) + revaluo);
         });
         const rubrosOrdenados = [...conteoPorRubro.keys()].sort((x, y) => x.localeCompare(y, "es"));
         const dateStr = new Date().toISOString().slice(0, 10);
-        const rows = rubrosOrdenados.map((rubro, idx) => [idx + 1, rubro, conteoPorRubro.get(rubro)]);
+        const rows = rubrosOrdenados.map((rubro, idx) => [
+          idx + 1,
+          rubro,
+          conteoPorRubro.get(rubro),
+          valorPorRubro.get(rubro) ?? 0,
+        ]);
         const sheetData = [
           ["BIENES SOBRANTES POR RUBRO - ÓRGANO JUDICIAL"],
           [`Total activos: ${allActivos.length} en ${rubrosOrdenados.length} rubros`],
           [`Fecha: ${dateStr}`],
           [],
-          ["N°", "Rubro", "Total Activos"],
+          ["N°", "Rubro", "Total Activos", "Valor Revaluado"],
           ...rows,
-          ["", "TOTAL GENERAL", allActivos.length],
+          ["", "TOTAL GENERAL", allActivos.length, totalRevaluo],
         ];
         const ws = XLSX.utils.aoa_to_sheet(sheetData);
+        ws["!cols"] = [{ wch: 6 }, { wch: 50 }, { wch: 16 }, { wch: 18 }];
+        for (let r = 0; r <= rows.length; r++) {
+          const cell = ws[XLSX.utils.encode_cell({ r: 5 + r, c: 3 })];
+          if (cell && typeof cell.v === "number") cell.z = "#,##0.00";
+        }
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Sobrantes Rubro");
         XLSX.writeFile(wb, `Bienes_Sobrantes_Por_Rubro_${dateStr}.xlsx`);
@@ -204,20 +204,7 @@ export const useReporteBienesSobrantesExcel = () => {
         const rubroDesc = rubroFromTipo[tipoRubroAct] ?? rubroFromTipo[String(tipoRubroAct)] ?? "";
         const ambCode = String(a.codigoAmbiente ?? a.codigoambiente ?? "").trim();
         const ciRaw = String(a.cirun ?? "").trim();
-        const costoInicial = parseNumBE(a.saldoInicialExp ?? a.saldoinicial_exp);
-        const depAcum = parseNumBE(a.depAcumExp ?? a.depacum_exp);
-        const costoActualizado = parseNumBE(a.porDepAnu ?? a.pordepanu);
-        const depActualizada = parseNumBE(a.actDepAcumExp ?? a.actdepacum_exp);
-        const depAcumTotal = parseNumBE(a.depAcumTotalExp ?? a.depacumtotal_exp);
-        const tasaAnual = resolveTasaFromParams(rubroDesc, paramTasaMap);
-        const depMesRaw = tasaAnual !== null && tasaAnual !== undefined ? tasaAnual / 12 : null;
-        const depMes = depMesRaw !== null && depMesRaw !== undefined ? Number(depMesRaw.toFixed(8)) : null;
-        const costoTotal0910 = parseNumBE(a.costActualiExp ?? a.costactuali_exp);
-        const depPeriodo = depMes !== null && costoTotal0910 !== null ? (depMes * 10) * costoTotal0910 : null;
         const revaluo = parseNumBE(a.valorRevaluo ?? a.valorrevaluo);
-        const costoTotalRevaluado = costoTotal0910 !== null && revaluo !== null ? costoTotal0910 + revaluo : null;
-        const depTotal = depAcumTotal !== null && depPeriodo !== null ? depAcumTotal + depPeriodo : null;
-        const valorNeto = costoTotalRevaluado !== null && depTotal !== null ? costoTotalRevaluado - depTotal : null;
         return [
           idx + 1,
           codigoActivo != null ? `OJ-02-${codigoActivo}` : "—",
@@ -227,18 +214,7 @@ export const useReporteBienesSobrantesExcel = () => {
           clean(ubicacionMap[ambCode] || ambCode),
           clean(responsableNameOf(ciRaw)),
           ciRaw || "—",
-          costoInicial ?? "",
-          depAcum ?? "",
-          costoActualizado ?? "",
-          depActualizada ?? "",
-          depAcumTotal ?? "",
-          depMes ?? "",
-          depPeriodo ?? "",
-          costoTotal0910 ?? "",
           revaluo ?? "",
-          costoTotalRevaluado ?? "",
-          depTotal ?? "",
-          valorNeto ?? "",
         ];
       });
 
@@ -249,29 +225,16 @@ export const useReporteBienesSobrantesExcel = () => {
         [],
         HEADERS,
         ...rows,
-        ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "TOTAL", allActivos.length],
+        ["", "", "", "", "", "", "", "TOTAL", totalRevaluo],
       ];
 
       const ws = XLSX.utils.aoa_to_sheet(sheetData);
-      ws["!cols"] = [{ wch: 6 }, { wch: 16 }, { wch: 28 }, { wch: 30 }, { wch: 70 }, { wch: 50 }, { wch: 32 }, { wch: 16 }, { wch: 20 }, { wch: 24 }, { wch: 18 }, { wch: 22 }, { wch: 22 }, { wch: 16 }, { wch: 20 }, { wch: 20 }, { wch: 16 }, { wch: 20 }, { wch: 18 }, { wch: 18 }];
+      ws["!cols"] = [{ wch: 6 }, { wch: 16 }, { wch: 28 }, { wch: 30 }, { wch: 70 }, { wch: 50 }, { wch: 32 }, { wch: 16 }, { wch: 18 }];
       ws["!pageSetup"] = { orientation: "landscape", paperSize: 1, fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
       ws["!margins"] = { left: 0.25, right: 0.25, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 };
-      const moneyFmt = "#,##0.00";
-      const mesFmt = "0.00000000";
-      const perFmt = "0.0000000";
-      for (let r = 0; r < rows.length; r++) {
-        for (let c = 8; c <= 12; c++) {
-          const cell = ws[XLSX.utils.encode_cell({ r: 5 + r, c })];
-          if (cell && typeof cell.v === "number") cell.z = moneyFmt;
-        }
-        const mesCell = ws[XLSX.utils.encode_cell({ r: 5 + r, c: 13 })];
-        if (mesCell && typeof mesCell.v === "number") mesCell.z = mesFmt;
-        const perCell = ws[XLSX.utils.encode_cell({ r: 5 + r, c: 14 })];
-        if (perCell && typeof perCell.v === "number") perCell.z = perFmt;
-        for (let c = 15; c <= 19; c++) {
-          const cell = ws[XLSX.utils.encode_cell({ r: 5 + r, c })];
-          if (cell && typeof cell.v === "number") cell.z = moneyFmt;
-        }
+      for (let r = 0; r <= rows.length; r++) {
+        const cell = ws[XLSX.utils.encode_cell({ r: 5 + r, c: 8 })];
+        if (cell && typeof cell.v === "number") cell.z = "#,##0.00";
       }
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Sobrantes");

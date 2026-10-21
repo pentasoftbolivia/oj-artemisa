@@ -401,6 +401,7 @@ const RevaluoList = () => {
     { label: "Equipo de computación", anos: 4, detalle: COMPU_ANOS_POR_ESTADO },
     { label: "Equipo de transporte, tracción y elevación", anos: 5, detalle: TRANS_MAQ_ANOS_POR_ESTADO },
     { label: "Otra maquinaria y equipo", anos: 8, detalle: TRANS_MAQ_ANOS_POR_ESTADO },
+    { label: "Otros activos fijos", anos: 8 },
   ];
   const ANOS_POR_RUBRO = [
     [/COMUNICACION/, 4],
@@ -410,6 +411,7 @@ const RevaluoList = () => {
     [/TRANSPORTE|TRACCION|ELEVACION/, 5],
     [/OTRA MAQUINARIA/, 8],
     [/MAQUINARIA/, 5],
+    [/OTROS ACTIVOS FIJOS/, 8],
   ];
   const normRubro = (s) =>
     String(s || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -423,6 +425,7 @@ const RevaluoList = () => {
     [/TRANSPORTE|TRACCION|ELEVACION/, 5],
     [/OTRA MAQUINARIA/, 8],
     [/MAQUINARIA/, 5],
+    [/OTROS ACTIVOS FIJOS/, 8],
   ];
   const resolveVidaTipo = (rubroDesc) => {
     const match = ANOS_TIPO_POR_RUBRO.find(([re]) => re.test(normRubro(rubroDesc)));

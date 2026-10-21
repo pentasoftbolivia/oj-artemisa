@@ -156,7 +156,7 @@ export const useReporteEncontradosBajaExcel = () => {
               .eq("ultimoregistro", 1);
             if (revaluo1355) query = query.eq("artemisaaltabaja", 1).eq("pararevaluo", true).eq("activonuevo", false).neq("estadoconservacion", "MALO");
             else if (revaluo2553) query = query.eq("artemisaaltabaja", 1).eq("pararevaluo", true).eq("activonuevo", false).neq("estadoconservacion", "MALO");
-            else if (encontradosFisicamente) query = query.eq("artemisaaltabaja", 1);
+            else if (encontradosFisicamente) query = query.in("artemisaaltabaja", [0, 1]).eq("esactivo", true);
             else if (encontradosEnBajaFisicamente) query = query.eq("artemisaaltabaja", 0);
             else if (enAlta) query = query.eq("artemisaaltabaja", 1).eq("esactivo", true);
             else if (obsoleto) query = query.eq("artemisaaltabaja", 1).eq("estadoconservacion", "MALO");
@@ -218,8 +218,11 @@ export const useReporteEncontradosBajaExcel = () => {
           const v = a.artemisaaltabaja ?? a.artemisaAltaBaja;
           const codigoActivo = Number(a.codigoActivo ?? a.codigoactivo ?? 0);
           const estInv = String(a.estadoinventario ?? a.estadoInventario ?? "").trim();
+          const esActivo = a.esactivo ?? a.esActivo;
           if (estInv === "") return false;
-          if (Number(v) !== 1) return false;
+          if (!(Number(v) === 0 || Number(v) === 1)) return false;
+          if (esActivo == null) return false;
+          if (!(esActivo === true || String(esActivo).toLowerCase() === "true" || Number(esActivo) === 1)) return false;
           if (codigoActivo > 43753) return false;
           if (a.ultimoregistro != 1) return false;
         } else         if (revaluo1355) {

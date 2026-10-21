@@ -181,14 +181,14 @@ const ReportesList = () => {
       pdf: isGeneratingBajasEncontradas, excel: isGeneratingBajasEncontradasExcel,
     },
     depreciacion: {
-      titulo: "Depreciación",
-      descripcion: "Activos con código <= 43753, estadoinventario con dato, artemisaaltabaja 0/1 y ultimoregistro=1: detalle + costo actualizado y depreciación. Elija el formato.",
+      titulo: "Depreciación - Anexo G",
+      descripcion: "Activos con código <= 43753, estadoinventario con dato, artemisaaltabaja 0/1, ultimoregistro=1 y esactivo=true: detalle + costo actualizado y depreciación. Elija el formato.",
       onPDF: generateDepreciacion, onExcel: generateDepreciacionExcel,
       pdf: isGeneratingDepreciacion, excel: isGeneratingDepreciacionExcel,
     },
     depreciacionPorRubro: {
-      titulo: "Depreciación por Rubro",
-      descripcion: "Mismos activos que Depreciación, agrupados por rubro: totales de costo actualizado, depreciación y valor neto. Elija el formato.",
+      titulo: "Depreciación por Rubro - Anexo G",
+      descripcion: "Mismos activos que Depreciación - Anexo G, agrupados por rubro: totales de costo actualizado, depreciación y valor neto. Elija el formato.",
       onPDF: generateDepreciacionPorRubro, onExcel: generateDepreciacionPorRubroExcel,
       pdf: isGeneratingDepreciacionPorRubro, excel: isGeneratingDepreciacionPorRubroExcel,
     },
@@ -353,8 +353,8 @@ const ReportesList = () => {
       pdf: isGeneratingEncontradosPorRubro, excel: isGeneratingEncontradosPorRubroExcel,
     },
     encontradosFisicamente: {
-      titulo: "Encontrados Fisicamente",
-      descripcion: "Activos codigoactivo <= 43753, estadoinventario con dato y artemisaaltabaja=1. Elija el formato.",
+      titulo: "Encontrados Fisicamente y Son Activos - Anexo A",
+      descripcion: "Activos codigoactivo <= 43753, estadoinventario con dato, artemisaaltabaja in (0,1), ultimoregistro=1 y esactivo=true. Elija el formato.",
       onPDF: () => generateEncontradosBajaActivos({ encontradosFisicamente: true }),
       onExcel: () => generateEncontradosBajaActivosExcel({ encontradosFisicamente: true }),
       pdf: isGeneratingEncontradosBajaActivos, excel: isGeneratingEncontradosBajaActivosExcel,
@@ -442,7 +442,7 @@ const ReportesList = () => {
               {unBoton("fungible", "FUNGIBLE", "bg-emerald-800 hover:bg-emerald-900", "Activos esactivo=false")}
               {unBoton("bajasEncontradas", "BAJAS ENCONTRADAS", "bg-stone-700 hover:bg-stone-800", "Activos estado=0, esactivo=true y con estadoinventario")}
               <div className="flex flex-col gap-2 w-full min-w-0">
-                {unBoton("depreciacion", "DEPRECIACION", "bg-cyan-800 hover:bg-cyan-900", "Activos con código <= 43753, estadoinventario con dato, artemisaaltabaja 0/1 y ultimoregistro=1")}
+                {unBoton("depreciacion", "DEPRECIACION - ANEXO G", "bg-cyan-800 hover:bg-cyan-900", "Activos con código <= 43753, estadoinventario con dato, artemisaaltabaja 0/1, ultimoregistro=1 y esactivo=true")}
                 <Button
                   onClick={() => generateDepreciacionRecalculada({ recalcular: true })}
                   disabled={busy}
@@ -451,9 +451,9 @@ const ReportesList = () => {
                   title="Fuerza Dep. Periodo = 1 en activos con Valor Neto negativo y recalcula Dep. Total y Valor Neto"
                 >
                   <RefreshCw className="h-4 w-4 mr-2 shrink-0" />
-                  <span className="whitespace-normal break-words text-center leading-tight">RECALCULAR DEPRECIACION</span>
+                  <span className="whitespace-normal break-words text-center leading-tight">RECALCULAR DEPRECIACION - ANEXO G</span>
                 </Button>
-                {unBoton("depreciacionPorRubro", "DEPRECIACION POR RUBRO", "bg-cyan-700 hover:bg-cyan-800", "Mismos activos que Depreciación agrupados por rubro, con valor neto total")}
+                {unBoton("depreciacionPorRubro", "DEPRECIACION POR RUBRO - ANEXO G", "bg-cyan-700 hover:bg-cyan-800", "Mismos activos que Depreciación - Anexo G (incluye esactivo=true), agrupados por rubro, con valor neto total")}
               </div>
               <div className="flex flex-col gap-2 w-full min-w-0">
                 {unBoton("obsoletos", "ACTIVOS OBSOLETOS", "bg-orange-800 hover:bg-orange-900", "Activos estadoconservacion=MALO")}
@@ -461,7 +461,7 @@ const ReportesList = () => {
               </div>
               {unBoton("faltantesP3", "BIENES FALTANTES", "bg-amber-800 hover:bg-amber-900", "Activos ultimoregistro=1 sin estadoinventario")}
               <div className="flex flex-col gap-2 w-full min-w-0">
-                {unBoton("sobrantes", "BIENES SOBRANTES", "bg-teal-800 hover:bg-teal-900", "Activos ultimoregistro=1 y activonuevo=TRUE")}
+                {unBoton("sobrantes", "BIENES SOBRANTES - ANEXO C", "bg-teal-800 hover:bg-teal-900", "Activos ultimoregistro=1 y activonuevo=TRUE")}
                 {unBoton("sobrantesPorRubro", "SOBRANTES POR RUBRO", "bg-teal-700 hover:bg-teal-800", "Activos ultimoregistro=1 y activonuevo=TRUE, agrupados por rubro")}
               </div>
             </div>
@@ -520,7 +520,7 @@ const ReportesList = () => {
           ) : (
             <div className="grid gap-3 w-full sm:grid-cols-2 lg:grid-cols-4">
               <div className="flex flex-col gap-2">
-                {unBoton("estabanEnBaja", "ACTIVOS QUE ESTABAN EN BAJA", "bg-amber-700 hover:bg-amber-800", "Activos codigoactivo <= 43753, estadoinventario con dato, artemisaaltabaja=0, ultimoregistro=1, esactivo=true y estadoconservacion <> MALO")}
+                {unBoton("estabanEnBaja", "ACTIVOS QUE ESTABAN EN BAJA - ANEXO D", "bg-amber-700 hover:bg-amber-800", "Activos codigoactivo <= 43753, estadoinventario con dato, artemisaaltabaja=0, ultimoregistro=1, esactivo=true y estadoconservacion <> MALO")}
                 {unBoton("estabanEnBajaPorRubro", "ACTIVOS QUE ESTABAN EN BAJA POR RUBRO", "bg-amber-600 hover:bg-amber-700", "Mismo criterio que Activos que Estaban en Baja, agrupado por rubro")}
               </div>
               <div className="flex flex-col gap-2">
@@ -549,7 +549,7 @@ const ReportesList = () => {
                 {unBoton("encontradosPorRubro", "ENCONTRADOS POR RUBRO", "bg-slate-600 hover:bg-slate-700", "Mismo criterio que Encontrados en Estado Baja, agrupado por rubro")}
               </div>
               <div className="flex flex-col gap-2">
-                {unBoton("encontradosFisicamente", "ENCONTRADOS FISICAMENTE", "bg-cyan-700 hover:bg-cyan-800", "Activos codigoactivo <= 43753, estadoinventario con dato y artemisaaltabaja=1")}
+                {unBoton("encontradosFisicamente", "ENCONTRADOS FISICAMENTE Y SON ACTIVOS - ANEXO A", "bg-cyan-700 hover:bg-cyan-800", "Activos codigoactivo <= 43753, estadoinventario con dato, artemisaaltabaja in (0,1), ultimoregistro=1 y esactivo=true")}
                 {unBoton("encontradosFisicamentePorRubro", "ENCONTRADOS FISICAMENTE POR RUBRO", "bg-cyan-600 hover:bg-cyan-700", "Mismo criterio que Encontrados Fisicamente, agrupado por rubro")}
               </div>
               <div className="flex flex-col gap-2">
@@ -561,16 +561,16 @@ const ReportesList = () => {
                   title="Activos con codigoactivo <=43753, estadoinventario NULL o vacío y artemisaaltabaja=1: código, rubro, tipo, descripción, ubicación, responsable y carnet"
                 >
                   <FileDown className="h-4 w-4 mr-2 shrink-0" />
-                  <span className="whitespace-normal break-words text-center leading-tight">FALTANTES EN ESTADO ACTIVO</span>
+                  <span className="whitespace-normal break-words text-center leading-tight">FALTANTES EN ESTADO ACTIVO - ANEXO B</span>
                 </Button>
                 {unBoton("faltantesPorRubro", "FALTANTES POR RUBRO", "bg-zinc-600 hover:bg-zinc-700", "Mismo criterio que Faltantes en Estado Activo, agrupado por rubro")}
               </div>
               <div className="flex flex-col gap-2">
-                {unBoton("obsoleto", "OBSOLETO", "bg-orange-700 hover:bg-orange-800", "Activos codigoactivo <= 43753, estadoinventario con dato, artemisaaltabaja=1 y estadoconservacion = MALO")}
+                {unBoton("obsoleto", "OBSOLETO - ANEXO E", "bg-orange-700 hover:bg-orange-800", "Activos codigoactivo <= 43753, estadoinventario con dato, artemisaaltabaja=1 y estadoconservacion = MALO")}
                 {unBoton("obsoletoPorRubro", "OBSOLETO POR RUBRO", "bg-orange-600 hover:bg-orange-700", "Mismo criterio que Obsoleto, agrupado por rubro")}
               </div>
               <div className="flex flex-col gap-2">
-                {unBoton("revaluo1355", "REVALUO 1355", "bg-fuchsia-700 hover:bg-fuchsia-800", "Activos con pararevaluo=true y activonuevo=false")}
+                {unBoton("revaluo1355", "DE LOS 2553 EL REVALUO ES 1354 - ANEXO F", "bg-fuchsia-700 hover:bg-fuchsia-800", "Activos con pararevaluo=true y activonuevo=false")}
                 {unBoton("revaluo1355PorRubro", "REVALUO 1355 POR RUBRO", "bg-fuchsia-600 hover:bg-fuchsia-700", "Mismo criterio que Revaluo 1355, agrupado por rubro")}
               </div>
               <div className="flex flex-col gap-2">

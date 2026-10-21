@@ -176,12 +176,13 @@ export const useReporteDepreciacion = () => {
         while (true) {
           const { data, error } = await supabase
             .from("act_activos")
-          .select(`${ACTIVO_COLUMNS},artemisaaltabaja,saldoinicial_exp,depacum_exp,pordepanu,actdepacum_exp,depacumtotal_exp,costactuali_exp,valorrevaluo,valorneto`)
+          .select(`${ACTIVO_COLUMNS},artemisaaltabaja,esactivo,saldoinicial_exp,depacum_exp,pordepanu,actdepacum_exp,depacumtotal_exp,costactuali_exp,valorrevaluo,valorneto`)
           .lte("codigoactivo", 43753)
           .not("estadoinventario", "is", null)
           .neq("estadoinventario", "")
           .in("artemisaaltabaja", [0, 1])
           .eq("ultimoregistro", 1)
+          .eq("esactivo", true)
           .order("codigoactivointerno", { ascending: true })
             .range(from, from + FETCH_CHUNK - 1);
           if (error) throw error;
@@ -203,13 +204,15 @@ export const useReporteDepreciacion = () => {
         const v = a.artemisaaltabaja ?? a.artemisaAltaBaja;
         const estadoInv = a.estadoinventario ?? a.estadoInventario;
         const ultimoVal = String(a.ultimoregistro ?? "").trim();
+        const esActivo = a.esactivo ?? a.esActivo;
         return (
           codigoActivo <= 43753 &&
           estadoInv !== null &&
           estadoInv !== undefined &&
           String(estadoInv) !== "" &&
           (Number(v) === 0 || Number(v) === 1) &&
-          ultimoVal === "1"
+          ultimoVal === "1" &&
+          (esActivo === true || String(esActivo).toLowerCase() === "true" || Number(esActivo) === 1)
         );
       });
       allActivos.sort((a, b) => Number(a.codigoActivo ?? a.codigoactivo ?? 0) - Number(b.codigoActivo ?? b.codigoactivo ?? 0));
