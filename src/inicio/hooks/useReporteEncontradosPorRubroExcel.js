@@ -5,6 +5,7 @@ import { getCachedCatalog } from "@/lib/catalogCache";
 import { toCamelCaseArray } from "@/lib/mapFields";
 import { useToast } from "@/hooks/use-toast";
 import { ACTIVO_COLUMNS } from "@/lib/activoColumns";
+import { buildParamTasaMap, resolveTasaFromParams } from "../constants/depreciacionConstants";
 
 const formatError = (err) => {
   if (!err) return "Error desconocido";
@@ -22,6 +23,14 @@ const formatError = (err) => {
 const HEADERS = ["N°", "Rubro", "Total Activos"];
 
 const TODO_REVALUO_HEADERS = [...HEADERS, "Valor Revalúo"];
+
+const DEP_HEADERS = ["N°", "Rubro", "Activos", "Costo Total Actualizado al 09/10/2026", "Depreciacion Total", "Valor Neto"];
+
+const parseNum = (v) => {
+  if (v === null || v === undefined || String(v).trim() === "") return 0;
+  const n = Number(String(v).replace(",", "."));
+  return isNaN(n) ? 0 : n;
+};
 
 /**
  * Reporte ENCONTRADOS POR RUBRO en Excel.
@@ -42,19 +51,28 @@ export const useReporteEncontradosPorRubroExcel = () => {
   const enAlta = options?.enAlta === true;
   const estabanEnBaja = options?.estabanEnBaja === true;
   const obsoleto = options?.obsoleto === true;
+  const recalcular = options?.recalcular === true;
   const todoRevaluo = options?.todoRevaluo === true;
   const revaluo2553 = options?.revaluo2553 === true;
   const revaluo1355 = options?.revaluo1355 === true;
   const encontradosFisicamente = options?.encontradosFisicamente === true;
   const encontradosEnBajaFisicamente = options?.encontradosEnBajaFisicamente === true;
+  const conDetalleDep = recalcular && obsoleto;
     setIsGenerating(true);
     try {
       toast({ title: "Generando Encontrados por Rubro (Excel)", description: "Cargando catálogos..." });
 
-      const [rubros, tipoRubros] = await Promise.all([
+      const [rubros, tipoRubros, paramDep] = await Promise.all([
         getCachedCatalog("act_rubro"),
         getCachedCatalog("act_tiporubro"),
+        conDetalleDep
+          ? supabase.from("act_param_depreciacion").select("rubro,tasa_anual").then(({ data, error }) => {
+              if (error) throw error;
+              return data || [];
+            })
+          : Promise.resolve([]),
       ]);
+      const paramTasaMap = conDetalleDep ? buildParamTasaMap(paramDep) : new Map();
 
       const rubroDescMap = {};
       (rubros || []).forEach((r) => {
@@ -75,7 +93,7 @@ export const useReporteEncontradosPorRubroExcel = () => {
       while (true) {
         let query = supabase
           .from("act_activos")
-          .select(`${ACTIVO_COLUMNS},artemisaaltabaja,esactivo,activonuevo,valorrevaluo`);
+          .select(`${ACTIVO_COLUMNS},artemisaaltabaja,esactivo,activonuevo,valorrevaluo${conDetalleDep ? ",saldoinicial_exp,depacum_exp,pordepanu,actdepacum_exp,depacumtotal_exp,costactuali_exp" : ""}`);
         if (todoRevaluo) {
           // OR exacto de los 3 grupos de revalúo. Sin los filtros base globales:
           // el grupo 3 solo exige activonuevo=true.
@@ -217,6 +235,7 @@ export const useReporteEncontradosPorRubroExcel = () => {
 
       const conteoPorRubro = new Map();
       const valorRevaluoPorRubro = new Map();
+      const gruposDep = new Map();
       allActivos.forEach((a) => {
         const tipo = a.tipoRubroAct ?? a.tiporubroact;
         const rubroDesc = String(rubroFromTipo[tipo] ?? rubroFromTipo[String(tipo)] ?? "SIN RUBRO").trim() || "SIN RUBRO";
@@ -225,49 +244,149 @@ export const useReporteEncontradosPorRubroExcel = () => {
           rubroDesc,
           (valorRevaluoPorRubro.get(rubroDesc) ?? 0) + (Number(a.valorRevaluo ?? a.valorrevaluo) || 0)
         );
+
+        if (!conDetalleDep) return;
+
+        const saldoInicial = parseNum(a.saldoInicialExp ?? a.saldoinicial_exp);
+        const depAcum = parseNum(a.depAcumExp ?? a.depacum_exp);
+        const costoAct = parseNum(a.porDepAnu ?? a.pordepanu);
+        const depActualizada = parseNum(a.actDepAcumExp ?? a.actdepacum_exp);
+        const depAcumTotal = parseNum(a.depAcumTotalExp ?? a.depacumtotal_exp);
+        const costoTotal0910 = parseNum(a.costActualiExp ?? a.costactuali_exp);
+        const revaluo = parseNum(a.valorRevaluo ?? a.valorrevaluo);
+        const costoTotalRevaluado = costoTotal0910 + revaluo;
+        const tasaAnual = resolveTasaFromParams(rubroDesc, paramTasaMap);
+        const depMesRaw = tasaAnual !== null && tasaAnual !== undefined ? tasaAnual / 12 : null;
+        const depMes = depMesRaw !== null && depMesRaw !== undefined ? Number(depMesRaw.toFixed(8)) : null;
+        const depPeriodo = depMes !== null ? (depMes * 10) * costoTotal0910 : null;
+        const depTotal = depAcumTotal !== null && depPeriodo !== null ? depAcumTotal + depPeriodo : null;
+        const valorNeto = depTotal !== null ? costoTotalRevaluado - depTotal : null;
+
+        let depPeriodoMostrar = depPeriodo;
+        let depTotalMostrar = depTotal;
+        let valorNetoMostrar = valorNeto;
+        if (recalcular && valorNeto !== null && valorNeto < 0) {
+          depPeriodoMostrar = 1;
+          depTotalMostrar = depAcumTotal !== null ? depAcumTotal + 1 : null;
+          valorNetoMostrar = depTotalMostrar !== null ? costoTotalRevaluado - depTotalMostrar : null;
+        }
+
+        if (!gruposDep.has(rubroDesc)) {
+          gruposDep.set(rubroDesc, {
+            activos: 0, saldoInicial: 0, depAcum: 0, costoAct: 0, depActualizada: 0,
+            depAcumTotal: 0, depMes: null, depPeriodo: 0, costoTotal0910: 0, revaluo: 0,
+            costoTotalRevaluado: 0, depTotal: 0, valorNeto: 0,
+          });
+        }
+        const g = gruposDep.get(rubroDesc);
+        g.activos += 1;
+        g.saldoInicial += saldoInicial;
+        g.depAcum += depAcum;
+        g.costoAct += costoAct;
+        g.depActualizada += depActualizada;
+        g.depAcumTotal += depAcumTotal;
+        if (g.depMes === null && depMes !== null) g.depMes = depMes;
+        g.depPeriodo += depPeriodoMostrar ?? 0;
+        g.costoTotal0910 += costoTotal0910;
+        g.revaluo += revaluo;
+        g.costoTotalRevaluado += costoTotalRevaluado;
+        g.depTotal += depTotalMostrar ?? 0;
+        g.valorNeto += valorNetoMostrar ?? 0;
       });
       const rubrosOrdenados = [...conteoPorRubro.keys()].sort((x, y) => x.localeCompare(y, "es"));
       const totalRevaluo = allActivos.reduce((s, a) => s + (Number(a.valorRevaluo ?? a.valorrevaluo) || 0), 0);
 
+      let totDep = null;
+      let rows;
+      if (conDetalleDep) {
+        rows = rubrosOrdenados.map((rubro, idx) => {
+          const g = gruposDep.get(rubro);
+          return [
+            idx + 1,
+            rubro,
+            g.activos,
+            g.costoTotal0910,
+            g.depTotal,
+            g.valorNeto,
+          ];
+        });
+        totDep = rubrosOrdenados.reduce((acc, rubro) => {
+          const g = gruposDep.get(rubro);
+          acc.activos += g.activos;
+          acc.saldoInicial += g.saldoInicial;
+          acc.depAcum += g.depAcum;
+          acc.costoAct += g.costoAct;
+          acc.depActualizada += g.depActualizada;
+          acc.depAcumTotal += g.depAcumTotal;
+          acc.depPeriodo += g.depPeriodo;
+          acc.costoTotal0910 += g.costoTotal0910;
+          acc.revaluo += g.revaluo;
+          acc.costoTotalRevaluado += g.costoTotalRevaluado;
+          acc.depTotal += g.depTotal;
+          acc.valorNeto += g.valorNeto;
+          return acc;
+        }, {
+          activos: 0, saldoInicial: 0, depAcum: 0, costoAct: 0, depActualizada: 0,
+          depAcumTotal: 0, depPeriodo: 0, costoTotal0910: 0, revaluo: 0,
+          costoTotalRevaluado: 0, depTotal: 0, valorNeto: 0,
+        });
+      } else {
+        rows = rubrosOrdenados.map((rubro, idx) => [
+          idx + 1,
+          rubro,
+          conteoPorRubro.get(rubro),
+          ...(todoRevaluo ? [valorRevaluoPorRubro.get(rubro) ?? 0] : []),
+        ]);
+      }
+
       toast({ title: "Generando Excel", description: `Construyendo reporte con ${rubrosOrdenados.length} rubros...` });
 
       const dateStr = new Date().toISOString().slice(0, 10);
-      const rows = rubrosOrdenados.map((rubro, idx) => [
-        idx + 1,
-        rubro,
-        conteoPorRubro.get(rubro),
-        ...(todoRevaluo ? [valorRevaluoPorRubro.get(rubro) ?? 0] : []),
-      ]);
 
       const sheetData = [
-        [encontradosEnBajaFisicamente ? "ENCONTRADOS EN BAJA FISICAMENTE POR RUBRO - ÓRGANO JUDICIAL" : encontradosFisicamente ? "ENCONTRADOS FISICAMENTE POR RUBRO - ÓRGANO JUDICIAL" : revaluo1355 ? "REVALUO 1355 POR RUBRO - ÓRGANO JUDICIAL" : revaluo2553 ? "REVALUO 2553 POR RUBRO - ÓRGANO JUDICIAL" : todoRevaluo ? "TODO REVALUO POR RUBRO - ÓRGANO JUDICIAL" : obsoleto ? "OBSOLETO POR RUBRO - ÓRGANO JUDICIAL" : estabanEnBaja ? "ACTIVOS QUE ESTABAN EN BAJA POR RUBRO - ÓRGANO JUDICIAL" : enAlta ? "ENCONTRADO BAJA SI SON ACTIVOS POR RUBRO - ÓRGANO JUDICIAL" : soloActivos ? "ENCONTRADO BAJA SI SON ACTIVOS POR RUBRO - ÓRGANO JUDICIAL" : soloNoActivos ? "ENCONTRADOS BAJA NO SON ACTIVOS POR RUBRO - ÓRGANO JUDICIAL" : "ENCONTRADOS POR RUBRO - ÓRGANO JUDICIAL"],
+        [encontradosEnBajaFisicamente ? "ENCONTRADOS EN BAJA FISICAMENTE POR RUBRO - ÓRGANO JUDICIAL" : encontradosFisicamente ? "ENCONTRADOS FISICAMENTE POR RUBRO - ÓRGANO JUDICIAL" : revaluo1355 ? "REVALUO 1355 POR RUBRO - ÓRGANO JUDICIAL" : revaluo2553 ? "REVALUO 2553 POR RUBRO - ÓRGANO JUDICIAL" : todoRevaluo ? "TODO REVALUO POR RUBRO - ÓRGANO JUDICIAL" : recalcular && obsoleto ? "RECALCULAR OBSOLETO POR RUBRO - ÓRGANO JUDICIAL" : obsoleto ? "OBSOLETO POR RUBRO - ÓRGANO JUDICIAL" : estabanEnBaja ? "ACTIVOS QUE ESTABAN EN BAJA POR RUBRO - ÓRGANO JUDICIAL" : enAlta ? "ENCONTRADO BAJA SI SON ACTIVOS POR RUBRO - ÓRGANO JUDICIAL" : soloActivos ? "ENCONTRADO BAJA SI SON ACTIVOS POR RUBRO - ÓRGANO JUDICIAL" : soloNoActivos ? "ENCONTRADOS BAJA NO SON ACTIVOS POR RUBRO - ÓRGANO JUDICIAL" : "ENCONTRADOS POR RUBRO - ÓRGANO JUDICIAL"],
         [`Total activos: ${allActivos.length} en ${rubrosOrdenados.length} rubros`],
         [`Fecha: ${dateStr}`],
         [],
-        todoRevaluo ? TODO_REVALUO_HEADERS : HEADERS,
+        conDetalleDep ? DEP_HEADERS : todoRevaluo ? TODO_REVALUO_HEADERS : HEADERS,
         ...rows,
-        [
-          "", "TOTAL GENERAL", allActivos.length,
-          ...(todoRevaluo ? [totalRevaluo] : []),
-        ],
+        conDetalleDep
+          ? [
+              "", "TOTAL GENERAL", totDep.activos,
+              totDep.costoTotal0910, totDep.depTotal, totDep.valorNeto,
+            ]
+          : [
+              "", "TOTAL GENERAL", allActivos.length,
+              ...(todoRevaluo ? [totalRevaluo] : []),
+            ],
       ];
 
       const ws = XLSX.utils.aoa_to_sheet(sheetData);
-      ws["!cols"] = todoRevaluo
-        ? [{ wch: 6 }, { wch: 55 }, { wch: 16 }, { wch: 20 }]
-        : [{ wch: 6 }, { wch: 60 }, { wch: 16 }];
-      if (todoRevaluo) {
+      ws["!cols"] = conDetalleDep
+        ? [{ wch: 6 }, { wch: 40 }, { wch: 8 }, { wch: 32 }, { wch: 20 }, { wch: 18 }]
+        : todoRevaluo
+          ? [{ wch: 6 }, { wch: 55 }, { wch: 16 }, { wch: 20 }]
+          : [{ wch: 6 }, { wch: 60 }, { wch: 16 }];
+      if (conDetalleDep) {
+        for (let i = 0; i <= rubrosOrdenados.length; i++) {
+          const r = 5 + i;
+          for (let c = 3; c <= 5; c++) {
+            const cell = ws[XLSX.utils.encode_cell({ r, c })];
+            if (cell && cell.t === "n") cell.z = "0.0000";
+          }
+        }
+      } else if (todoRevaluo) {
         const moneyFormat = "0.0000";
         for (let i = 0; i <= rubrosOrdenados.length; i++) {
           const cell = ws[XLSX.utils.encode_cell({ r: 5 + i, c: 3 })];
           if (cell && cell.t === "n") cell.z = moneyFormat;
         }
       }
-      ws["!pageSetup"] = { orientation: "portrait", paperSize: 1, fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
+      ws["!pageSetup"] = { orientation: conDetalleDep ? "landscape" : "portrait", paperSize: 1, fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
       ws["!margins"] = { left: 0.5, right: 0.5, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 };
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, soloActivos ? "Encontrado Activos Rubro" : soloNoActivos ? "Encontrados No Activos Rubro" : "Por Rubro");
-      XLSX.writeFile(wb, encontradosEnBajaFisicamente ? `Encontrados_En_Baja_Fisicamente_Por_Rubro_${dateStr}.xlsx` : encontradosFisicamente ? `Encontrados_Fisicamente_Por_Rubro_${dateStr}.xlsx` : revaluo1355 ? `Revaluo_1355_Por_Rubro_${dateStr}.xlsx` : revaluo2553 ? `Revaluo_2553_Por_Rubro_${dateStr}.xlsx` : todoRevaluo ? `Todo_Revaluo_Por_Rubro_${dateStr}.xlsx` : obsoleto ? `Obsoleto_Por_Rubro_${dateStr}.xlsx` : estabanEnBaja ? `Activos_Que_Estaban_En_Baja_Por_Rubro_${dateStr}.xlsx` : enAlta ? `Encontrado_Baja_Si_Son_Activos_Por_Rubro_${dateStr}.xlsx` : soloActivos ? `Encontrado_Baja_Si_Son_Activos_Por_Rubro_${dateStr}.xlsx` : soloNoActivos ? `Encontrados_Baja_No_Son_Activos_Por_Rubro_${dateStr}.xlsx` : `Encontrados_Por_Rubro_${dateStr}.xlsx`);
+      XLSX.writeFile(wb, encontradosEnBajaFisicamente ? `Encontrados_En_Baja_Fisicamente_Por_Rubro_${dateStr}.xlsx` : encontradosFisicamente ? `Encontrados_Fisicamente_Por_Rubro_${dateStr}.xlsx` : revaluo1355 ? `Revaluo_1355_Por_Rubro_${dateStr}.xlsx` : revaluo2553 ? `Revaluo_2553_Por_Rubro_${dateStr}.xlsx` : todoRevaluo ? `Todo_Revaluo_Por_Rubro_${dateStr}.xlsx` : recalcular && obsoleto ? `Recalcular_Obsoleto_Por_Rubro_${dateStr}.xlsx` : obsoleto ? `Obsoleto_Por_Rubro_${dateStr}.xlsx` : estabanEnBaja ? `Activos_Que_Estaban_En_Baja_Por_Rubro_${dateStr}.xlsx` : enAlta ? `Encontrado_Baja_Si_Son_Activos_Por_Rubro_${dateStr}.xlsx` : soloActivos ? `Encontrado_Baja_Si_Son_Activos_Por_Rubro_${dateStr}.xlsx` : soloNoActivos ? `Encontrados_Baja_No_Son_Activos_Por_Rubro_${dateStr}.xlsx` : `Encontrados_Por_Rubro_${dateStr}.xlsx`);
 
       toast({ title: "Reporte generado", description: `Se exportaron ${allActivos.length} activos en ${rubrosOrdenados.length} rubros.` });
     } catch (err) {

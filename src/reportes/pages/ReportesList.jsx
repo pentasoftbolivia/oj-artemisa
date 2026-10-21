@@ -18,6 +18,8 @@ import { useReporteParaRevaluo } from "@/inicio/hooks/useReporteParaRevaluo";
 import { useReporteParaRevaluoExcel } from "@/inicio/hooks/useReporteParaRevaluoExcel";
 import { useReporteReclasificarRubro } from "@/inicio/hooks/useReporteReclasificarRubro";
 import { useReporteReclasificarRubroExcel } from "@/inicio/hooks/useReporteReclasificarRubroExcel";
+import { useReporteReclasificacionCuentas } from "@/inicio/hooks/useReporteReclasificacionCuentas";
+import { useReporteReclasificacionCuentasExcel } from "@/inicio/hooks/useReporteReclasificacionCuentasExcel";
 import { useReporteGrupoContable } from "@/inicio/hooks/useReporteGrupoContable";
 import { useReporteGrupoContableExcel } from "@/inicio/hooks/useReporteGrupoContableExcel";
 import { useReporteActivosBaja } from "@/inicio/hooks/useReporteActivosBaja";
@@ -74,6 +76,8 @@ const ReportesList = () => {
   const { generate: generateParaRevaluoExcel, isGenerating: isGeneratingParaRevaluoExcel } = useReporteParaRevaluoExcel();
   const { generate: generateReclasificar, isGenerating: isGeneratingReclasificar } = useReporteReclasificarRubro();
   const { generate: generateReclasificarExcel, isGenerating: isGeneratingReclasificarExcel } = useReporteReclasificarRubroExcel();
+  const { generate: generateReclasificacionCuentas, isGenerating: isGeneratingReclasificacionCuentas } = useReporteReclasificacionCuentas();
+  const { generate: generateReclasificacionCuentasExcel, isGenerating: isGeneratingReclasificacionCuentasExcel } = useReporteReclasificacionCuentasExcel();
   const { generate: generateGrupoContable, isGenerating: isGeneratingGrupoContable } = useReporteGrupoContable();
   const { generate: generateGrupoContableExcel, isGenerating: isGeneratingGrupoContableExcel } = useReporteGrupoContableExcel();
   const { generate: generateBaja, isGenerating: isGeneratingBaja } = useReporteActivosBaja();
@@ -110,7 +114,7 @@ const ReportesList = () => {
   const [formatoModalKey, setFormatoModalKey] = useState(null);
   const { downloadPDF: downloadRubrosPDF, downloadExcel: downloadRubrosExcel, generatingFormat: formatoRubros } = useRubrosExcluidosLista();
 
-  const busy = isGeneratingGeneral || isGeneratingGeneralExcel || isGeneratingUbicacion || isGeneratingUbicacionExcel || isGeneratingRubro || isGeneratingRubroExcel || isGeneratingFaltantes || isGeneratingFaltantesExcel || isGeneratingCosto || isGeneratingCostoExcel || isGeneratingParaRevaluo || isGeneratingParaRevaluoExcel || isGeneratingReclasificar || isGeneratingReclasificarExcel || isGeneratingGrupoContable || isGeneratingGrupoContableExcel || isGeneratingBaja || isGeneratingBajaExcel || isGeneratingFungible || isGeneratingFungibleExcel || isGeneratingBajasEncontradas || isGeneratingBajasEncontradasExcel || isGeneratingEncontradosBajaActivos || isGeneratingEncontradosBajaActivosExcel || isGeneratingDepreciacion || isGeneratingDepreciacionRecalculada || isGeneratingDepreciacionExcel || isGeneratingDepreciacionPorRubro || isGeneratingDepreciacionPorRubroExcel || isGeneratingObsoletos || isGeneratingObsoletosExcel || isGeneratingFaltantesP3 || isGeneratingFaltantesP3Excel || isGeneratingSobrantes || isGeneratingSobrantesExcel || isGeneratingObsoletosP4 || isGeneratingObsoletosP4Excel || isGeneratingActivo37713 || isGeneratingActivo37713Excel || isGeneratingEncontradosPorRubro || isGeneratingEncontradosPorRubroExcel || isGeneratingFaltantesPorRubro || isGeneratingFaltantesPorRubroExcel || formatoRubros !== null;
+  const busy = isGeneratingGeneral || isGeneratingGeneralExcel || isGeneratingUbicacion || isGeneratingUbicacionExcel || isGeneratingRubro || isGeneratingRubroExcel || isGeneratingFaltantes || isGeneratingFaltantesExcel || isGeneratingCosto || isGeneratingCostoExcel || isGeneratingParaRevaluo || isGeneratingParaRevaluoExcel || isGeneratingReclasificar || isGeneratingReclasificarExcel || isGeneratingReclasificacionCuentas || isGeneratingReclasificacionCuentasExcel || isGeneratingGrupoContable || isGeneratingGrupoContableExcel || isGeneratingBaja || isGeneratingBajaExcel || isGeneratingFungible || isGeneratingFungibleExcel || isGeneratingBajasEncontradas || isGeneratingBajasEncontradasExcel || isGeneratingEncontradosBajaActivos || isGeneratingEncontradosBajaActivosExcel || isGeneratingDepreciacion || isGeneratingDepreciacionRecalculada || isGeneratingDepreciacionExcel || isGeneratingDepreciacionPorRubro || isGeneratingDepreciacionPorRubroExcel || isGeneratingObsoletos || isGeneratingObsoletosExcel || isGeneratingFaltantesP3 || isGeneratingFaltantesP3Excel || isGeneratingSobrantes || isGeneratingSobrantesExcel || isGeneratingObsoletosP4 || isGeneratingObsoletosP4Excel || isGeneratingActivo37713 || isGeneratingActivo37713Excel || isGeneratingEncontradosPorRubro || isGeneratingEncontradosPorRubroExcel || isGeneratingFaltantesPorRubro || isGeneratingFaltantesPorRubroExcel || formatoRubros !== null;
 
   // Un solo botón por reporte (menos EVALUACION TECNICA): abre modal con PDF/Excel.
   const FORMATOS = {
@@ -324,6 +328,12 @@ const ReportesList = () => {
       onExcel: () => generateEncontradosPorRubroExcel({ todoRevaluo: true }),
       pdf: isGeneratingEncontradosPorRubro, excel: isGeneratingEncontradosPorRubroExcel,
     },
+    reclasificacionCuentas: {
+      titulo: "Reclasificación de Cuentas",
+      descripcion: "Datos de Reclasificar.xlsx con las hojas Resumen y Detalle. El detalle no incluye Código Interno, Tipo Actual ni Tipo Destino. Elija el formato.",
+      onPDF: generateReclasificacionCuentas, onExcel: generateReclasificacionCuentasExcel,
+      pdf: isGeneratingReclasificacionCuentas, excel: isGeneratingReclasificacionCuentasExcel,
+    },
     revaluo2553: {
       titulo: "Revaluo 2553",
       descripcion: "Activos con pararevaluo=true y activonuevo=false. Elija el formato.",
@@ -444,11 +454,16 @@ const ReportesList = () => {
               <div className="flex flex-col gap-2 w-full min-w-0">
                 {unBoton("depreciacion", "DEPRECIACION - ANEXO G", "bg-cyan-800 hover:bg-cyan-900", "Activos con código <= 43753, estadoinventario con dato, artemisaaltabaja 0/1, ultimoregistro=1 y esactivo=true")}
                 <Button
-                  onClick={() => generateDepreciacionRecalculada({ recalcular: true })}
+                  onClick={async () => {
+                    await generateDepreciacionRecalculada({ recalcular: true });
+                    await generateDepreciacionExcel({ recalcular: true });
+                    await generateDepreciacionPorRubro({ recalcular: true });
+                    await generateDepreciacionPorRubroExcel({ recalcular: true });
+                  }}
                   disabled={busy}
                   className="w-full justify-center text-white min-h-11 !h-auto !py-2 text-[11px] sm:text-xs !whitespace-normal text-center leading-tight bg-cyan-950 hover:bg-cyan-900"
                   aria-label="Recalcular Depreciación"
-                  title="Fuerza Dep. Periodo = 1 en activos con Valor Neto negativo y recalcula Dep. Total y Valor Neto"
+                  title="Fuerza Dep. Periodo = 1 en activos con Valor Neto negativo (cálculo interno), recalcula Dep. Total y genera los reportes en PDF y Excel, tanto el detalle como el resumen por rubro"
                 >
                   <RefreshCw className="h-4 w-4 mr-2 shrink-0" />
                   <span className="whitespace-normal break-words text-center leading-tight">RECALCULAR DEPRECIACION - ANEXO G</span>
@@ -568,6 +583,21 @@ const ReportesList = () => {
               <div className="flex flex-col gap-2">
                 {unBoton("obsoleto", "OBSOLETO - ANEXO E", "bg-orange-700 hover:bg-orange-800", "Activos codigoactivo <= 43753, estadoinventario con dato, artemisaaltabaja=1 y estadoconservacion = MALO")}
                 {unBoton("obsoletoPorRubro", "OBSOLETO POR RUBRO", "bg-orange-600 hover:bg-orange-700", "Mismo criterio que Obsoleto, agrupado por rubro")}
+                <Button
+                  onClick={async () => {
+                    await generateEncontradosBajaActivos({ obsoleto: true, recalcular: true });
+                    await generateEncontradosBajaActivosExcel({ obsoleto: true, recalcular: true });
+                    await generateEncontradosPorRubro({ obsoleto: true, recalcular: true });
+                    await generateEncontradosPorRubroExcel({ obsoleto: true, recalcular: true });
+                  }}
+                  disabled={busy}
+                  className="w-full justify-center text-white min-h-11 !h-auto !py-2 text-[11px] sm:text-xs !whitespace-normal text-center leading-tight bg-orange-950 hover:bg-orange-900"
+                  aria-label="Recalcular Obsoleto"
+                  title="Fuerza Dep. Periodo = 1 en activos con Valor Neto negativo, recalcula Dep. Total y genera los reportes en PDF y Excel, tanto el detalle como el resumen por rubro"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2 shrink-0" />
+                  <span className="whitespace-normal break-words text-center leading-tight">RECALCULAR OBSOLETO</span>
+                </Button>
               </div>
               <div className="flex flex-col gap-2">
                 {unBoton("revaluo1355", "DE LOS 2553 EL REVALUO ES 1354 - ANEXO F", "bg-fuchsia-700 hover:bg-fuchsia-800", "Activos con pararevaluo=true y activonuevo=false")}
@@ -580,6 +610,9 @@ const ReportesList = () => {
               <div className="flex flex-col gap-2">
                 {unBoton("todoRevaluo", "TODO REVALUO", "bg-indigo-700 hover:bg-indigo-800", "Activos de los 3 grupos de revalúo (Estado Baja, No son MALO, Códigos nuevos)")}
                 {unBoton("todoRevaluoPorRubro", "TODO REVALUO POR RUBRO", "bg-indigo-600 hover:bg-indigo-700", "Mismo criterio que Todo Revaluo, agrupado por rubro")}
+              </div>
+              <div className="flex flex-col gap-2">
+                {unBoton("reclasificacionCuentas", "RECLASIFICACION DE CUENTAS", "bg-indigo-500 hover:bg-indigo-600", "Datos de Reclasificar.xlsx: Resumen y Detalle sin Código Interno, Tipo Actual ni Tipo Destino")}
               </div>
             </div>
           )}

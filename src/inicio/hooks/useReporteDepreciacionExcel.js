@@ -41,7 +41,7 @@ const HEADERS = [
   "Costo Inicial al 31/12/2025", "Depreciacion Acumulada al 31/12/2025", "Costo Actualizado",
   "Depreciacion Actualizada", "Depreciacion Acumulado Total", "%Dep. Mes",
   "Depreciacion del Periodo", "Costo Total Actualizado al 09/10/2026", "Revaluo",
-  "Depreciacion Total", "Valor Neto",
+  "Costo Total Actualizado Revaluado", "Depreciacion Total", "Valor Neto",
 ];
 
 /**
@@ -55,8 +55,9 @@ const HEADERS = [
  * Depreciacion del Periodo ((%Dep.Mes_8dec * 10) * Costo Total Actualizado),
  * Costo Total Actualizado al 09/10/2026 (costactuali_exp),
  * Revaluo (valorrevaluo por activo),
+ * Costo Total Actualizado Revaluado (Costo Total Actualizado al 09/10/2026 + Revaluo),
  * Depreciacion Total (depacumtotal_exp + Dep. Periodo),
- * Valor Neto ((Costo Total Actualizado al 09/10/2026 + Revaluo) - Dep. Total).
+ * Valor Neto (Costo Total Actualizado Revaluado - Depreciacion Total).
  * Al generar el reporte completo también guarda el Valor Neto calculado en
  * act_activos.valorneto (en segundo plano, solo filas cuyo valor cambió).
  * Orden: codigoactivo ASC.
@@ -67,9 +68,10 @@ export const useReporteDepreciacionExcel = () => {
 
   const generate = useCallback(async (options = {}) => {
     const soloMaquinaria = !!options?.soloMaquinaria;
+    const recalcular = !!options?.recalcular;
     setIsGenerating(true);
     try {
-      toast({ title: soloMaquinaria ? "Generando Maquinaria y Equipos de Producción (Excel)" : "Generando Depreciación (Excel)", description: "Cargando catálogos..." });
+      toast({ title: recalcular ? "Recalculando Depreciación (Excel)" : soloMaquinaria ? "Generando Maquinaria y Equipos de Producción (Excel)" : "Generando Depreciación (Excel)", description: "Cargando catálogos..." });
 
       const [rubros, tipoRubros, ambientes, responsables, ciudades, inmuebles, niveles, paramDep] = await Promise.all([
         getCachedCatalog("act_rubro"),
@@ -218,7 +220,19 @@ export const useReporteDepreciacionExcel = () => {
       toast({ title: "Generando Excel", description: `Construyendo reporte con ${allActivos.length} activos...` });
 
       const dateStr = new Date().toISOString().slice(0, 10);
-      let totalValorNeto = 0;
+      const totales = {
+        saldoInicial: 0,
+        depAcum: 0,
+        costoAct: 0,
+        depActualizada: 0,
+        depAcumTotal: 0,
+        depPeriodo: 0,
+        costoTotal0910: 0,
+        revaluo: 0,
+        costoTotalRevaluado: 0,
+        depTotal: 0,
+        valorNeto: 0,
+      };
       const valorNetoItems = [];
       const rows = allActivos.map((a, idx) => {
         const codigoActivo = a.codigoActivo ?? a.codigoactivo;
@@ -229,17 +243,41 @@ export const useReporteDepreciacionExcel = () => {
         const tasaAnual = resolveTasaFromParams(rubroDesc, paramTasaMap);
         const depMesRaw = tasaAnual !== null && tasaAnual !== undefined ? tasaAnual / 12 : null;
         const depMes = depMesRaw !== null && depMesRaw !== undefined ? Number(depMesRaw.toFixed(8)) : null;
-        const costoTotal0910 = parseNumDep(a.costActualiExp ?? a.costactuali_exp);
+        const saldoInicial = parseNumDep(a.saldoInicialExp ?? a.saldoinicial_exp);
+        const depAcum = parseNumDep(a.depAcumExp ?? a.depacum_exp);
+        const costoAct = parseNumDep(a.porDepAnu ?? a.pordepanu);
+        const depActualizada = parseNumDep(a.actDepAcumExp ?? a.actdepacum_exp);
         const depAcumTotDb = parseNumDep(a.depAcumTotalExp ?? a.depacumtotal_exp);
+        const costoTotal0910 = parseNumDep(a.costActualiExp ?? a.costactuali_exp);
         const depPeriodo = depMes !== null && costoTotal0910 !== null ? (depMes * 10) * costoTotal0910 : null;
         const depTotal = depAcumTotDb !== null && depPeriodo !== null ? depAcumTotDb + depPeriodo : null;
-        const revaluo = parseNumDep(a.valorRevaluo ?? a.valorrevaluo);
-        const costoTotalRevaluado = costoTotal0910 !== null && revaluo !== null ? costoTotal0910 + revaluo : null;
+        const revaluo = parseNumDep(a.valorRevaluo ?? a.valorrevaluo) ?? 0;
+        const costoTotalRevaluado = costoTotal0910 !== null ? costoTotal0910 + revaluo : null;
         const valorNeto = costoTotalRevaluado !== null && depTotal !== null ? costoTotalRevaluado - depTotal : null;
-        totalValorNeto += valorNeto ?? 0;
+
+        let depPeriodoMostrar = depPeriodo;
+        let depTotalMostrar = depTotal;
+        let valorNetoMostrar = valorNeto;
+        if (recalcular && valorNeto !== null && valorNeto < 0) {
+          depPeriodoMostrar = 1;
+          depTotalMostrar = depAcumTotDb !== null ? depAcumTotDb + 1 : null;
+          valorNetoMostrar = costoTotalRevaluado !== null && depTotalMostrar !== null ? costoTotalRevaluado - depTotalMostrar : null;
+        }
+
+        totales.saldoInicial += saldoInicial ?? 0;
+        totales.depAcum += depAcum ?? 0;
+        totales.costoAct += costoAct ?? 0;
+        totales.depActualizada += depActualizada ?? 0;
+        totales.depAcumTotal += depAcumTotDb ?? 0;
+        totales.depPeriodo += depPeriodoMostrar ?? 0;
+        totales.costoTotal0910 += costoTotal0910 ?? 0;
+        totales.revaluo += revaluo ?? 0;
+        totales.costoTotalRevaluado += costoTotalRevaluado ?? 0;
+        totales.depTotal += depTotalMostrar ?? 0;
+        totales.valorNeto += valorNetoMostrar ?? 0;
         valorNetoItems.push({
           interno: a.codigoActivoInterno ?? a.codigoactivointerno,
-          valorNeto,
+          valorNeto: valorNetoMostrar,
           actual: parseNumDep(a.valorNeto ?? a.valorneto),
         });
         return [
@@ -251,33 +289,47 @@ export const useReporteDepreciacionExcel = () => {
           clean(ubicacionMap[ambCode] || ambCode),
           clean(responsableNameOf(ciRaw)),
           ciRaw || "—",
-          parseNumDep(a.saldoInicialExp ?? a.saldoinicial_exp) ?? "",
-          parseNumDep(a.depAcumExp ?? a.depacum_exp) ?? "",
-          parseNumDep(a.porDepAnu ?? a.pordepanu) ?? "",
-          parseNumDep(a.actDepAcumExp ?? a.actdepacum_exp) ?? "",
+          saldoInicial ?? "",
+          depAcum ?? "",
+          costoAct ?? "",
+          depActualizada ?? "",
           depAcumTotDb ?? "",
           depMes ?? "",
-          depPeriodo ?? "",
+          depPeriodoMostrar ?? "",
           costoTotal0910 ?? "",
           revaluo ?? "",
-          depTotal ?? "",
-          valorNeto ?? "",
+          costoTotalRevaluado ?? "",
+          depTotalMostrar ?? "",
+          valorNetoMostrar ?? "",
         ];
       });
 
+      const totalRow = Array(20).fill("");
+      totalRow[2] = "TOTAL GENERAL";
+      totalRow[8] = totales.saldoInicial;
+      totalRow[9] = totales.depAcum;
+      totalRow[10] = totales.costoAct;
+      totalRow[11] = totales.depActualizada;
+      totalRow[12] = totales.depAcumTotal;
+      totalRow[14] = totales.depPeriodo;
+      totalRow[15] = totales.costoTotal0910;
+      totalRow[16] = totales.revaluo;
+      totalRow[17] = totales.costoTotalRevaluado;
+      totalRow[18] = totales.depTotal;
+      totalRow[19] = totales.valorNeto;
       const sheetData = [
-        [soloMaquinaria ? "ACTIVOS DE MAQUINARIA Y EQUIPOS DE PRODUCCION - ÓRGANO JUDICIAL" : "DEPRECIACION - ÓRGANO JUDICIAL"],
+        [soloMaquinaria ? "ACTIVOS DE MAQUINARIA Y EQUIPOS DE PRODUCCION - ÓRGANO JUDICIAL" : "ESTADO DE ACTUALIZACION Y DEPRECIACION - ÓRGANO JUDICIAL"],
         [`Total activos: ${allActivos.length}`],
         [`Fecha: ${dateStr}`],
         [],
         HEADERS,
         ...rows,
-        ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "TOTAL", totalValorNeto],
+        totalRow,
       ];
 
       const ws = XLSX.utils.aoa_to_sheet(sheetData);
       // Descripción (col E, índice 4) más ancha; resto compacto para que quepa en horizontal.
-      ws["!cols"] = [{ wch: 6 }, { wch: 15 }, { wch: 24 }, { wch: 26 }, { wch: 90 }, { wch: 45 }, { wch: 28 }, { wch: 14 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 20 }, { wch: 16 }, { wch: 18 }, { wch: 18 }];
+      ws["!cols"] = [{ wch: 6 }, { wch: 15 }, { wch: 24 }, { wch: 26 }, { wch: 90 }, { wch: 45 }, { wch: 28 }, { wch: 14 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 20 }, { wch: 16 }, { wch: 20 }, { wch: 18 }, { wch: 18 }];
       // Hoja en forma horizontal al imprimir + ajustar a 1 página de ancho.
       ws["!pageSetup"] = { orientation: "landscape", paperSize: 1, fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
       ws["!margins"] = { left: 0.25, right: 0.25, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 };
@@ -296,25 +348,36 @@ export const useReporteDepreciacionExcel = () => {
         if (mesCell && typeof mesCell.v === "number") mesCell.z = mesFmt;
         const perCell = ws[XLSX.utils.encode_cell({ r: rowNumber - 1, c: 14 })];
         if (perCell && typeof perCell.v === "number") perCell.z = perFmt;
-        for (let c = 15; c <= 18; c++) {
+        for (let c = 15; c <= 19; c++) {
           const sumCell = ws[XLSX.utils.encode_cell({ r: rowNumber - 1, c })];
           if (sumCell && typeof sumCell.v === "number") sumCell.z = moneyFmt;
         }
       }
-      const totalNetoCell = ws[XLSX.utils.encode_cell({ r: 5 + rows.length, c: 18 })];
-      if (totalNetoCell && typeof totalNetoCell.v === "number") totalNetoCell.z = moneyFmt;
+      const totalRowNumber = 5 + rows.length;
+      for (let c = 8; c <= 12; c++) {
+        const totalCell = ws[XLSX.utils.encode_cell({ r: totalRowNumber, c })];
+        if (totalCell && typeof totalCell.v === "number") totalCell.z = moneyFmt;
+      }
+      const totalPerCell = ws[XLSX.utils.encode_cell({ r: totalRowNumber, c: 14 })];
+      if (totalPerCell && typeof totalPerCell.v === "number") totalPerCell.z = perFmt;
+      for (let c = 15; c <= 19; c++) {
+        const totalCell = ws[XLSX.utils.encode_cell({ r: totalRowNumber, c })];
+        if (totalCell && typeof totalCell.v === "number") totalCell.z = moneyFmt;
+      }
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, soloMaquinaria ? "Maquinaria" : "Depreciacion");
       XLSX.writeFile(
         wb,
-        soloMaquinaria
-          ? `Activos_de_MAQUINARIA_Y_EQUIPOS_DE_PRODUCCION_${dateStr}.xlsx`
-          : `Depreciacion_${dateStr}.xlsx`
+        recalcular
+          ? `Recalcular_Depreciacion_${dateStr}.xlsx`
+          : soloMaquinaria
+            ? `Activos_de_MAQUINARIA_Y_EQUIPOS_DE_PRODUCCION_${dateStr}.xlsx`
+            : `Depreciacion_${dateStr}.xlsx`
       );
 
       toast({ title: "Reporte generado", description: `Se exportaron ${allActivos.length} activos.` });
 
-      if (!soloMaquinaria) {
+      if (!soloMaquinaria && !recalcular) {
         void grabarValorNetoConProgreso(supabase, valorNetoItems, toast);
       }
     } catch (err) {

@@ -71,13 +71,14 @@ const addLogo = (doc) => {
  * Depreciacion del Periodo ((%Dep.Mes_8dec * 10) * Costo Total Actualizado),
  * Costo Total Actualizado al 09/10/2026 (costactuali_exp),
  * Revaluo (valorrevaluo por activo),
+ * Costo Total Actualizado Revaluado (Costo Total Actualizado al 09/10/2026 + Revaluo),
  * Depreciacion Total (depacumtotal_exp + Dep. Periodo),
- * Valor Neto ((Costo Total Actualizado al 09/10/2026 + Revaluo) - Dep. Total).
+ * Valor Neto (Costo Total Actualizado Revaluado - Depreciacion Total).
  * Al generar el reporte completo también guarda el Valor Neto calculado en
  * act_activos.valorneto (en segundo plano, solo filas cuyo valor cambió).
  * Con options.recalcular: solo las filas con Valor Neto negativo pasan a tener
  * Dep. Periodo = 1, se recalcula Dep. Total (Dep. Acum. Total + 1) y
- * Valor Neto = Costo Total Actualizado al 09/10/2026 - Dep. Total.
+ * Valor Neto = Costo Total Actualizado Revaluado - Dep. Total.
  * Este modo no modifica la base de datos.
  * Orden: codigoactivo ASC.
  */
@@ -237,6 +238,19 @@ export const useReporteDepreciacion = () => {
       }
 
       const valorNetoItems = [];
+      const totales = {
+        saldoInicial: 0,
+        depAcum: 0,
+        costoAct: 0,
+        depActualizada: 0,
+        depAcumTotal: 0,
+        depPeriodo: 0,
+        costoTotal0910: 0,
+        revaluo: 0,
+        costoTotalRevaluado: 0,
+        depTotal: 0,
+        valorNeto: 0,
+      };
       const body = allActivos.map((a, idx) => {
         const codigoActivo = a.codigoActivo ?? a.codigoactivo;
         const tipoRubroAct = a.tipoRubroAct ?? a.tiporubroact;
@@ -256,25 +270,36 @@ export const useReporteDepreciacion = () => {
         const costoTotal0910 = parseNumDep(a.costActualiExp ?? a.costactuali_exp);
         const depPeriodo = depMes !== null && costoTotal0910 !== null ? (depMes * 10) * costoTotal0910 : null;
         const depTotal = depAcumTotal !== null && depPeriodo !== null ? depAcumTotal + depPeriodo : null;
-        const revaluo = parseNumDep(a.valorRevaluo ?? a.valorrevaluo);
-        const costoTotalRevaluado = costoTotal0910 !== null && revaluo !== null ? costoTotal0910 + revaluo : null;
+        const revaluo = parseNumDep(a.valorRevaluo ?? a.valorrevaluo) ?? 0;
+        const costoTotalRevaluado = costoTotal0910 !== null ? costoTotal0910 + revaluo : null;
         const valorNeto = costoTotalRevaluado !== null && depTotal !== null ? costoTotalRevaluado - depTotal : null;
         // Recalcular: solo filas con Valor Neto negativo. Se fuerza Dep. Periodo = 1,
         // se recalcula Dep. Total (Dep. Acum. Total + 1) y
-        // Valor Neto = Costo Total Actualizado al 09/10/2026 - Dep. Total.
+        // Valor Neto = Costo Total Actualizado Revaluado - Dep. Total.
         let depPeriodoMostrar = depPeriodo;
         let depTotalMostrar = depTotal;
         let valorNetoMostrar = valorNeto;
         if (recalcular && valorNeto !== null && valorNeto < 0) {
           depPeriodoMostrar = 1;
           depTotalMostrar = depAcumTotal !== null ? depAcumTotal + 1 : null;
-          valorNetoMostrar = costoTotal0910 !== null && depTotalMostrar !== null ? costoTotal0910 - depTotalMostrar : null;
+          valorNetoMostrar = costoTotalRevaluado !== null && depTotalMostrar !== null ? costoTotalRevaluado - depTotalMostrar : null;
         }
         valorNetoItems.push({
           interno: a.codigoActivoInterno ?? a.codigoactivointerno,
           valorNeto: valorNetoMostrar,
           actual: parseNumDep(a.valorNeto ?? a.valorneto),
         });
+        totales.saldoInicial += saldoInicial ?? 0;
+        totales.depAcum += depAcum ?? 0;
+        totales.costoAct += costoActPordepanu ?? 0;
+        totales.depActualizada += depActualizada ?? 0;
+        totales.depAcumTotal += depAcumTotal ?? 0;
+        totales.depPeriodo += depPeriodoMostrar ?? 0;
+        totales.costoTotal0910 += costoTotal0910 ?? 0;
+        totales.revaluo += revaluo ?? 0;
+        totales.costoTotalRevaluado += costoTotalRevaluado ?? 0;
+        totales.depTotal += depTotalMostrar ?? 0;
+        totales.valorNeto += valorNetoMostrar ?? 0;
         return [
           String(idx + 1),
           codigoActivo != null ? `OJ-02-${codigoActivo}` : "—",
@@ -293,10 +318,34 @@ export const useReporteDepreciacion = () => {
           fmtPerDep(depPeriodoMostrar),
           fmtMoneyDep(costoTotal0910),
           fmtMoneyDep(revaluo),
+          fmtMoneyDep(costoTotalRevaluado),
           fmtMoneyDep(depTotalMostrar),
           fmtMoneyDep(valorNetoMostrar),
         ];
       });
+
+      const totalRow = [
+        "",
+        "",
+        "TOTAL GENERAL",
+        "",
+        "",
+        "",
+        "",
+        "",
+        fmtMoneyDep(totales.saldoInicial),
+        fmtMoneyDep(totales.depAcum),
+        fmtMoneyDep(totales.costoAct),
+        fmtMoneyDep(totales.depActualizada),
+        fmtMoneyDep(totales.depAcumTotal),
+        "",
+        fmtPerDep(totales.depPeriodo),
+        fmtMoneyDep(totales.costoTotal0910),
+        fmtMoneyDep(totales.revaluo),
+        fmtMoneyDep(totales.costoTotalRevaluado),
+        fmtMoneyDep(totales.depTotal),
+        fmtMoneyDep(totales.valorNeto),
+      ];
 
       toast({ title: "Generando PDF", description: `Construyendo reporte con ${allActivos.length} activos...` });
 
@@ -307,11 +356,9 @@ export const useReporteDepreciacion = () => {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(13);
       doc.text(
-        recalcular
-          ? "RECALCULAR DEPRECIACION - ÓRGANO JUDICIAL"
-          : soloMaquinaria
-            ? "ACTIVOS DE MAQUINARIA Y EQUIPOS DE PRODUCCION - ÓRGANO JUDICIAL"
-            : "DEPRECIACION - ÓRGANO JUDICIAL",
+        soloMaquinaria
+          ? "ACTIVOS DE MAQUINARIA Y EQUIPOS DE PRODUCCION - ÓRGANO JUDICIAL"
+          : "ESTADO DE ACTUALIZACION Y DEPRECIACION - ÓRGANO JUDICIAL",
         pageWidth / 2,
         16,
         { align: "center" }
@@ -322,11 +369,19 @@ export const useReporteDepreciacion = () => {
 
       autoTable(doc, {
         startY: 26,
-        head: [["N°", "Código Activo", "Rubro", "Tipo Rubro", "Descripción", "Ubicación", "Responsable", "Carnet", "Costo Inicial al 31/12/2025", "Dep. Acumulada al 31/12/2025", "Costo Actualizado", "Dep. Actualizada", "Dep. Acum. Total", "%Dep. Mes", "Dep. Periodo", "Costo Total Actualizado al 09/10/2026", "Revaluo", "Dep. Total", "Valor Neto"]],
+        head: [["N°", "Código Activo", "Rubro", "Tipo Rubro", "Descripción", "Ubicación", "Responsable", "Carnet", "Costo Inicial al 31/12/2025", "Depreciacion Acumulada al 31/12/2025", "Costo Actualizado", "Depreciacion Actualizada", "Depreciacion Acumulado Total", "%Dep. Mes", "Depreciacion del Periodo", "Costo Total Actualizado al 09/10/2026", "Revaluo", "Costo Total Actualizado Revaluado", "Depreciacion Total", "Valor Neto"]],
         body,
+        foot: [totalRow],
+        showFoot: "lastPage",
         theme: "striped",
         styles: { font: "helvetica", fontSize: 6, cellPadding: 1, overflow: "linebreak", valign: "middle" },
         headStyles: { fillColor: [16, 70, 140], textColor: [255, 255, 255], halign: "center", fontStyle: "bold", fontSize: 6 },
+        footStyles: { fillColor: [230, 240, 255], textColor: [16, 70, 140], halign: "right", fontStyle: "bold", fontSize: 6 },
+        didParseCell: (data) => {
+          if (data.section === "foot" && data.column.index === 2) {
+            data.cell.styles.halign = "left";
+          }
+        },
         // Hoja ya en horizontal (landscape letter). Descripción (col 4) más ancha.
         columnStyles: {
           0: { cellWidth: 7, halign: "center" },
@@ -347,7 +402,8 @@ export const useReporteDepreciacion = () => {
           15: { cellWidth: 13, halign: "right" },
           16: { cellWidth: 12, halign: "right" },
           17: { cellWidth: 13, halign: "right" },
-          18: { cellWidth: 12, halign: "right" },
+          18: { cellWidth: 13, halign: "right" },
+          19: { cellWidth: 12, halign: "right" },
         },
         margin: { top: 26, left: 8, right: 8 },
       });
