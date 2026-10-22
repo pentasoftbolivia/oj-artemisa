@@ -324,11 +324,15 @@ export const fetchResponsablesCiRun = async () => {
 
 /**
  * Obtiene el conteo total del universo de activos (head count).
+ * Universo: registros vigentes, dados de alta y con código oficial hasta 43753.
  */
 export const fetchUniversoTotalCount = async () => {
   const { count, error } = await supabase
     .from("act_activos")
-    .select("codigoactivointerno", { count: "exact", head: true });
+    .select("codigoactivo", { count: "exact", head: true })
+    .eq("ultimoregistro", 1)
+    .lte("codigoactivo", 43753)
+    .eq("artemisaaltabaja", 1);
   if (error) throw error;
   return count || 0;
 };

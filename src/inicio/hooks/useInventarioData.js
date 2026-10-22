@@ -8,6 +8,11 @@ import { normalizeCi, normalizeCiLoose, getCiPrefix, normalizarEstado } from "..
 
 const MIN_LOADING_MS = 400;
 
+// Universo del dashboard principal: activos vigentes, dados de alta y con
+// código oficial hasta 43753.
+const UNIVERSO_CODIGO_ACTIVO_MAX = 43753;
+const UNIVERSO_ARTEMISA_ALTA = 1;
+
 const ESTADO_FECHA_KEYS = {
   "EN PROCESO": "enProceso",
   INVENTARIADO: "inventariado",
@@ -276,11 +281,12 @@ export const useInventarioData = () => {
     try {
       const { count, error } = await supabase
         .from("act_activos")
-        .select("codigoactivointerno", { count: "exact", head: true })
-        .eq("ultimoregistro", 1);
-      if (!error && typeof count === "number" && count > 0) {
-        setUniversoTotal(count);
-      }
+        .select("codigoactivo", { count: "exact", head: true })
+        .eq("ultimoregistro", 1)
+        .lte("codigoactivo", UNIVERSO_CODIGO_ACTIVO_MAX)
+        .eq("artemisaaltabaja", UNIVERSO_ARTEMISA_ALTA);
+      if (error) throw error;
+      setUniversoTotal(count || 0);
     } catch (e) {
       console.error("Error loading universo total:", e);
     }
