@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import DataPagination from "@/components/ui/data-pagination";
 import LoadingSpinner from "@/components/ui/loading-spinner";
-import { RefreshCw, Scale, FileDown, Loader2, Image as ImageIcon, Dices, FileText, Upload } from "lucide-react";
+import { RefreshCw, Scale, FileDown, Loader2, Image as ImageIcon, Dices, FileText, Upload, Eye } from "lucide-react";
 import { useRevaluoData } from "../hooks/useRevaluoData";
 import RevaluoFilters from "../components/RevaluoFilters";
 import RevaluoTable from "../components/RevaluoTable";
@@ -58,6 +58,10 @@ const normRubroTxt = (s) =>
 const tieneConservacion = (a) =>
   String(a.estadoconservacion ?? a.estadoConservacion ?? "").trim() !== "";
 
+// Clave de la planilla en pantalla (worksheet) para una fila del listado.
+const rowKeyOfActivo = (a) =>
+  String(a.codigoActivoInterno ?? a.codigoactivointerno ?? a.codigoActivo ?? a._codigoActivo ?? "");
+
 const INITIAL_FILTERS = {
   codigoActivo: "",
   estadoConservacion: "TODOS",
@@ -67,11 +71,23 @@ const INITIAL_FILTERS = {
   rubro: "TODOS",
   tipoRubro: "TODOS",
   fotos: "TODOS",
+  cotizacion: "TODOS",
+  precio: "TODOS",
 };
 
 const FOTOS_LABELS = {
   SIN_FOTOS: "Sin fotos",
   UNA_FOTO_O_MAS: "1 foto o más",
+};
+
+const COTIZACION_LABELS = {
+  CON_COTIZACION: "Con cotización",
+  SIN_COTIZACION: "Sin cotización",
+};
+
+const PRECIO_LABELS = {
+  CON_PRECIO: "Con Precio Revalúo",
+  SIN_PRECIO: "Sin Precio Revalúo",
 };
 
 // Hojas por lote PDF ya generado, para continuar el correlativo de hojas entre
@@ -525,7 +541,22 @@ const RevaluoList = () => {
         estadoconservacion: a.estadoconservacion,
       };
     });
-    return mapped.sort((a, b) => String(a._ubicacion || "").localeCompare(String(b._ubicacion || ""), "es", { sensitivity: "base" }));
+    // Orden del listado: código de activo de menor a mayor (numérico).
+    // Los códigos no numéricos o vacíos van al final para no romper el orden.
+    const codigoNum = (v) => {
+      const s = String(v ?? "").trim();
+      if (s === "") return null;
+      const n = Number(s);
+      return Number.isFinite(n) ? n : null;
+    };
+    return mapped.sort((a, b) => {
+      const ca = codigoNum(a.codigoActivo);
+      const cb = codigoNum(b.codigoActivo);
+      if (ca !== null && cb !== null && ca !== cb) return ca - cb;
+      if (ca !== null && cb === null) return -1;
+      if (ca === null && cb !== null) return 1;
+      return String(a.codigoActivo ?? "").localeCompare(String(b.codigoActivo ?? ""), "es", { numeric: true, sensitivity: "base" });
+    });
   }, [data, rubroFromTipo, tipoRubroDescMap, getAmbienteName, getUbicacionDetalle, getResponsableName, getDisplayName, vidaUtilPorRubro]);
 
   const filteredBase = useMemo(() => {
@@ -614,14 +645,49 @@ const RevaluoList = () => {
     [fotosFilter]
   );
 
+  // Cotización cargada/generada en pantalla (no se persiste en la BD).
+  // Se considera que la fila tiene cotización si al menos una de c1/c2/c3 es numérica.
+  const tieneCotizacion = useCallback(
+    (a) => {
+      const ws = worksheet[rowKeyOfActivo(a)] || {};
+      return [ws.c1, ws.c2, ws.c3].some((v) => {
+        if (v === null || v === undefined || String(v).trim() === "") return false;
+        return !Number.isNaN(parseFloat(String(v).replace(",", ".")));
+      });
+    },
+    [worksheet]
+  );
+
+  // Filas con Precio Revalúo calculado (cotizaciones + años válidos en la interfaz).
+  const conPrecioRevaluo = useCallback((a) => {
+    const ws = worksheet[rowKeyOfActivo(a)] || {};
+    return calcPrecioRevaluo(a, ws, factores).precio !== null;
+  }, [worksheet, factores]);
+
   const filteredEnriched = useMemo(() => {
-    if (fotosFilter === "TODOS") return filteredBase;
-    const cache = photoCountsRef.current;
-    return filteredBase.filter((a) => {
-      const key = String(a.codigoActivo);
-      return matchFotosCount(cache[key] || 0);
-    });
-  }, [filteredBase, fotosFilter, matchFotosCount, photoCounts]);
+    const cotizacionFilter = String(appliedFilters.cotizacion || "TODOS").trim().toUpperCase();
+    const precioFilter = String(appliedFilters.precio || "TODOS").trim().toUpperCase();
+    let base =
+      fotosFilter === "TODOS"
+        ? filteredBase
+        : filteredBase.filter((a) => {
+            const key = String(a.codigoActivo);
+            return matchFotosCount(photoCountsRef.current[key] || 0);
+          });
+    if (cotizacionFilter !== "TODOS") {
+      base = base.filter((a) => {
+        const tiene = tieneCotizacion(a);
+        return cotizacionFilter === "CON_COTIZACION" ? tiene : !tiene;
+      });
+    }
+    if (precioFilter !== "TODOS") {
+      base = base.filter((a) => {
+        const tiene = conPrecioRevaluo(a);
+        return precioFilter === "CON_PRECIO" ? tiene : !tiene;
+      });
+    }
+    return base;
+  }, [filteredBase, fotosFilter, matchFotosCount, photoCounts, appliedFilters.cotizacion, appliedFilters.precio, tieneCotizacion, conPrecioRevaluo]);
 
   const totalPages = Math.max(1, Math.ceil(filteredEnriched.length / pageSize));
   const safeCurrentPage = Math.min(currentPage, totalPages);
@@ -673,7 +739,9 @@ const RevaluoList = () => {
     appliedFilters.carnet ||
     (appliedFilters.rubro && appliedFilters.rubro !== "TODOS") ||
     (appliedFilters.tipoRubro && appliedFilters.tipoRubro !== "TODOS") ||
-    (appliedFilters.fotos && appliedFilters.fotos !== "TODOS")
+    (appliedFilters.fotos && appliedFilters.fotos !== "TODOS") ||
+    (appliedFilters.cotizacion && appliedFilters.cotizacion !== "TODOS") ||
+    (appliedFilters.precio && appliedFilters.precio !== "TODOS")
   );
 
   const handleEdit = useCallback(
@@ -783,6 +851,8 @@ const RevaluoList = () => {
       if (appliedFilters.rubro && appliedFilters.rubro !== "TODOS") parts.push(`Rubro: ${appliedFilters.rubro}`);
       if (appliedFilters.tipoRubro && appliedFilters.tipoRubro !== "TODOS") parts.push(`Tipo Rubro: ${appliedFilters.tipoRubro}`);
       if (appliedFilters.fotos && appliedFilters.fotos !== "TODOS") parts.push(`Fotos: ${FOTOS_LABELS[appliedFilters.fotos] || appliedFilters.fotos}`);
+      if (appliedFilters.cotizacion && appliedFilters.cotizacion !== "TODOS") parts.push(`Cotización: ${COTIZACION_LABELS[appliedFilters.cotizacion] || appliedFilters.cotizacion}`);
+      if (appliedFilters.precio && appliedFilters.precio !== "TODOS") parts.push(`Precio Revalúo: ${PRECIO_LABELS[appliedFilters.precio] || appliedFilters.precio}`);
       await generateRevaluoReportSimple({
         activos: filteredEnriched,
         filtrosResumen: parts.join(" | "),
@@ -843,19 +913,12 @@ const RevaluoList = () => {
     if (appliedFilters.rubro && appliedFilters.rubro !== "TODOS") parts.push(`Rubro: ${appliedFilters.rubro}`);
     if (appliedFilters.tipoRubro && appliedFilters.tipoRubro !== "TODOS") parts.push(`Tipo Rubro: ${appliedFilters.tipoRubro}`);
     if (appliedFilters.fotos && appliedFilters.fotos !== "TODOS") parts.push(`Fotos: ${FOTOS_LABELS[appliedFilters.fotos] || appliedFilters.fotos}`);
+    if (appliedFilters.cotizacion && appliedFilters.cotizacion !== "TODOS") parts.push(`Cotización: ${COTIZACION_LABELS[appliedFilters.cotizacion] || appliedFilters.cotizacion}`);
+    if (appliedFilters.precio && appliedFilters.precio !== "TODOS") parts.push(`Precio Revalúo: ${PRECIO_LABELS[appliedFilters.precio] || appliedFilters.precio}`);
     setRangoList(filteredEnriched);
     setRangoFiltros(parts.join(" | "));
     setIsRangeModalOpen(true);
   };
-
-  const rowKeyOfList = (a) =>
-    String(a.codigoActivoInterno ?? a.codigoactivointerno ?? a.codigoActivo ?? a._codigoActivo ?? "");
-
-  // Filas con Precio Revalúo calculado (cotizaciones + años válidos en la interfaz).
-  const conPrecioRevaluo = useCallback((a) => {
-    const ws = worksheet[rowKeyOfList(a)] || {};
-    return calcPrecioRevaluo(a, ws, factores).precio !== null;
-  }, [worksheet, factores]);
 
   const resolveRangoPrecio = (a) => {
     const txt = normRubroTxt(`${a._rubro || ""} ${a._tipoRubro || ""}`);
@@ -883,7 +946,7 @@ const RevaluoList = () => {
         const [min, max] = resolveRangoPrecio(a);
         const base = min + Math.random() * (max - min);
         const vary = () => Math.max(1, base * (0.9 + Math.random() * 0.2));
-        next[rowKeyOfList(a)] = {
+        next[rowKeyOfActivo(a)] = {
           c1: vary().toFixed(2),
           c2: vary().toFixed(2),
           c3: vary().toFixed(2),
@@ -911,7 +974,7 @@ const RevaluoList = () => {
     }
     const pendientes = [];
     filas.forEach((a) => {
-      const ws = worksheet[rowKeyOfList(a)] || {};
+      const ws = worksheet[rowKeyOfActivo(a)] || {};
       const calc = calcPrecioRevaluo(a, ws, factores);
       if (calc.precio === null) return;
       const interno = a.codigoActivoInterno ?? a.codigoactivointerno;
@@ -960,6 +1023,8 @@ const RevaluoList = () => {
   // solo en las filas con dato en Conservación. El Promedio lo calcula la interfaz.
   const [isSubirModalOpen, setIsSubirModalOpen] = useState(false);
   const [isUploadingExcel, setIsUploadingExcel] = useState(false);
+  const [uploadDetail, setUploadDetail] = useState(null);
+  const [isUploadDetailOpen, setIsUploadDetailOpen] = useState(false);
 
   // Tipo de cambio para convertir MERCADO 1-3 del Excel antes de llevarlos a la interfaz.
   const TIPO_CAMBIO_MERCADO = 11.7;
@@ -982,10 +1047,19 @@ const RevaluoList = () => {
       }
       const byCodigo = {};
       filas.forEach((a) => {
-        byCodigo[normCodigoActivo(a.codigoActivo)] = a;
+        byCodigo[normCodigoActivo(a.codigoActivo ?? a.codigoactivo)] = a;
       });
+      // Todos los activos del universo (sin filtros ni condición de Conservación),
+      // para poder explicar por qué un código del Excel no se aplicó.
+      const universoByCodigo = new Map();
+      (data || []).forEach((a) => {
+        const code = normCodigoActivo(a.codigoactivo ?? a.codigoActivo);
+        if (code) universoByCodigo.set(code, a);
+      });
+
       const patch = {};
       const noEncontrados = [];
+      let sinValores = 0;
       items.forEach((it) => {
         const a = byCodigo[it.codigo];
         if (!a) { noEncontrados.push(it.codigo); return; }
@@ -993,14 +1067,50 @@ const RevaluoList = () => {
         it.c.forEach((v, k) => { if (v !== null) cell[`c${k + 1}`] = (v * TIPO_CAMBIO_MERCADO).toFixed(2); });
         it.n.forEach((v, k) => { if (v) cell[`n${k + 1}`] = v; });
         (it.u || []).forEach((v, k) => { if (v) cell[`u${k + 1}`] = v; });
-        if (Object.keys(cell).length === 0) return;
-        patch[rowKeyOfList(a)] = cell;
+        if (Object.keys(cell).length === 0) { sinValores += 1; return; }
+        patch[rowKeyOfActivo(a)] = cell;
       });
       const actualizados = Object.keys(patch).length;
+
+      // Desglose de la carga: qué códigos del Excel quedaron fuera y por qué.
+      const ocurrenciasPorCodigo = new Map();
+      items.forEach((it) => {
+        ocurrenciasPorCodigo.set(it.codigo, (ocurrenciasPorCodigo.get(it.codigo) || 0) + 1);
+      });
+      const duplicados = [...ocurrenciasPorCodigo.entries()]
+        .filter(([, veces]) => veces > 1)
+        .map(([codigo, veces]) => ({ codigo, veces }))
+        .sort((a, b) => a.codigo.localeCompare(b.codigo, "es", { numeric: true }));
+
+      const noAplicados = [...new Set(noEncontrados)]
+        .map((codigo) => {
+          const enUniverso = universoByCodigo.get(codigo);
+          if (!enUniverso) return { codigo, motivo: "No está en el universo de REVALUO" };
+          const cons = String(enUniverso.estadoconservacion ?? enUniverso.estadoConservacion ?? "").trim();
+          if (cons === "") return { codigo, motivo: "Sin Conservación en la BD" };
+          return { codigo, motivo: "Excluido por los filtros activos" };
+        })
+        .sort((a, b) => a.codigo.localeCompare(b.codigo, "es", { numeric: true }));
+
+      setUploadDetail({
+        filasExcel: items.length,
+        codigosUnicos: ocurrenciasPorCodigo.size,
+        duplicados,
+        sinCodigo,
+        sinValores,
+        elegibles: filas.length,
+        sinConservacion: Math.max(0, filteredEnriched.length - filas.length),
+        actualizados,
+        noAplicados,
+        ocurrenciasNoAplicadas: noEncontrados.length,
+      });
+
       if (actualizados === 0) {
-        toast({ title: "Sin coincidencias", description: "Ningún Codigo Activo del Excel está en las filas con Conservación.", variant: "destructive" });
+        setIsUploadDetailOpen(true);
+        toast({ title: "Sin coincidencias", description: "Ningún Codigo Activo del Excel está en las filas con Conservación. Revisá el detalle.", variant: "destructive" });
         return;
       }
+
       setWorksheet((prev) => {
         const next = { ...prev };
         Object.entries(patch).forEach(([k, v]) => {
@@ -1008,16 +1118,32 @@ const RevaluoList = () => {
         });
         return next;
       });
+
       const extras = [
-        noEncontrados.length > 0 ? `${noEncontrados.length} códigos no están en la lista` : null,
+        noAplicados.length > 0 ? `${noAplicados.length} códigos no aplicados` : null,
+        duplicados.length > 0 ? `${duplicados.length} códigos duplicados en el Excel` : null,
         sinCodigo > 0 ? `${sinCodigo} filas sin código` : null,
+        sinValores > 0 ? `${sinValores} filas sin valores` : null,
       ].filter(Boolean).join(" · ");
-      toast({ title: "Datos cargados", description: `Cotizaciones, respaldos y URLs del Excel para ${actualizados} filas con Conservación.${extras ? ` (${extras})` : ""}` });
+      toast({ title: "Datos cargados", description: `${actualizados} de ${ocurrenciasPorCodigo.size} códigos del Excel aplicados.${extras ? ` (${extras})` : ""}` });
+
+      if (noAplicados.length > 0 || duplicados.length > 0) setIsUploadDetailOpen(true);
     } catch (err) {
       console.error("Error cargando revaluo4.xlsx:", err);
       toast({ title: "Error", description: err.message || "No se pudo leer el Excel.", variant: "destructive" });
     } finally {
       setIsUploadingExcel(false);
+    }
+  };
+
+  const handleCopyNoAplicados = async () => {
+    const codigos = (uploadDetail?.noAplicados || []).map((d) => d.codigo);
+    if (codigos.length === 0) return;
+    try {
+      await navigator.clipboard.writeText(codigos.join("\n"));
+      toast({ title: "Copiado", description: `${codigos.length} códigos copiados al portapapeles.` });
+    } catch {
+      toast({ title: "No se pudo copiar", description: "Copiá los códigos manualmente desde la lista.", variant: "destructive" });
     }
   };
 
@@ -1040,6 +1166,8 @@ const RevaluoList = () => {
       if (appliedFilters.rubro && appliedFilters.rubro !== "TODOS") parts.push(`Rubro: ${appliedFilters.rubro}`);
       if (appliedFilters.tipoRubro && appliedFilters.tipoRubro !== "TODOS") parts.push(`Tipo Rubro: ${appliedFilters.tipoRubro}`);
       if (appliedFilters.fotos && appliedFilters.fotos !== "TODOS") parts.push(`Fotos: ${FOTOS_LABELS[appliedFilters.fotos] || appliedFilters.fotos}`);
+      if (appliedFilters.cotizacion && appliedFilters.cotizacion !== "TODOS") parts.push(`Cotización: ${COTIZACION_LABELS[appliedFilters.cotizacion] || appliedFilters.cotizacion}`);
+      if (appliedFilters.precio && appliedFilters.precio !== "TODOS") parts.push(`Precio Revalúo: ${PRECIO_LABELS[appliedFilters.precio] || appliedFilters.precio}`);
       await generateRevaluoFaltantesReport({
         activos: rows,
         filtrosResumen: parts.join(" | "),
@@ -1075,6 +1203,8 @@ const RevaluoList = () => {
       if (appliedFilters.rubro && appliedFilters.rubro !== "TODOS") parts.push(`Rubro: ${appliedFilters.rubro}`);
       if (appliedFilters.tipoRubro && appliedFilters.tipoRubro !== "TODOS") parts.push(`Tipo Rubro: ${appliedFilters.tipoRubro}`);
       if (appliedFilters.fotos && appliedFilters.fotos !== "TODOS") parts.push(`Fotos: ${FOTOS_LABELS[appliedFilters.fotos] || appliedFilters.fotos}`);
+      if (appliedFilters.cotizacion && appliedFilters.cotizacion !== "TODOS") parts.push(`Cotización: ${COTIZACION_LABELS[appliedFilters.cotizacion] || appliedFilters.cotizacion}`);
+      if (appliedFilters.precio && appliedFilters.precio !== "TODOS") parts.push(`Precio Revalúo: ${PRECIO_LABELS[appliedFilters.precio] || appliedFilters.precio}`);
       await generateRevaluoConservacionPDFReport({
         activos: rows,
         filtrosResumen: parts.join(" | "),
@@ -1295,7 +1425,7 @@ const RevaluoList = () => {
             <Scale className="h-5 w-5 sm:h-6 sm:w-6 text-emerald-600 shrink-0" />
             REVALUO
           </h1>
-          <p className="text-sm text-muted-foreground leading-tight">Listado de activos para Revalúo Ordenado por Ubicación</p>
+          <p className="text-sm text-muted-foreground leading-tight">Listado de activos para Revalúo Ordenado por Código de Activo</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           <Button onClick={handleGenerateMissingReport} disabled={filteredEnriched.length === 0} className="bg-amber-600 hover:bg-amber-700 text-white w-full sm:w-auto min-h-11 sm:min-h-9 text-xs sm:text-sm">
@@ -1534,6 +1664,16 @@ const RevaluoList = () => {
               {isUploadingExcel ? <Loader2 className="mr-2 h-4 w-4 animate-spin shrink-0" /> : <Upload className="mr-2 h-4 w-4 shrink-0" />}
               {isUploadingExcel ? "Cargando..." : "Cargar Excel"}
             </Button>
+            {uploadDetail && (
+              <Button
+                onClick={() => setIsUploadDetailOpen(true)}
+                variant="outline"
+                className="w-full min-h-11 text-xs sm:text-sm"
+              >
+                <Eye className="mr-2 h-4 w-4 shrink-0" />
+                Ver detalle de la última carga ({uploadDetail.noAplicados.length} no aplicados)
+              </Button>
+            )}
             <Button
               onClick={handleGrabarPrecioRevaluo}
               disabled={filteredEnriched.length === 0 || isSavingRevaluo}
@@ -1560,6 +1700,108 @@ const RevaluoList = () => {
               {isGeneratingDatosReport ? "Generando..." : "Generar reporte"}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isUploadDetailOpen} onOpenChange={setIsUploadDetailOpen}>
+        <DialogContent className="w-[96vw] sm:max-w-[620px] max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+          <DialogHeader className="space-y-1">
+            <DialogTitle className="text-base sm:text-lg leading-tight">Detalle de SUBIR DATOS</DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm leading-tight">
+              Códigos del Excel que no se aplicaron a la lista actual y el motivo de cada uno.
+            </DialogDescription>
+          </DialogHeader>
+
+          {uploadDetail && (
+            <div className="space-y-4 py-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                <div className="rounded-md border p-2">
+                  <div className="text-muted-foreground leading-tight">Filas en Excel</div>
+                  <div className="font-mono font-semibold text-sm">{uploadDetail.filasExcel}</div>
+                </div>
+                <div className="rounded-md border p-2">
+                  <div className="text-muted-foreground leading-tight">Códigos únicos</div>
+                  <div className="font-mono font-semibold text-sm">{uploadDetail.codigosUnicos}</div>
+                </div>
+                <div className="rounded-md border p-2">
+                  <div className="text-muted-foreground leading-tight">Duplicados en Excel</div>
+                  <div className="font-mono font-semibold text-sm">{uploadDetail.duplicados.length}</div>
+                </div>
+                <div className="rounded-md border p-2">
+                  <div className="text-muted-foreground leading-tight">Sin código / sin valores</div>
+                  <div className="font-mono font-semibold text-sm">{uploadDetail.sinCodigo} / {uploadDetail.sinValores}</div>
+                </div>
+                <div className="rounded-md border p-2">
+                  <div className="text-muted-foreground leading-tight">Con Conservación (elegibles)</div>
+                  <div className="font-mono font-semibold text-sm">{uploadDetail.elegibles}</div>
+                </div>
+                <div className="rounded-md border p-2">
+                  <div className="text-muted-foreground leading-tight">Sin Conservación en la lista</div>
+                  <div className="font-mono font-semibold text-sm">{uploadDetail.sinConservacion}</div>
+                </div>
+                <div className="rounded-md border p-2">
+                  <div className="text-muted-foreground leading-tight">Aplicados</div>
+                  <div className="font-mono font-semibold text-sm text-emerald-700">{uploadDetail.actualizados}</div>
+                </div>
+                <div className="rounded-md border p-2">
+                  <div className="text-muted-foreground leading-tight">No aplicados</div>
+                  <div className="font-mono font-semibold text-sm text-red-600">{uploadDetail.noAplicados.length}</div>
+                </div>
+              </div>
+
+              {uploadDetail.duplicados.length > 0 && (
+                <div className="space-y-1">
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Códigos duplicados en el Excel ({uploadDetail.duplicados.length})
+                  </div>
+                  <div className="rounded-md border p-2 text-xs flex flex-wrap gap-2">
+                    {uploadDetail.duplicados.map((d) => (
+                      <span key={d.codigo} className="font-mono bg-muted px-1.5 py-0.5 rounded border">
+                        {d.codigo} ×{d.veces}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-tight">
+                    Se aplican una sola vez (gana la última fila del Excel).
+                  </p>
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    No aplicados ({uploadDetail.noAplicados.length})
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleCopyNoAplicados}
+                    disabled={uploadDetail.noAplicados.length === 0}
+                    className="h-7 px-2 text-[11px]"
+                  >
+                    Copiar códigos
+                  </Button>
+                </div>
+                {uploadDetail.noAplicados.length === 0 ? (
+                  <p className="text-xs text-muted-foreground rounded-md border p-3">
+                    Todos los códigos del Excel se aplicaron correctamente.
+                  </p>
+                ) : (
+                  <div className="max-h-64 overflow-y-auto rounded-md border divide-y">
+                    {uploadDetail.noAplicados.map((d) => (
+                      <div key={d.codigo} className="flex items-center justify-between gap-3 px-2 py-1.5 text-xs">
+                        <span className="font-mono font-semibold shrink-0">{d.codigo}</span>
+                        <span className="text-muted-foreground text-right leading-tight">{d.motivo}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="text-[11px] text-muted-foreground leading-tight">
+                  «Excluido por los filtros activos»: limpiá los filtros del listado y volvé a cargar. «Sin Conservación en la BD»: el activo existe pero no tiene estado de conservación.
+                </p>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

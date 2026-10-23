@@ -27,6 +27,18 @@ const FOTOS_OPTIONS = [
   { value: "UNA_FOTO_O_MAS", label: "1 foto o más" },
 ];
 
+const COTIZACION_OPTIONS = [
+  { value: "TODOS", label: "Todas" },
+  { value: "CON_COTIZACION", label: "Con cotización" },
+  { value: "SIN_COTIZACION", label: "Sin cotización" },
+];
+
+const PRECIO_OPTIONS = [
+  { value: "TODOS", label: "Todos" },
+  { value: "CON_PRECIO", label: "Con Precio Revalúo" },
+  { value: "SIN_PRECIO", label: "Sin Precio Revalúo" },
+];
+
 const RevaluoFilters = memo(({ filters, onFilterChange, onClearFilters, onSearch, rubroOptions = [], tipoRubroOptions = [] }) => {
   const hasActive =
     Boolean(filters.codigoActivo) ||
@@ -36,7 +48,9 @@ const RevaluoFilters = memo(({ filters, onFilterChange, onClearFilters, onSearch
     Boolean(filters.carnet) ||
     (filters.rubro && filters.rubro !== "TODOS") ||
     (filters.tipoRubro && filters.tipoRubro !== "TODOS") ||
-    (filters.fotos && filters.fotos !== "TODOS");
+    (filters.fotos && filters.fotos !== "TODOS") ||
+    (filters.cotizacion && filters.cotizacion !== "TODOS") ||
+    (filters.precio && filters.precio !== "TODOS");
 
   return (
     <Card className="overflow-hidden">
@@ -113,6 +127,42 @@ const RevaluoFilters = memo(({ filters, onFilterChange, onClearFilters, onSearch
               emptyMessage="Sin resultados"
               wrapText
             />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="cotizacion" className="text-xs sm:text-sm">
+              Cotización
+            </Label>
+            <Select value={filters.cotizacion || "TODOS"} onValueChange={(v) => onFilterChange("cotizacion", v)}>
+              <SelectTrigger id="cotizacion" className="h-11 sm:h-9 text-sm">
+                <SelectValue placeholder="Todas" />
+              </SelectTrigger>
+              <SelectContent>
+                {COTIZACION_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="precio" className="text-xs sm:text-sm">
+              Precio Revalúo
+            </Label>
+            <Select value={filters.precio || "TODOS"} onValueChange={(v) => onFilterChange("precio", v)}>
+              <SelectTrigger id="precio" className="h-11 sm:h-9 text-sm">
+                <SelectValue placeholder="Todos" />
+              </SelectTrigger>
+              <SelectContent>
+                {PRECIO_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-1.5">
