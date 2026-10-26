@@ -6,6 +6,7 @@ import { toCamelCaseArray } from "@/lib/mapFields";
 import { useToast } from "@/hooks/use-toast";
 import { ACTIVO_COLUMNS } from "@/lib/activoColumns";
 import { normalizeCi, normalizeCiLoose, getCiPrefix } from "../constants/inventarioConstants";
+import { buildParamTasaMap, resolveTasaFromParams } from "../constants/depreciacionConstants";
 
 const formatError = (err) => {
   if (!err) return "Error desconocido";
@@ -22,9 +23,27 @@ const formatError = (err) => {
 
 const clean = (v) => String(v ?? "").replace(/\s+/g, " ").trim() || "—";
 
+const parseNum = (v) => {
+  if (v === null || v === undefined || String(v).trim() === "") return null;
+  const n = Number(String(v).replace(",", "."));
+  return Number.isFinite(n) ? n : null;
+};
+
+const FALTANTES_DEP_HEADERS = [
+  "Costo Inicial al 31/12/2025",
+  "Depreciacion Acumulada al 31/12/2025",
+  "Costo Actualizado",
+  "Depreciacion Actualizada",
+  "Depreciacion Acumulado Total",
+  "%Dep. Mes",
+  "Depreciacion del Periodo",
+  "Costo Total Actualizado",
+  "Depreciacion Total",
+];
+
 const HEADERS = [
   "N°", "Código Activo", "Rubro", "Tipo Rubro", "Descripción",
-  "Ubicación", "Responsable", "Carnet",
+  "Ubicación", "Responsable", "Carnet", ...FALTANTES_DEP_HEADERS,
 ];
 
 /**
@@ -42,7 +61,7 @@ export const useReporteFaltantesActivoExcel = () => {
     try {
       toast({ title: "Generando Faltantes en Estado Activo (Excel)", description: "Cargando catálogos..." });
 
-      const [rubros, tipoRubros, ambientes, responsables, ciudades, inmuebles, niveles] = await Promise.all([
+      const [rubros, tipoRubros, ambientes, responsables, ciudades, inmuebles, niveles, paramDep] = await Promise.all([
         getCachedCatalog("act_rubro"),
         getCachedCatalog("act_tiporubro"),
         getCachedCatalog("act_ambiente"),
@@ -50,7 +69,12 @@ export const useReporteFaltantesActivoExcel = () => {
         getCachedCatalog("act_ciudad"),
         getCachedCatalog("act_inmueble"),
         getCachedCatalog("act_nivel"),
+        supabase.from("act_param_depreciacion").select("rubro,tasa_anual").then(({ data, error }) => {
+          if (error) throw error;
+          return data || [];
+        }),
       ]);
+      const paramTasaMap = buildParamTasaMap(paramDep);
 
       const rubroDescMap = {};
       (rubros || []).forEach((r) => {
@@ -121,7 +145,7 @@ export const useReporteFaltantesActivoExcel = () => {
         while (true) {
           const { data, error } = await supabase
             .from("act_activos")
-            .select(`${ACTIVO_COLUMNS},artemisaaltabaja`)
+            .select(`${ACTIVO_COLUMNS},artemisaaltabaja,saldoinicial_exp,depacum_exp,pordepanu,actdepacum_exp,depacumtotal_exp,costactuali_exp`)
             .eq("artemisaaltabaja", 1)
             .order("codigoactivo", { ascending: true })
             .range(from, from + FETCH_CHUNK - 1);
@@ -155,12 +179,43 @@ export const useReporteFaltantesActivoExcel = () => {
       toast({ title: "Generando Excel", description: `Construyendo reporte con ${allActivos.length} activos...` });
 
       const dateStr = new Date().toISOString().slice(0, 10);
+      const totales = {
+        costoInicial: 0,
+        depAcum: 0,
+        costoActualizado: 0,
+        depActualizada: 0,
+        depAcumTotal: 0,
+        depPeriodo: 0,
+        costoTotal: 0,
+        depTotal: 0,
+      };
       const rows = allActivos.map((a, idx) => {
         const codigoActivo = a.codigoActivo ?? a.codigoactivo;
         const tipoRubroAct = a.tipoRubroAct ?? a.tiporubroact;
         const rubroDesc = rubroFromTipo[tipoRubroAct] ?? rubroFromTipo[String(tipoRubroAct)] ?? "";
         const ambCode = String(a.codigoAmbiente ?? a.codigoambiente ?? "").trim();
         const ciRaw = String(a.cirun ?? "").trim();
+
+        const costoInicial = parseNum(a.saldoInicialExp ?? a.saldoinicial_exp);
+        const depAcum = parseNum(a.depAcumExp ?? a.depacum_exp);
+        const costoActualizado = parseNum(a.porDepAnu ?? a.pordepanu);
+        const depActualizada = parseNum(a.actDepAcumExp ?? a.actdepacum_exp);
+        const depAcumTotal = parseNum(a.depAcumTotalExp ?? a.depacumtotal_exp);
+        const costoTotal = parseNum(a.costActualiExp ?? a.costactuali_exp);
+        const tasaAnual = resolveTasaFromParams(rubroDesc, paramTasaMap);
+        const depMes = tasaAnual != null ? tasaAnual / 12 : null;
+        const depPeriodo = depMes !== null && costoTotal !== null ? (depMes * 10) * costoTotal : null;
+        const depTotal = depAcumTotal !== null && depPeriodo !== null ? depAcumTotal + depPeriodo : null;
+
+        totales.costoInicial += costoInicial ?? 0;
+        totales.depAcum += depAcum ?? 0;
+        totales.costoActualizado += costoActualizado ?? 0;
+        totales.depActualizada += depActualizada ?? 0;
+        totales.depAcumTotal += depAcumTotal ?? 0;
+        totales.depPeriodo += depPeriodo ?? 0;
+        totales.costoTotal += costoTotal ?? 0;
+        totales.depTotal += depTotal ?? 0;
+
         return [
           idx + 1,
           codigoActivo != null ? `OJ-02-${codigoActivo}` : "—",
@@ -170,6 +225,15 @@ export const useReporteFaltantesActivoExcel = () => {
           clean(ubicacionMap[ambCode] || ambCode),
           clean(responsableNameOf(ciRaw)),
           ciRaw || "—",
+          costoInicial ?? "",
+          depAcum ?? "",
+          costoActualizado ?? "",
+          depActualizada ?? "",
+          depAcumTotal ?? "",
+          depMes ?? "",
+          depPeriodo ?? "",
+          costoTotal ?? "",
+          depTotal ?? "",
         ];
       });
 
@@ -180,11 +244,14 @@ export const useReporteFaltantesActivoExcel = () => {
         [],
         HEADERS,
         ...rows,
-        ["", "", "", "", "", "", "TOTAL", allActivos.length],
+        ["", "", "", "", "", "", "TOTAL", allActivos.length, totales.costoInicial, totales.depAcum, totales.costoActualizado, totales.depActualizada, totales.depAcumTotal, "", totales.depPeriodo, totales.costoTotal, totales.depTotal],
       ];
 
       const ws = XLSX.utils.aoa_to_sheet(sheetData);
-      ws["!cols"] = [{ wch: 6 }, { wch: 16 }, { wch: 28 }, { wch: 30 }, { wch: 70 }, { wch: 50 }, { wch: 32 }, { wch: 16 }];
+      ws["!cols"] = [
+        { wch: 6 }, { wch: 12 }, { wch: 16 }, { wch: 18 }, { wch: 40 }, { wch: 26 }, { wch: 18 }, { wch: 12 },
+        { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
+      ];
       ws["!pageSetup"] = { orientation: "landscape", paperSize: 1, fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
       ws["!margins"] = { left: 0.25, right: 0.25, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 };
       const wb = XLSX.utils.book_new();

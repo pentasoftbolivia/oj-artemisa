@@ -579,6 +579,21 @@ const ReportesList = () => {
                   <span className="whitespace-normal break-words text-center leading-tight">FALTANTES EN ESTADO ACTIVO - ANEXO B</span>
                 </Button>
                 {unBoton("faltantesPorRubro", "FALTANTES POR RUBRO", "bg-zinc-600 hover:bg-zinc-700", "Mismo criterio que Faltantes en Estado Activo, agrupado por rubro")}
+                <Button
+                  onClick={async () => {
+                    await generateEncontradosBajaActivos({ faltantes: true, recalcular: true });
+                    await generateEncontradosBajaActivosExcel({ faltantes: true, recalcular: true });
+                    await generateEncontradosPorRubro({ faltantes: true, recalcular: true });
+                    await generateEncontradosPorRubroExcel({ faltantes: true, recalcular: true });
+                  }}
+                  disabled={busy}
+                  className="w-full justify-center text-white min-h-11 !h-auto !py-2 text-[11px] sm:text-xs !whitespace-normal text-center leading-tight bg-blue-950 hover:bg-blue-900"
+                  aria-label="Recalcular Faltantes"
+                  title="Mismo criterio que Faltantes en Estado Activo. Fuerza Dep. Periodo = 1 en activos con Valor Neto negativo, recalcula Dep. Total y genera los reportes en PDF y Excel, tanto el detalle como el resumen por rubro"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2 shrink-0" />
+                  <span className="whitespace-normal break-words text-center leading-tight">RECALCULAR FALTANTES</span>
+                </Button>
               </div>
               <div className="flex flex-col gap-2">
                 {unBoton("obsoleto", "OBSOLETO - ANEXO E", "bg-orange-700 hover:bg-orange-800", "Activos codigoactivo <= 43753, estadoinventario con dato, artemisaaltabaja=1 y estadoconservacion = MALO")}

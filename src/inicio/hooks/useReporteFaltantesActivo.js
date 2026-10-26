@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { LOGO_JPG_DATA_URL } from "@/lib/logoJpgBase64";
 import { ACTIVO_COLUMNS } from "@/lib/activoColumns";
 import { normalizeCi, normalizeCiLoose, getCiPrefix } from "../constants/inventarioConstants";
+import { buildParamTasaMap, resolveTasaFromParams } from "../constants/depreciacionConstants";
 
 const formatError = (err) => {
   if (!err) return "Error desconocido";
@@ -31,6 +32,38 @@ const addLogo = (doc) => {
   } catch {}
 };
 
+const fmtMoney = (v) => {
+  if (v === null || v === undefined || v === "") return "0.00";
+  const n = Number(v);
+  if (Number.isNaN(n)) return String(v);
+  return n.toLocaleString("es-BO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+const fmtMes = (v) => {
+  if (v === null || v === undefined || v === "") return "";
+  const n = Number(v);
+  if (Number.isNaN(n)) return String(v);
+  return n.toFixed(8);
+};
+
+const parseNum = (v) => {
+  if (v === null || v === undefined || String(v).trim() === "") return null;
+  const n = Number(String(v).replace(",", "."));
+  return Number.isFinite(n) ? n : null;
+};
+
+const FALTANTES_DEP_HEADERS = [
+  "Costo Inicial al 31/12/2025",
+  "Depreciacion Acumulada al 31/12/2025",
+  "Costo Actualizado",
+  "Depreciacion Actualizada",
+  "Depreciacion Acumulado Total",
+  "%Dep. Mes",
+  "Depreciacion del Periodo",
+  "Costo Total Actualizado",
+  "Depreciacion Total",
+];
+
 /**
  * Reporte FALTANTES EN ESTADO ACTIVO (PDF).
  * Misma lógica que ENCONTRADOS EN ESTADO BAJA pero invertida.
@@ -50,7 +83,7 @@ export const useReporteFaltantesActivo = () => {
     try {
       toast({ title: "Generando Faltantes en Estado Activo", description: "Cargando catálogos..." });
 
-      const [rubros, tipoRubros, ambientes, responsables, ciudades, inmuebles, niveles] = await Promise.all([
+      const [rubros, tipoRubros, ambientes, responsables, ciudades, inmuebles, niveles, paramDep] = await Promise.all([
         getCachedCatalog("act_rubro"),
         getCachedCatalog("act_tiporubro"),
         getCachedCatalog("act_ambiente"),
@@ -58,7 +91,12 @@ export const useReporteFaltantesActivo = () => {
         getCachedCatalog("act_ciudad"),
         getCachedCatalog("act_inmueble"),
         getCachedCatalog("act_nivel"),
+        supabase.from("act_param_depreciacion").select("rubro,tasa_anual").then(({ data, error }) => {
+          if (error) throw error;
+          return data || [];
+        }),
       ]);
+      const paramTasaMap = buildParamTasaMap(paramDep);
 
       const rubroDescMap = {};
       (rubros || []).forEach((r) => {
@@ -130,7 +168,7 @@ export const useReporteFaltantesActivo = () => {
           // WHERE artemisaaltabaja=1 (el OR NULL/vacío de estadoinventario se filtra en cliente)
           const { data, error } = await supabase
             .from("act_activos")
-            .select(`${ACTIVO_COLUMNS},artemisaaltabaja`)
+            .select(`${ACTIVO_COLUMNS},artemisaaltabaja,saldoinicial_exp,depacum_exp,pordepanu,actdepacum_exp,depacumtotal_exp,costactuali_exp`)
             .eq("artemisaaltabaja", 1)
             .order("codigoactivo", { ascending: true })
             .range(from, from + FETCH_CHUNK - 1);
@@ -162,6 +200,17 @@ export const useReporteFaltantesActivo = () => {
         return;
       }
 
+      const totales = {
+        costoInicial: 0,
+        depAcum: 0,
+        costoActualizado: 0,
+        depActualizada: 0,
+        depAcumTotal: 0,
+        depPeriodo: 0,
+        costoTotal: 0,
+        depTotal: 0,
+      };
+
       const body = allActivos.map((a, idx) => {
         const codigoActivo = a.codigoActivo ?? a.codigoactivo;
         const tipoRubroAct = a.tipoRubroAct ?? a.tiporubroact;
@@ -169,6 +218,27 @@ export const useReporteFaltantesActivo = () => {
         const tipoDesc = tipoRubroDescMap[tipoRubroAct] ?? tipoRubroDescMap[String(tipoRubroAct)] ?? "—";
         const ambCode = String(a.codigoAmbiente ?? a.codigoambiente ?? "").trim();
         const ciRaw = String(a.cirun ?? "").trim();
+
+        const costoInicial = parseNum(a.saldoInicialExp ?? a.saldoinicial_exp);
+        const depAcum = parseNum(a.depAcumExp ?? a.depacum_exp);
+        const costoActualizado = parseNum(a.porDepAnu ?? a.pordepanu);
+        const depActualizada = parseNum(a.actDepAcumExp ?? a.actdepacum_exp);
+        const depAcumTotal = parseNum(a.depAcumTotalExp ?? a.depacumtotal_exp);
+        const costoTotal = parseNum(a.costActualiExp ?? a.costactuali_exp);
+        const tasaAnual = resolveTasaFromParams(rubroDesc, paramTasaMap);
+        const depMes = tasaAnual != null ? Number((tasaAnual / 12).toFixed(8)) : null;
+        const depPeriodo = depMes !== null && costoTotal !== null ? (depMes * 10) * costoTotal : null;
+        const depTotal = depAcumTotal !== null && depPeriodo !== null ? depAcumTotal + depPeriodo : null;
+
+        totales.costoInicial += costoInicial ?? 0;
+        totales.depAcum += depAcum ?? 0;
+        totales.costoActualizado += costoActualizado ?? 0;
+        totales.depActualizada += depActualizada ?? 0;
+        totales.depAcumTotal += depAcumTotal ?? 0;
+        totales.depPeriodo += depPeriodo ?? 0;
+        totales.costoTotal += costoTotal ?? 0;
+        totales.depTotal += depTotal ?? 0;
+
         return [
           String(idx + 1),
           codigoActivo != null ? `OJ-02-${codigoActivo}` : "—",
@@ -178,6 +248,15 @@ export const useReporteFaltantesActivo = () => {
           String(ubicacionMap[ambCode] || ambCode || "—"),
           String(responsableNameOf(ciRaw)),
           ciRaw || "—",
+          fmtMoney(costoInicial),
+          fmtMoney(depAcum),
+          fmtMoney(costoActualizado),
+          fmtMoney(depActualizada),
+          fmtMoney(depAcumTotal),
+          fmtMes(depMes),
+          fmtMoney(depPeriodo),
+          fmtMoney(costoTotal),
+          fmtMoney(depTotal),
         ];
       });
 
@@ -196,25 +275,34 @@ export const useReporteFaltantesActivo = () => {
 
       autoTable(doc, {
         startY: 26,
-        head: [["N°", "Código Activo", "Rubro", "Tipo Rubro", "Descripción", "Ubicación", "Responsable", "Carnet"]],
+        head: [["N°", "Código Activo", "Rubro", "Tipo Rubro", "Descripción", "Ubicación", "Responsable", "Carnet", ...FALTANTES_DEP_HEADERS]],
         body,
-        foot: [["", "", "", "", "", "", "TOTAL", String(allActivos.length)]],
+        foot: [["", "", "", "", "", "", "TOTAL", String(allActivos.length), fmtMoney(totales.costoInicial), fmtMoney(totales.depAcum), fmtMoney(totales.costoActualizado), fmtMoney(totales.depActualizada), fmtMoney(totales.depAcumTotal), "", fmtMoney(totales.depPeriodo), fmtMoney(totales.costoTotal), fmtMoney(totales.depTotal)]],
         showFoot: "lastPage",
         theme: "striped",
-        styles: { font: "helvetica", fontSize: 7, cellPadding: 1.5, overflow: "linebreak", valign: "middle" },
-        headStyles: { fillColor: [16, 70, 140], textColor: [255, 255, 255], halign: "center", fontStyle: "bold", fontSize: 7 },
-        footStyles: { fillColor: [230, 240, 255], textColor: [16, 70, 140], halign: "center", fontStyle: "bold", fontSize: 8 },
+        styles: { font: "helvetica", fontSize: 6, cellPadding: 1, overflow: "linebreak", valign: "middle" },
+        headStyles: { fillColor: [16, 70, 140], textColor: [255, 255, 255], halign: "center", fontStyle: "bold", fontSize: 6 },
+        footStyles: { fillColor: [230, 240, 255], textColor: [16, 70, 140], halign: "center", fontStyle: "bold", fontSize: 7 },
         columnStyles: {
-          0: { cellWidth: 10, halign: "center" },
-          1: { cellWidth: 22, halign: "center" },
-          2: { cellWidth: 32, halign: "left" },
-          3: { cellWidth: 34, halign: "left" },
-          4: { cellWidth: 60, halign: "left" },
-          5: { cellWidth: 50, halign: "left" },
-          6: { cellWidth: 40, halign: "left" },
-          7: { cellWidth: 20, halign: "center" },
+          0: { cellWidth: 7, halign: "center" },
+          1: { cellWidth: 12, halign: "center" },
+          2: { cellWidth: 12, halign: "left" },
+          3: { cellWidth: 12, halign: "left" },
+          4: { cellWidth: 26, halign: "left" },
+          5: { cellWidth: 20, halign: "left" },
+          6: { cellWidth: 16, halign: "left" },
+          7: { cellWidth: 12, halign: "center" },
+          8: { cellWidth: 12, halign: "right" },
+          9: { cellWidth: 12, halign: "right" },
+          10: { cellWidth: 12, halign: "right" },
+          11: { cellWidth: 12, halign: "right" },
+          12: { cellWidth: 12, halign: "right" },
+          13: { cellWidth: 10, halign: "right" },
+          14: { cellWidth: 12, halign: "right" },
+          15: { cellWidth: 12, halign: "right" },
+          16: { cellWidth: 12, halign: "right" },
         },
-        margin: { top: 26, left: 8, right: 8 },
+        margin: { top: 26, left: 6, right: 6 },
       });
 
       const totalPages = doc.getNumberOfPages();

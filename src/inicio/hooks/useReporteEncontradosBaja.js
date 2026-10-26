@@ -90,17 +90,21 @@ export const useReporteEncontradosBaja = () => {
   const enAlta = options?.enAlta === true;
   const estabanEnBaja = options?.estabanEnBaja === true;
   const obsoleto = options?.obsoleto === true;
+  const faltantes = options?.faltantes === true;
   const recalcular = options?.recalcular === true;
   const todoRevaluo = options?.todoRevaluo === true;
   const revaluo2553 = options?.revaluo2553 === true;
   const revaluo1355 = options?.revaluo1355 === true;
   const encontradosFisicamente = options?.encontradosFisicamente === true;
   const encontradosEnBajaFisicamente = options?.encontradosEnBajaFisicamente === true;
+  // Obsoleto y Faltantes comparten las 12 columnas de depreciación y el ajuste
+  // de Valor Neto negativo.
+  const conDep = obsoleto || faltantes;
     setIsGenerating(true);
     try {
       toast({ title: "Generando Encontrados en Estado Baja", description: "Cargando catálogos..." });
 
-      const paramDepPromise = obsoleto
+      const paramDepPromise = conDep
         ? supabase
             .from("act_param_depreciacion")
             .select("rubro,tasa_anual")
@@ -197,7 +201,7 @@ export const useReporteEncontradosBaja = () => {
           // AND esactivo=false (solo cuando soloNoActivos)
           let query = supabase
             .from("act_activos")
-            .select(`${ACTIVO_COLUMNS},artemisaaltabaja,esactivo,estadoconservacion,activonuevo,pararevaluo,valorrevaluo${obsoleto ? ",saldoinicial_exp,depacum_exp,pordepanu,actdepacum_exp,depacumtotal_exp,costactuali_exp" : ""}`);
+            .select(`${ACTIVO_COLUMNS},artemisaaltabaja,esactivo,estadoconservacion,activonuevo,pararevaluo,valorrevaluo${conDep ? ",saldoinicial_exp,depacum_exp,pordepanu,actdepacum_exp,depacumtotal_exp,costactuali_exp" : ""}`);
           if (todoRevaluo) {
             // OR exacto de los 3 grupos de revalúo. Sin los filtros base globales:
             // el grupo 3 solo exige activonuevo=true.
@@ -206,6 +210,11 @@ export const useReporteEncontradosBaja = () => {
               "and(codigoactivo.lte.43753,artemisaaltabaja.eq.1,pararevaluo.eq.true,activonuevo.eq.false,estadoconservacion.neq.MALO)",
               "activonuevo.eq.true",
             ].join(","));
+          } else if (faltantes) {
+            // Mismo criterio que FALTANTES EN ESTADO ACTIVO:
+            // codigoactivo <= 43753 y artemisaaltabaja=1 (sin filtro ultimoregistro).
+            // El estadoinventario NULL/vacío se refuerza en cliente.
+            query = query.lte("codigoactivo", 43753).eq("artemisaaltabaja", 1);
           } else {
             query = query
               .lte("codigoactivo", 43753)
@@ -261,6 +270,13 @@ export const useReporteEncontradosBaja = () => {
           const grupo3 = esActivoNuevo;
 
           return grupo1 || grupo2 || grupo3;
+        }
+        if (faltantes) {
+          const estInv = String(a.estadoinventario ?? a.estadoInventario ?? "").trim();
+          if (estInv !== "") return false;
+          const v = a.artemisaaltabaja ?? a.artemisaAltaBaja;
+          const codigoActivo = Number(a.codigoActivo ?? a.codigoactivo ?? 0);
+          return Number(v) === 1 && codigoActivo <= 43753;
         }
         const estInv = String(a.estadoinventario ?? a.estadoInventario ?? "").trim();
         if (estInv === "") return false;
@@ -368,7 +384,7 @@ export const useReporteEncontradosBaja = () => {
         const tipoDesc = tipoRubroDescMap[tipoRubroAct] ?? tipoRubroDescMap[String(tipoRubroAct)] ?? "—";
         const ambCode = String(a.codigoAmbiente ?? a.codigoambiente ?? "").trim();
         const ciRaw = String(a.cirun ?? "").trim();
-        const depValues = obsoleto ? (() => {
+        const depValues = conDep ? (() => {
           const costoInicial = parseNum(a.saldoInicialExp ?? a.saldoinicial_exp);
           const depAcum = parseNum(a.depAcumExp ?? a.depacum_exp);
           const costoActualizado = parseNum(a.porDepAnu ?? a.pordepanu);
@@ -444,7 +460,7 @@ export const useReporteEncontradosBaja = () => {
       addLogo(doc);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(13);
-      doc.text(encontradosEnBajaFisicamente ? "ENCONTRADOS EN BAJA FISICAMENTE - ÓRGANO JUDICIAL" : encontradosFisicamente ? "ENCONTRADOS FISICAMENTE - ÓRGANO JUDICIAL" : revaluo1355 ? "REVALUO 1355 - ÓRGANO JUDICIAL" : revaluo2553 ? "REVALUO 2553 - ÓRGANO JUDICIAL" : todoRevaluo ? "TODO REVALUO - ÓRGANO JUDICIAL" : recalcular && obsoleto ? "RECALCULAR OBSOLETO - ÓRGANO JUDICIAL" : obsoleto ? "OBSOLETO - ÓRGANO JUDICIAL" : estabanEnBaja ? "ACTIVOS QUE ESTABAN EN BAJA - ÓRGANO JUDICIAL" : enAlta ? "ENCONTRADO BAJA SI SON ACTIVOS - ÓRGANO JUDICIAL" : soloActivos ? "ENCONTRADO BAJA SI SON ACTIVOS - ÓRGANO JUDICIAL" : soloNoActivos ? "ENCONTRADOS BAJA NO SON ACTIVOS - ÓRGANO JUDICIAL" : "ENCONTRADOS EN ESTADO BAJA - ÓRGANO JUDICIAL", pageWidth / 2, 16, { align: "center" });
+      doc.text(encontradosEnBajaFisicamente ? "ENCONTRADOS EN BAJA FISICAMENTE - ÓRGANO JUDICIAL" : encontradosFisicamente ? "ENCONTRADOS FISICAMENTE - ÓRGANO JUDICIAL" : revaluo1355 ? "REVALUO 1355 - ÓRGANO JUDICIAL" : revaluo2553 ? "REVALUO 2553 - ÓRGANO JUDICIAL" : todoRevaluo ? "TODO REVALUO - ÓRGANO JUDICIAL" : recalcular && faltantes ? "RECALCULAR FALTANTES - ÓRGANO JUDICIAL" : faltantes ? "FALTANTES EN ESTADO ACTIVO - ÓRGANO JUDICIAL" : recalcular && obsoleto ? "RECALCULAR OBSOLETO - ÓRGANO JUDICIAL" : obsoleto ? "OBSOLETO - ÓRGANO JUDICIAL" : estabanEnBaja ? "ACTIVOS QUE ESTABAN EN BAJA - ÓRGANO JUDICIAL" : enAlta ? "ENCONTRADO BAJA SI SON ACTIVOS - ÓRGANO JUDICIAL" : soloActivos ? "ENCONTRADO BAJA SI SON ACTIVOS - ÓRGANO JUDICIAL" : soloNoActivos ? "ENCONTRADOS BAJA NO SON ACTIVOS - ÓRGANO JUDICIAL" : "ENCONTRADOS EN ESTADO BAJA - ÓRGANO JUDICIAL", pageWidth / 2, 16, { align: "center" });
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
       doc.text(`Total activos: ${allActivos.length}`, pageWidth / 2, 21, { align: "center" });
@@ -454,13 +470,13 @@ export const useReporteEncontradosBaja = () => {
         head: [[
           "N°", "Código Activo", "Rubro", "Tipo Rubro", "Descripción", "Ubicación", "Responsable", "Carnet",
           ...(todoRevaluo ? ["Valor Revalúo", "Años Asignados"] : []),
-          ...(obsoleto ? OBSOLETO_DEP_HEADERS : []),
+          ...(conDep ? OBSOLETO_DEP_HEADERS : []),
         ]],
         body,
         foot: [[
           "", "", "", "", "", "", "TOTAL", String(allActivos.length),
           ...(todoRevaluo ? [fmtMoney(totalRevaluo), ""] : []),
-          ...(obsoleto ? [
+          ...(conDep ? [
             fmtMoney(totalesObsoleto.costoInicial),
             fmtMoney(totalesObsoleto.depAcum),
             fmtMoney(totalesObsoleto.costoActualizado),
@@ -477,10 +493,10 @@ export const useReporteEncontradosBaja = () => {
         ]],
         showFoot: "lastPage",
         theme: "striped",
-        styles: { font: "helvetica", fontSize: obsoleto ? 6 : 7, cellPadding: obsoleto ? 1 : 1.5, overflow: "linebreak", valign: "middle" },
-        headStyles: { fillColor: [16, 70, 140], textColor: [255, 255, 255], halign: "center", fontStyle: "bold", fontSize: obsoleto ? 6 : 7 },
-        footStyles: { fillColor: [230, 240, 255], textColor: [16, 70, 140], halign: "center", fontStyle: "bold", fontSize: obsoleto ? 7 : 8 },
-        columnStyles: obsoleto
+        styles: { font: "helvetica", fontSize: conDep ? 6 : 7, cellPadding: conDep ? 1 : 1.5, overflow: "linebreak", valign: "middle" },
+        headStyles: { fillColor: [16, 70, 140], textColor: [255, 255, 255], halign: "center", fontStyle: "bold", fontSize: conDep ? 6 : 7 },
+        footStyles: { fillColor: [230, 240, 255], textColor: [16, 70, 140], halign: "center", fontStyle: "bold", fontSize: conDep ? 7 : 8 },
+        columnStyles: conDep
           ? {
               0: { cellWidth: 7, halign: "center" },
               1: { cellWidth: 12, halign: "center" },
@@ -539,7 +555,7 @@ export const useReporteEncontradosBaja = () => {
         doc.text(`Página ${i} de ${totalPages}`, pageWidth / 2, pageHeight - 7, { align: "center" });
       }
 
-      doc.save(encontradosEnBajaFisicamente ? "Encontrados_En_Baja_Fisicamente.pdf" : encontradosFisicamente ? "Encontrados_Fisicamente.pdf" : revaluo1355 ? "Revaluo_1355.pdf" : revaluo2553 ? "Revaluo_2553.pdf" : todoRevaluo ? "Todo_Revaluo.pdf" : recalcular && obsoleto ? "Recalcular_Obsoleto.pdf" : obsoleto ? "Obsoleto.pdf" : estabanEnBaja ? "Activos_Que_Estaban_En_Baja.pdf" : enAlta ? "Encontrado_Baja_Si_Son_Activos.pdf" : soloActivos ? "Encontrado_Baja_Si_Son_Activos.pdf" : soloNoActivos ? "Encontrados_Baja_No_Son_Activos.pdf" : "Encontrados_Estado_Baja.pdf");
+      doc.save(encontradosEnBajaFisicamente ? "Encontrados_En_Baja_Fisicamente.pdf" : encontradosFisicamente ? "Encontrados_Fisicamente.pdf" : revaluo1355 ? "Revaluo_1355.pdf" : revaluo2553 ? "Revaluo_2553.pdf" : todoRevaluo ? "Todo_Revaluo.pdf" : recalcular && faltantes ? "Recalcular_Faltantes.pdf" : faltantes ? "Faltantes_Estado_Activo.pdf" : recalcular && obsoleto ? "Recalcular_Obsoleto.pdf" : obsoleto ? "Obsoleto.pdf" : estabanEnBaja ? "Activos_Que_Estaban_En_Baja.pdf" : enAlta ? "Encontrado_Baja_Si_Son_Activos.pdf" : soloActivos ? "Encontrado_Baja_Si_Son_Activos.pdf" : soloNoActivos ? "Encontrados_Baja_No_Son_Activos.pdf" : "Encontrados_Estado_Baja.pdf");
       toast({ title: "Reporte generado", description: `Se exportaron ${allActivos.length} activos.` });
     } catch (err) {
       console.error("Error generando Encontrados en Estado Baja", err);

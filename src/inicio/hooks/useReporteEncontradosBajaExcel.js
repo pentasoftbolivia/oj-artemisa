@@ -71,17 +71,19 @@ export const useReporteEncontradosBajaExcel = () => {
   const enAlta = options?.enAlta === true;
   const estabanEnBaja = options?.estabanEnBaja === true;
   const obsoleto = options?.obsoleto === true;
+  const faltantes = options?.faltantes === true;
   const recalcular = options?.recalcular === true;
   const todoRevaluo = options?.todoRevaluo === true;
   const revaluo2553 = options?.revaluo2553 === true;
   const revaluo1355 = options?.revaluo1355 === true;
   const encontradosFisicamente = options?.encontradosFisicamente === true;
   const encontradosEnBajaFisicamente = options?.encontradosEnBajaFisicamente === true;
+  const conDep = obsoleto || faltantes;
     setIsGenerating(true);
     try {
       toast({ title: "Generando Encontrados en Estado Baja (Excel)", description: "Cargando catálogos..." });
 
-      const paramDepPromise = obsoleto
+      const paramDepPromise = conDep
         ? supabase
             .from("act_param_depreciacion")
             .select("rubro,tasa_anual")
@@ -178,7 +180,7 @@ export const useReporteEncontradosBajaExcel = () => {
           // AND esactivo=false (solo cuando soloNoActivos)
           let query = supabase
             .from("act_activos")
-            .select(`${ACTIVO_COLUMNS},artemisaaltabaja,esactivo,estadoconservacion,activonuevo,pararevaluo,valorrevaluo${obsoleto ? ",saldoinicial_exp,depacum_exp,pordepanu,actdepacum_exp,depacumtotal_exp,costactuali_exp" : ""}`);
+            .select(`${ACTIVO_COLUMNS},artemisaaltabaja,esactivo,estadoconservacion,activonuevo,pararevaluo,valorrevaluo${conDep ? ",saldoinicial_exp,depacum_exp,pordepanu,actdepacum_exp,depacumtotal_exp,costactuali_exp" : ""}`);
           if (todoRevaluo) {
             // OR exacto de los 3 grupos de revalúo. Sin los filtros base globales:
             // el grupo 3 solo exige activonuevo=true.
@@ -187,6 +189,8 @@ export const useReporteEncontradosBajaExcel = () => {
               "and(codigoactivo.lte.43753,artemisaaltabaja.eq.1,pararevaluo.eq.true,activonuevo.eq.false,estadoconservacion.neq.MALO)",
               "activonuevo.eq.true",
             ].join(","));
+          } else if (faltantes) {
+            query = query.lte("codigoactivo", 43753).eq("artemisaaltabaja", 1);
           } else {
             query = query
               .lte("codigoactivo", 43753)
@@ -240,6 +244,13 @@ export const useReporteEncontradosBajaExcel = () => {
           const grupo3 = esActivoNuevo;
 
           return grupo1 || grupo2 || grupo3;
+        }
+        if (faltantes) {
+          const estInv = String(a.estadoinventario ?? a.estadoInventario ?? "").trim();
+          if (estInv !== "") return false;
+          const v = a.artemisaaltabaja ?? a.artemisaAltaBaja;
+          const codigoActivo = Number(a.codigoActivo ?? a.codigoactivo ?? 0);
+          return Number(v) === 1 && codigoActivo <= 43753;
         }
         const estInv = String(a.estadoinventario ?? a.estadoInventario ?? "").trim();
         if (estInv === "") return false;
@@ -318,7 +329,7 @@ export const useReporteEncontradosBajaExcel = () => {
       allActivos.sort((a, b) => Number(a.codigoActivo ?? a.codigoactivo ?? 0) - Number(b.codigoActivo ?? b.codigoactivo ?? 0));
 
       if (allActivos.length === 0) {
-        toast({ title: "Sin datos", description: "No hay activos encontrados en estado baja con ese criterio.", variant: "destructive" });
+        toast({ title: "Sin datos", description: faltantes ? "No hay activos faltantes en estado activo con ese criterio." : "No hay activos encontrados en estado baja con ese criterio.", variant: "destructive" });
         return;
       }
 
@@ -351,7 +362,7 @@ export const useReporteEncontradosBajaExcel = () => {
         const revaluoNum = revaluoRaw === null || revaluoRaw === undefined || String(revaluoRaw).trim() === ""
           ? ""
           : Number(revaluoRaw);
-        const depValues = obsoleto ? (() => {
+        const depValues = conDep ? (() => {
           const costoInicial = parseNum(a.saldoInicialExp ?? a.saldoinicial_exp);
           const depAcum = parseNum(a.depAcumExp ?? a.depacum_exp);
           const costoActualizado = parseNum(a.porDepAnu ?? a.pordepanu);
@@ -420,7 +431,7 @@ export const useReporteEncontradosBajaExcel = () => {
       });
 
       const sheetData = [
-        [encontradosEnBajaFisicamente ? "ENCONTRADOS EN BAJA FISICAMENTE - ÓRGANO JUDICIAL" : encontradosFisicamente ? "ENCONTRADOS FISICAMENTE - ÓRGANO JUDICIAL" : revaluo1355 ? "REVALUO 1355 - ÓRGANO JUDICIAL" : revaluo2553 ? "REVALUO 2553 - ÓRGANO JUDICIAL" : todoRevaluo ? "TODO REVALUO - ÓRGANO JUDICIAL" : recalcular && obsoleto ? "RECALCULAR OBSOLETO - ÓRGANO JUDICIAL" : obsoleto ? "OBSOLETO - ÓRGANO JUDICIAL" : estabanEnBaja ? "ACTIVOS QUE ESTABAN EN BAJA - ÓRGANO JUDICIAL" : enAlta ? "ENCONTRADO BAJA SI SON ACTIVOS - ÓRGANO JUDICIAL" : soloActivos ? "ENCONTRADO BAJA SI SON ACTIVOS - ÓRGANO JUDICIAL" : soloNoActivos ? "ENCONTRADOS BAJA NO SON ACTIVOS - ÓRGANO JUDICIAL" : "ENCONTRADOS EN ESTADO BAJA - ÓRGANO JUDICIAL"],
+        [recalcular && faltantes ? "RECALCULAR FALTANTES - ÓRGANO JUDICIAL" : faltantes ? "FALTANTES EN ESTADO ACTIVO - ÓRGANO JUDICIAL" : recalcular && obsoleto ? "RECALCULAR OBSOLETO - ÓRGANO JUDICIAL" : obsoleto ? "OBSOLETO - ÓRGANO JUDICIAL" : encontradosEnBajaFisicamente ? "ENCONTRADOS EN BAJA FISICAMENTE - ÓRGANO JUDICIAL" : encontradosFisicamente ? "ENCONTRADOS FISICAMENTE - ÓRGANO JUDICIAL" : revaluo1355 ? "REVALUO 1355 - ÓRGANO JUDICIAL" : revaluo2553 ? "REVALUO 2553 - ÓRGANO JUDICIAL" : todoRevaluo ? "TODO REVALUO - ÓRGANO JUDICIAL" : estabanEnBaja ? "ACTIVOS QUE ESTABAN EN BAJA - ÓRGANO JUDICIAL" : enAlta ? "ENCONTRADO BAJA SI SON ACTIVOS - ÓRGANO JUDICIAL" : soloActivos ? "ENCONTRADO BAJA SI SON ACTIVOS - ÓRGANO JUDICIAL" : soloNoActivos ? "ENCONTRADOS BAJA NO SON ACTIVOS - ÓRGANO JUDICIAL" : "ENCONTRADOS EN ESTADO BAJA - ÓRGANO JUDICIAL"],
         [`Total activos: ${allActivos.length}`],
         [`Fecha: ${dateStr}`],
         [],
@@ -429,7 +440,7 @@ export const useReporteEncontradosBajaExcel = () => {
         [
           "", "", "", "", "", "", "TOTAL", allActivos.length,
           ...(todoRevaluo ? [totalRevaluo, ""] : []),
-          ...(obsoleto ? [
+          ...(conDep ? [
             totalesObsoleto.costoInicial,
             totalesObsoleto.depAcum,
             totalesObsoleto.costoActualizado,
@@ -447,7 +458,7 @@ export const useReporteEncontradosBajaExcel = () => {
       ];
 
       const ws = XLSX.utils.aoa_to_sheet(sheetData);
-      ws["!cols"] = obsoleto
+      ws["!cols"] = conDep
         ? [
             { wch: 6 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 26 }, { wch: 14 }, { wch: 12 }, { wch: 10 },
             { wch: 12 }, { wch: 12 }, { wch: 11 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 13 }, { wch: 12 },
@@ -463,7 +474,7 @@ export const useReporteEncontradosBajaExcel = () => {
           if (cell && cell.t === "n") cell.z = moneyFormat;
         }
       }
-      if (obsoleto) {
+      if (conDep) {
         const moneyFormat = "0.0000";
         const mesFormat = "0.00000000";
         for (let i = 0; i <= allActivos.length; i++) {
@@ -479,8 +490,8 @@ export const useReporteEncontradosBajaExcel = () => {
       ws["!pageSetup"] = { orientation: "landscape", paperSize: 1, fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
       ws["!margins"] = { left: 0.25, right: 0.25, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 };
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, encontradosEnBajaFisicamente ? "Encontrados En Baja Fisicamente" : encontradosFisicamente ? "Encontrados Fisicamente" : revaluo1355 ? "Revaluo 1355" : revaluo2553 ? "Revaluo 2553" : todoRevaluo ? "Todo Revaluo" : recalcular && obsoleto ? "Recalcular Obsoleto" : obsoleto ? "Obsoleto" : estabanEnBaja ? "Activos Baja" : enAlta ? "Encontrado Activos" : soloActivos ? "Encontrado Activos" : soloNoActivos ? "Encontrados No Activos" : "Encontrados Baja");
-      XLSX.writeFile(wb, encontradosEnBajaFisicamente ? `Encontrados_En_Baja_Fisicamente_${dateStr}.xlsx` : encontradosFisicamente ? `Encontrados_Fisicamente_${dateStr}.xlsx` : revaluo1355 ? `Revaluo_1355_${dateStr}.xlsx` : revaluo2553 ? `Revaluo_2553_${dateStr}.xlsx` : todoRevaluo ? `Todo_Revaluo_${dateStr}.xlsx` : recalcular && obsoleto ? `Recalcular_Obsoleto_${dateStr}.xlsx` : obsoleto ? `Obsoleto_${dateStr}.xlsx` : estabanEnBaja ? `Activos_Que_Estaban_En_Baja_${dateStr}.xlsx` : enAlta ? `Encontrado_Baja_Si_Son_Activos_${dateStr}.xlsx` : soloActivos ? `Encontrado_Baja_Si_Son_Activos_${dateStr}.xlsx` : soloNoActivos ? `Encontrados_Baja_No_Son_Activos_${dateStr}.xlsx` : `Encontrados_Estado_Baja_${dateStr}.xlsx`);
+      XLSX.utils.book_append_sheet(wb, ws, encontradosEnBajaFisicamente ? "Encontrados En Baja Fisicamente" : encontradosFisicamente ? "Encontrados Fisicamente" : revaluo1355 ? "Revaluo 1355" : revaluo2553 ? "Revaluo 2553" : todoRevaluo ? "Todo Revaluo" : recalcular && faltantes ? "Recalcular Faltantes" : faltantes ? "Faltantes Estado Activo" : recalcular && obsoleto ? "Recalcular Obsoleto" : obsoleto ? "Obsoleto" : estabanEnBaja ? "Activos Baja" : enAlta ? "Encontrado Activos" : soloActivos ? "Encontrado Activos" : soloNoActivos ? "Encontrados No Activos" : "Encontrados Baja");
+      XLSX.writeFile(wb, encontradosEnBajaFisicamente ? `Encontrados_En_Baja_Fisicamente_${dateStr}.xlsx` : encontradosFisicamente ? `Encontrados_Fisicamente_${dateStr}.xlsx` : revaluo1355 ? `Revaluo_1355_${dateStr}.xlsx` : revaluo2553 ? `Revaluo_2553_${dateStr}.xlsx` : todoRevaluo ? `Todo_Revaluo_${dateStr}.xlsx` : recalcular && faltantes ? `Recalcular_Faltantes_${dateStr}.xlsx` : faltantes ? `Faltantes_Estado_Activo_${dateStr}.xlsx` : recalcular && obsoleto ? `Recalcular_Obsoleto_${dateStr}.xlsx` : obsoleto ? `Obsoleto_${dateStr}.xlsx` : estabanEnBaja ? `Activos_Que_Estaban_En_Baja_${dateStr}.xlsx` : enAlta ? `Encontrado_Baja_Si_Son_Activos_${dateStr}.xlsx` : soloActivos ? `Encontrado_Baja_Si_Son_Activos_${dateStr}.xlsx` : soloNoActivos ? `Encontrados_Baja_No_Son_Activos_${dateStr}.xlsx` : `Encontrados_Estado_Baja_${dateStr}.xlsx`);
 
       toast({ title: "Reporte generado", description: `Se exportaron ${allActivos.length} activos.` });
     } catch (err) {

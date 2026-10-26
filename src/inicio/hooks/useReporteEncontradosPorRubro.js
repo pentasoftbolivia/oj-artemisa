@@ -67,13 +67,14 @@ export const useReporteEncontradosPorRubro = () => {
   const enAlta = options?.enAlta === true;
   const estabanEnBaja = options?.estabanEnBaja === true;
   const obsoleto = options?.obsoleto === true;
+  const faltantes = options?.faltantes === true;
   const recalcular = options?.recalcular === true;
   const todoRevaluo = options?.todoRevaluo === true;
   const revaluo2553 = options?.revaluo2553 === true;
   const revaluo1355 = options?.revaluo1355 === true;
   const encontradosFisicamente = options?.encontradosFisicamente === true;
   const encontradosEnBajaFisicamente = options?.encontradosEnBajaFisicamente === true;
-  const conDetalleDep = recalcular && obsoleto;
+  const conDetalleDep = recalcular && (obsoleto || faltantes);
     setIsGenerating(true);
     try {
       toast({ title: "Generando Encontrados por Rubro", description: "Cargando catálogos..." });
@@ -123,6 +124,8 @@ export const useReporteEncontradosPorRubro = () => {
             "and(codigoactivo.lte.43753,artemisaaltabaja.eq.1,pararevaluo.eq.true,activonuevo.eq.false,estadoconservacion.neq.MALO)",
             "activonuevo.eq.true",
           ].join(","));
+        } else if (faltantes) {
+          query = query.lte("codigoactivo", 43753).eq("artemisaaltabaja", 1);
         } else {
           query = query
             .lte("codigoactivo", 43753)
