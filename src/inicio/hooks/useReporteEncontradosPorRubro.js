@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { LOGO_JPG_DATA_URL } from "@/lib/logoJpgBase64";
 import { ACTIVO_COLUMNS } from "@/lib/activoColumns";
 import { buildParamTasaMap, resolveTasaFromParams } from "../constants/depreciacionConstants";
+import { TODO_REVALUO_OR_FILTER, matchesTodoRevaluo } from "@/lib/todoRevaluo";
 
 const formatError = (err) => {
   if (!err) return "Error desconocido";
@@ -119,11 +120,7 @@ export const useReporteEncontradosPorRubro = () => {
         if (todoRevaluo) {
           // OR exacto de los 3 grupos de revalúo. Sin los filtros base globales:
           // el grupo 3 solo exige activonuevo=true.
-          query = query.or([
-            "and(codigoactivo.lte.43753,artemisaaltabaja.eq.0,ultimoregistro.eq.1,esactivo.eq.true,estadoconservacion.neq.MALO)",
-            "and(codigoactivo.lte.43753,artemisaaltabaja.eq.1,pararevaluo.eq.true,activonuevo.eq.false,estadoconservacion.neq.MALO)",
-            "activonuevo.eq.true",
-          ].join(","));
+          query = query.or(TODO_REVALUO_OR_FILTER);
         } else if (faltantes) {
           query = query.lte("codigoactivo", 43753).eq("artemisaaltabaja", 1);
         } else {
@@ -156,26 +153,7 @@ export const useReporteEncontradosPorRubro = () => {
       }
 
       allActivos = allActivos.filter((a) => {
-        if (todoRevaluo) {
-          const codigoActivo = Number(a.codigoActivo ?? a.codigoactivo ?? 0);
-          const estInv = String(a.estadoinventario ?? a.estadoInventario ?? "").trim();
-          const tieneEstInv = estInv !== "";
-          const esUltimo = String(a.ultimoregistro ?? a.ultimoRegistro ?? "").trim() === "1";
-          const artemisa = Number(a.artemisaaltabaja ?? a.artemisaAltaBaja ?? NaN);
-          const esActivoRaw = a.esactivo ?? a.esActivo;
-          const esActivo = esActivoRaw === true || String(esActivoRaw).trim().toUpperCase() === "TRUE" || Number(esActivoRaw) === 1;
-          const pararevaluoRaw = a.pararevaluo ?? a.paraRevaluo;
-          const esParaRevaluo = pararevaluoRaw === true || String(pararevaluoRaw).trim().toUpperCase() === "TRUE" || Number(pararevaluoRaw) === 1;
-          const activoNuevoRaw = a.activonuevo ?? a.activoNuevo;
-          const esActivoNuevo = activoNuevoRaw === true || String(activoNuevoRaw).trim().toUpperCase() === "TRUE" || Number(activoNuevoRaw) === 1;
-          const esMalo = String(a.estadoconservacion ?? a.estadoConservacion ?? "").trim().toUpperCase() === "MALO";
-
-          const grupo1 = codigoActivo <= 43753 && tieneEstInv && artemisa === 0 && esUltimo && esActivo && !esMalo;
-          const grupo2 = codigoActivo <= 43753 && tieneEstInv && artemisa === 1 && esParaRevaluo && !esActivoNuevo && !esMalo;
-          const grupo3 = esActivoNuevo;
-
-          return grupo1 || grupo2 || grupo3;
-        }
+        if (todoRevaluo) return matchesTodoRevaluo(a);
         const estInv = String(a.estadoinventario ?? a.estadoInventario ?? "").trim();
         if (estInv === "") return false;
         const v = a.artemisaaltabaja ?? a.artemisaAltaBaja;
